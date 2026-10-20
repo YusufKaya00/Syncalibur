@@ -2738,8 +2738,6 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		if logRows < 3 {
 			logRows = 3
 		}
-			logRows = 3
-		}
 
 		maxScroll := 0
 		if totalLogs > logRows {
