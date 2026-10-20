@@ -2864,3 +2864,377 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		}
 	}
 }
+
+// ==============================================================================
+// 8. Automated SemVer & Release Engine (`release`, `version`)
+// ==============================================================================
+
+type SemVerBump int
+
+const (
+	BumpNone SemVerBump = iota
+	BumpPatch
+	BumpMinor
+	BumpMajor
+)
+
+func (b SemVerBump) String() string {
+	switch b {
+	case BumpMajor:
+		return "major"
+	case BumpMinor:
+		return "minor"
+	case BumpPatch:
+		return "patch"
+	default:
+		return "none"
+	}
+}
+
+type CommitInfo struct {
+	Hash        string
+	Author      string
+	Date        string
+	Subject     string
+	Type        string
+	Scope       string
+	IsBreaking  bool
+	Description string
+}
+
+func parseConventionalCommit(subject string) (commitType string, scope string, isBreaking bool, description string) {
+	s := strings.TrimSpace(subject)
+	if strings.HasPrefix(s, "BREAKING CHANGE:") || strings.HasPrefix(s, "BREAKING-CHANGE:") {
+		idx := strings.Index(s, ":")
+		return "feat", "", true, strings.TrimSpace(s[idx+1:])
+	}
+	re := regexp.MustCompile(`^([a-zA-Z0-9_-]+)(?:\(([^)]+)\))?(!)?:\s*(.*)$`)
+	m := re.FindStringSubmatch(s)
+	if m != nil {
+		cType := strings.ToLower(m[1])
+		cScope := m[2]
+		isBreak := m[3] == "!"
+		desc := strings.TrimSpace(m[4])
+		if strings.Contains(desc, "BREAKING CHANGE") || strings.Contains(desc, "BREAKING-CHANGE") {
+			isBreak = true
+		}
+		return cType, cScope, isBreak, desc
+	}
+	return "other", "", false, s
+}
+
+func determineSemVerBump(commits []CommitInfo) SemVerBump {
+	bump := BumpNone
+	for _, c := range commits {
+		if c.IsBreaking {
+			return BumpMajor
+		}
+		if c.Type == "feat" {
+			if bump < BumpMinor {
+				bump = BumpMinor
+			}
+		} else if bump < BumpPatch {
+			bump = BumpPatch
+		}
+	}
+	if bump == BumpNone && len(commits) > 0 {
+		bump = BumpPatch
+	}
+	return bump
+}
+
+func calculateNextVersion(currentTag string, bump SemVerBump) string {
+	tag := strings.TrimPrefix(strings.TrimSpace(currentTag), "v")
+	parts := strings.Split(tag, ".")
+	major, minor, patch := 1, 0, 0
+	if len(parts) == 3 {
+		maj, err1 := strconv.Atoi(parts[0])
+		min, err2 := strconv.Atoi(parts[1])
+		pat, err3 := strconv.Atoi(parts[2])
+		if err1 == nil && err2 == nil && err3 == nil {
+			major, minor, patch = maj, min, pat
+		}
+	} else if currentTag == "" {
+		if bump == BumpMajor {
+			return "v2.0.0"
+		} else if bump == BumpMinor {
+			return "v1.1.0"
+		}
+		return "v1.0.1"
+	}
+
+	switch bump {
+	case BumpMajor:
+		major++
+		minor = 0
+		patch = 0
+	case BumpMinor:
+		minor++
+		patch = 0
+	case BumpPatch:
+		patch++
+	}
+
+	return fmt.Sprintf("v%d.%d.%d", major, minor, patch)
+}
+
+func generateChangelog(version string, date string, commits []CommitInfo) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("## [%s] - %s\n\n", version, date))
+
+	var features, shields, fixes, perfs, tooling, others []string
+
+	for _, c := range commits {
+		hashStr := ""
+		if c.Hash != "" {
+			h := c.Hash
+			if len(h) > 7 {
+				h = h[:7]
+			}
+			hashStr = fmt.Sprintf(" ([`%s`](https://github.com/YusufKaya00/Syncalibur/commit/%s))", h, h)
+		}
+		item := ""
+		if c.Scope != "" {
+			item = fmt.Sprintf("- **%s**: %s%s", c.Scope, c.Description, hashStr)
+		} else {
+			item = fmt.Sprintf("- %s%s", c.Description, hashStr)
+		}
+
+		switch strings.ToLower(c.Type) {
+		case "feat":
+			features = append(features, item)
+		case "shield", "security", "entropy":
+			shields = append(shields, item)
+		case "fix":
+			fixes = append(fixes, item)
+		case "perf":
+			perfs = append(perfs, item)
+		case "ui":
+			perfs = append(perfs, item)
+		case "docs", "test", "chore", "build", "ci", "refactor":
+			tooling = append(tooling, item)
+		default:
+			others = append(others, item)
+		}
+	}
+
+	if len(features) > 0 {
+		sb.WriteString("### 🚀 Features\n")
+		for _, f := range features {
+			sb.WriteString(f + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(shields) > 0 {
+		sb.WriteString("### 🛡️ Shields & Pre-flight\n")
+		for _, s := range shields {
+			sb.WriteString(s + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(fixes) > 0 {
+		sb.WriteString("### 🐛 Bug Fixes & Stability\n")
+		for _, fix := range fixes {
+			sb.WriteString(fix + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(perfs) > 0 {
+		sb.WriteString("### ⚡ Performance & TUI Polish\n")
+		for _, p := range perfs {
+			sb.WriteString(p + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(tooling) > 0 {
+		sb.WriteString("### 📚 Tooling, Tests & Fleet\n")
+		for _, t := range tooling {
+			sb.WriteString(t + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	if len(others) > 0 {
+		sb.WriteString("### 📦 Other Improvements\n")
+		for _, o := range others {
+			sb.WriteString(o + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+func loadLogoLines(logoPath string) []string {
+	data, err := os.ReadFile(logoPath)
+	if err == nil {
+		rawLines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+		var lines []string
+		for _, l := range rawLines {
+			lines = append(lines, l)
+		}
+		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+			lines = lines[:len(lines)-1]
+		}
+		if len(lines) > 0 {
+			return lines
+		}
+	}
+	fallback := []string{
+		"               ▗▄▄▄▄▟▛▖▖▄▄▄▄▖               ",
+		"          ▗▄▟▛▀▀▀▘▘▀▘▝▌▌▀▖▀▀▀▀▛▙▄▖          ",
+		"       ▗▄▞▀▘▘▘▘▘▘▛▘▞▘▘▝▝▞▌▖▘▘▘▘▝▀▀▀▄        ",
+		"     ▗▟▛▘▘▘▘▘▘▘▛▘▛▌▌▘▘▘▝▌▖▞▝▖▘▛▀▀▘▝▀▞▙▖     ",
+		"    ▟▛▘▀▀▀▀▛▛▛▀▞▀▌▌▌▖▖▛▀▌▌▀▀▘▀▛▛▀▛▀▀▝▀▞▄    ",
+		"  ▗▘▀▘▖▛▀▖▛▖▘▖▘▀▝▖▛▀▛▖▛▖▖▛▀▀▀▘▘▛▛▀▖▛▀▖▝▖▙▖  ",
+		" ▗▘▘▖▛▘▝▀▀▌▀▖▀▀▖▀▝▛▞▝▝▌▘▛▝▌▛▘▀▖▘▘▖▀▘▛▝▀▝▖▝▖ ",
+		" ▘▌▀▞▛▞▀▀▛▘▛▝▖▖▘▀▝▛▞▘▌▝▝▖▀▛▛▛▀▘▛▛▘▖▝▀▖▝▖▝▖▙ ",
+		"▐▀▀▀▀▀▀▘▛▘▝▀▌▝▝▖▘▌▛▘▛▛▀▝▖▀▝▀▀▛▘▀▀▘▛▌▌▛▀▀▀▘▀▌",
+		"▌▖▀▀▘▛▖▘▛▀▖▝▀▀▀▝▘▌▀▛▀▘▀▀▀▀▀▛▀▝▀▀▀▛▀▀▝▛▀▛▀▀▛▙",
+		"▌▌▌▀▀▝▀▖▀▀▀▀▞▖▝▀▀▖▀▛▀▀▀▀▀▞▖▛▀▀▛▘▀▀▀▀▛▀▘▀▀▌▌▌",
+		"▌▌▌▀▀▀▝▀▀▖▛▀▀▀▀▀▀▌▌▛▀▘▘▀▀▝▌▛▀▛▀▀▀▀▀▀▀▘▘▀▀▌▘▌",
+		"▜▝▝▖▀▀▀▀▝▛▝▀▖▘▝▖▘▘▖▖▖▝▀▛▘▘▘▘▘▘▘▘▀▘▌▌▀▀▀▀▛▛▘▌",
+		"▝▖▖▖▀▀▀▀▀▝▝▛▖▀▘▝▖▘▞▞▀▀▀▀▀▖▌▛▀▘▀▛▖▛▛▀▀▀▀▛▛▘▛ ",
+		" ▝▝▖▖▀▀▀▀▀▝▛▀▌▛▀▛▞▝▖▞▖▘▘▞▞▛▖▌▖▞▛▘▖▀▀▀▀▀▘▘▛▘ ",
+		"  ▝▖▖▝▀▀▀▀▛▞▝▖▝▀▝▀▘▌▌▌▛▀▝▝▛▘▝▖▛▀▛▖▀▀▀▛▛▘▛▘  ",
+		"   ▝▖▝▖▛▛▖▀▖▖▖▀▖▀▀▖▀▝▀▛▘▀▞▀▀▘▀▞▞▞▀▛▀▝▛▘▛▘   ",
+		"     ▀▖▀▖▀▖▀▝▝▖▀▀▝▀▝▖▌▘▛▘▛▀▀▀▛▀▀▀▞▀▞▘▛▀     ",
+		"       ▀▜▝▀▖▀▀▀▖▀▀▀▖▛▀▖▀▛▀▀▀▞▀▀▀▛▀▞▛▀       ",
+		"          ▀▜▞▀▀▀▝▀▀▀▘▀▛▘▀▀▀▘▀▀▀▀▛▀          ",
+		"              ▀▀▀▀▀▀▀▝▀▀▀▀▀▀▀▀              ",
+	}
+	return fallback
+}
+
+func printVersion() {
+	hash := "dev"
+	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+	if err == nil {
+		hash = strings.TrimSpace(string(out))
+	}
+	fmt.Printf("%s%sSyncalibur %s%s (%s/%s)\n", cBold, cCyan, SyncaliburVersion, cReset, runtime.GOOS, runtime.GOARCH)
+	fmt.Printf("%sMilestone    :%s %s%s%s\n", cGold, cReset, cWhite, SyncaliburMilestone, cReset)
+	fmt.Printf("%sGit Commit   :%s %s\n", cGold, cReset, hash)
+	fmt.Printf("%sArchitecture :%s Autonomous Multi-Remote Git Synchronization & Pre-flight Code Guard\n", cGold, cReset)
+}
+
+func runRelease(repoRoot string, mode string, dryRun bool) error {
+	tagCmd := exec.Command("git", "-C", repoRoot, "describe", "--tags", "--abbrev=0")
+	tagOut, _ := tagCmd.Output()
+	lastTag := strings.TrimSpace(string(tagOut))
+
+	logArgs := []string{"-C", repoRoot, "log", "--pretty=format:%H%x09%an%x09%ad%x09%s", "--date=short"}
+	if lastTag != "" {
+		logArgs = append(logArgs, fmt.Sprintf("%s..HEAD", lastTag))
+	} else {
+		logArgs = append(logArgs, "HEAD")
+	}
+
+	cmdLog := exec.Command("git", logArgs...)
+	out, err := cmdLog.Output()
+	if err != nil {
+		return fmt.Errorf("failed to read git log: %w", err)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	var commits []CommitInfo
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if l == "" {
+			continue
+		}
+		parts := strings.Split(l, "\t")
+		if len(parts) >= 4 {
+			cType, cScope, isBreak, cDesc := parseConventionalCommit(parts[3])
+			commits = append(commits, CommitInfo{
+				Hash:        parts[0],
+				Author:      parts[1],
+				Date:        parts[2],
+				Subject:     parts[3],
+				Type:        cType,
+				Scope:       cScope,
+				IsBreaking:  isBreak,
+				Description: cDesc,
+			})
+		}
+	}
+
+	if len(commits) == 0 && lastTag != "" {
+		fmt.Printf("%s%s No new commits since %s. Everything is up to date.%s\n", cAmber, iconWarn, lastTag, cReset)
+		return nil
+	}
+
+	var bump SemVerBump
+	switch strings.ToLower(mode) {
+	case "major":
+		bump = BumpMajor
+	case "minor":
+		bump = BumpMinor
+	case "patch":
+		bump = BumpPatch
+	default:
+		bump = determineSemVerBump(commits)
+		if lastTag == "" {
+			bump = BumpMajor
+		}
+	}
+
+	nextVersion := calculateNextVersion(lastTag, bump)
+	today := time.Now().Format("2006-01-02")
+	changelogDraft := generateChangelog(nextVersion, today, commits)
+
+	if dryRun {
+		fmt.Printf("%s%s%s SYNCALIBUR RELEASE ENGINE (DRY RUN)%s\n", cCyan, cBold, iconDiamond, cReset)
+		fmt.Printf("  • Current Tag : %s\n", func() string {
+			if lastTag == "" {
+				return "(none - initial release)"
+			}
+			return lastTag
+		}())
+		fmt.Printf("  • Bump Type   : %s\n", bump.String())
+		fmt.Printf("  • Target Ver  : %s%s%s%s\n", cGreen, cBold, nextVersion, cReset)
+		fmt.Printf("  • Commits     : %d\n\n", len(commits))
+		fmt.Printf("%s--- CHANGELOG PREVIEW ---%s\n%s\n", cGold, cReset, changelogDraft)
+		return nil
+	}
+
+	changelogFile := filepath.Join(repoRoot, "CHANGELOG.md")
+	var finalChangelog string
+	if existingData, err := os.ReadFile(changelogFile); err == nil {
+		content := string(existingData)
+		if strings.HasPrefix(content, "# Changelog\n") {
+			rest := strings.TrimPrefix(content, "# Changelog\n")
+			finalChangelog = fmt.Sprintf("# Changelog\n\n%s\n%s", changelogDraft, strings.TrimSpace(rest))
+		} else {
+			finalChangelog = fmt.Sprintf("# Changelog\n\n%s\n%s", changelogDraft, strings.TrimSpace(content))
+		}
+	} else {
+		finalChangelog = fmt.Sprintf("# Changelog\n\nAll notable changes to Syncalibur will be documented in this file.\n\n%s", changelogDraft)
+	}
+
+	if err := os.WriteFile(changelogFile, []byte(finalChangelog), 0644); err != nil {
+		return fmt.Errorf("failed to write CHANGELOG.md: %w", err)
+	}
+
+	_ = exec.Command("git", "-C", repoRoot, "add", "CHANGELOG.md").Run()
+	commitMsg := fmt.Sprintf("chore(release): bump version to %s", nextVersion)
+	_ = exec.Command("git", "-C", repoRoot, "commit", "-m", commitMsg).Run()
+
+	tagMsg := fmt.Sprintf("Release %s - Syncalibur Autonomous Engine", nextVersion)
+	if err := exec.Command("git", "-C", repoRoot, "tag", "-a", nextVersion, "-m", tagMsg).Run(); err != nil {
+		return fmt.Errorf("failed to create tag %s: %w", nextVersion, err)
+	}
+
+	remotesOut, _ := exec.Command("git", "-C", repoRoot, "remote").Output()
+	remotes := strings.Fields(string(remotesOut))
+	for _, r := range remotes {
+		_ = exec.Command("git", "-C", repoRoot, "push", r, "HEAD", "--tags").Run()
+	}
+
+	fmt.Printf("\n  %s%s%s RELEASE %s SUCCESSFUL!%s\n", cGreen, cBold, iconCheck, nextVersion, cReset)
+	fmt.Printf("  %s•%s Tagged as %s%s%s\n", cGold, cReset, cBold, nextVersion, cReset)
+	fmt.Printf("  %s•%s CHANGELOG.md updated with %d commits\n", cGold, cReset, len(commits))
+	fmt.Printf("  %s•%s Pushed tags to %s\n\n", cGold, cReset, strings.Join(remotes, ", "))
+
+	return nil
+}
+
