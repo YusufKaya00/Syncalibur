@@ -3174,7 +3174,9 @@ cmd_version() {
 
 cmd_release() {
   ensure_go_engine
-  local target_repo="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  local cur_git_root
+  cur_git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+  local target_repo="${cur_git_root:-${REPO_ROOT}}"
   if [[ -x "${GO_ENGINE_BIN}" ]]; then
     "${GO_ENGINE_BIN}" release "$@" "${target_repo}"
   else
