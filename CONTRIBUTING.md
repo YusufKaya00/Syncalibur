@@ -18,7 +18,7 @@ Thank you for contributing to **Syncalibur**! To keep the `main` branch stable f
 
    # 2. Build Go engine
    go vet ./cmd/syncalibur-engine
-   go build -o bin/syncalibur-engine ./cmd/syncalibur-engine/main.go
+   go build -o bin/syncalibur-engine ./cmd/syncalibur-engine
 
    # 3. Run 10-point diagnostic suite
    ./syncalibur.sh doctor
