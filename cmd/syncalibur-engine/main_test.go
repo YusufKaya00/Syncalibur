@@ -459,7 +459,23 @@ func TestLoadLogoLines(t *testing.T) {
 	logoPath := filepath.Join(repoRoot, "assets", "syncalibur-logo.ansi")
 	lines := loadLogoLines(logoPath)
 	if len(lines) != 21 {
-		t.Errorf("expected 21 logo lines, got %d", len(lines))
+		t.Errorf("expected 21 logo lines from file, got %d", len(lines))
+	}
+
+	// Test fallback when running in external repository where assets does not exist
+	fallbackLines := loadLogoLines("/nonexistent/path/syncalibur-logo.ansi")
+	if len(fallbackLines) != 21 {
+		t.Errorf("expected 21 fallback logo lines, got %d", len(fallbackLines))
+	}
+	hasTrueColor := false
+	for _, l := range fallbackLines {
+		if strings.Contains(l, "\033[38;2;") {
+			hasTrueColor = true
+			break
+		}
+	}
+	if !hasTrueColor {
+		t.Errorf("expected fallback logo to contain 24-bit TrueColor ANSI escape sequences")
 	}
 }
 
