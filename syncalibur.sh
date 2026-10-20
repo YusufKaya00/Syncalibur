@@ -985,7 +985,7 @@ print_syncalibur_dashboard() {
 
   local -a info_lines=(
     "${C_GOLD}╭──────────────────────────────────────────────────────────────────────╮${C_RESET}"
-    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET}   ${C_SLATE}•${C_RESET}   ${C_CYAN}Autonomous Git Auto-Sync Platform${C_RESET}        ${C_GOLD}│${C_RESET}"
+    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}v2.0.0${C_RESET}  ${C_SLATE}•${C_RESET}   ${C_CYAN}Autonomous Git Auto-Sync Platform${C_RESET}        ${C_GOLD}│${C_RESET}"
     "${C_GOLD}╰──────────────────────────────────────────────────────────────────────╯${C_RESET}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Status    :${C_RESET} ${state_str}  ${C_SLATE}•${C_RESET}  ${engine_badge}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}OS / Mode :${C_RESET} ${C_WHITE}${OS_KERNEL} (${SERVICE_BACKEND})${C_RESET}  ${C_SLATE}•${C_RESET}  ${autostart_str}"
@@ -1008,7 +1008,7 @@ print_syncalibur_dashboard() {
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Velocity  :${C_RESET} ${unpushed_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Shield    :${C_RESET} ${C_SLATE}Poll ${POLL_INTERVAL}s • Debounce ${DEBOUNCE_WAIT}s • ≤ ${MAX_FILE_SIZE_MB} MiB & Secret Guard${C_RESET}"
     "  ${C_SLATE}──────────────────────────────────────────────────────────────────────${C_RESET}"
-    "  ${C_SLATE}Commands  : ${C_CYAN}ui${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}logs${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}doctor${C_SLATE} | ${C_CYAN}notify${C_SLATE} | ${C_CYAN}alert${C_SLATE} | ${C_CYAN}restart${C_RESET}"
+    "  ${C_SLATE}Commands  : ${C_CYAN}ui${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}release${C_SLATE} | ${C_CYAN}version${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}doctor${C_RESET}"
   )
 
   local -a logo_lines=()
