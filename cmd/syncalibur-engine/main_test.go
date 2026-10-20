@@ -325,6 +325,7 @@ func HelperFunc() int {
 	}
 }
 
+<<<<<<< HEAD
 func TestParseConventionalCommit(t *testing.T) {
 	cases := []struct {
 		input       string
@@ -476,6 +477,20 @@ func TestLoadLogoLines(t *testing.T) {
 	}
 	if !hasTrueColor {
 		t.Errorf("expected fallback logo to contain 24-bit TrueColor ANSI escape sequences")
+=======
+func TestDetectSecretsShellExpansion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// File with shell parameter expansion and model names (should NOT be flagged)
+	scriptFile := filepath.Join(tmpDir, "script.sh")
+	content := `#!/usr/bin/env bash
+OLLAMA_MODEL="${SYNCALIBUR_OLLAMA_MODEL:-qwen2.5-coder:1.5b}"
+# Comments with long strings should not trigger entropy
+`
+	_ = os.WriteFile(scriptFile, []byte(content), 0644)
+	if hasSecret, reason := detectSecretsInFile(scriptFile); hasSecret {
+		t.Errorf("expected shell parameter expansion to NOT be flagged as secret, got: %s", reason)
+>>>>>>> pr-2
 	}
 }
 

@@ -39,7 +39,6 @@ import (
 	"syscall"
 	"time"
 	"unicode"
-	"unsafe"
 )
 
 // ANSI Color Palette (24-bit TrueColor & 16-color Fallback)
@@ -194,6 +193,7 @@ func main() {
 		}
 		runInteractiveTUI(scriptPath, repoRoot)
 
+<<<<<<< HEAD
 	case "version", "--version", "-v":
 		printVersion()
 
@@ -215,6 +215,44 @@ func main() {
 			os.Exit(1)
 		}
 
+=======
+	case "smart-stage":
+		repo := "."
+		jsonOut := false
+		for _, arg := range os.Args[2:] {
+			if arg == "--json" {
+				jsonOut = true
+			} else if !strings.HasPrefix(arg, "-") {
+				repo = arg
+			}
+		}
+		groups := planSmartStaging(repo)
+		if jsonOut {
+			data, _ := json.MarshalIndent(groups, "", "  ")
+			fmt.Println(string(data))
+		} else {
+			for _, g := range groups {
+				fmt.Printf("GROUP|%s|%s|%s\n", g.Scope, g.Type, strings.Join(g.Files, ","))
+			}
+		}
+
+	case "version", "--version", "-v":
+		fmt.Printf("syncalibur v1.1.0 (%s/%s, go%s)\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
+
+	case "help", "--help", "-h":
+		fmt.Println("Syncalibur - Autonomous Git Auto-Sync Platform & Live Engine")
+		fmt.Println("Usage: syncalibur <command> [args...]")
+		fmt.Println("Commands:")
+		fmt.Println("  ui                   Launch interactive live TUI cockpit")
+		fmt.Println("  smart-stage [repo]   Analyze and partition working tree changes into atomic scoped groups")
+		fmt.Println("  commit-msg [repo]    Generate Conventional Commit message for staged diff")
+		fmt.Println("  preflight [repo]     Run Shannon entropy & syntax validation")
+		fmt.Println("  sparkline [repo]     Render 7-day commit velocity sparkline")
+		fmt.Println("  fleet-scan [dir]     Recursively discover Git repositories")
+		fmt.Println("  fleet-status [file]  Probe status of multi-repo fleet list")
+		fmt.Println("  version              Display version and runtime information")
+
+>>>>>>> pr-2
 	default:
 		os.Exit(1)
 	}
@@ -227,9 +265,27 @@ func main() {
 func runDaemonSupervisor(scriptPath string, extraArgs ...string) int {
 	bashBin, err := exec.LookPath("bash")
 	if err != nil {
-		bashBin = "/bin/bash"
+		if runtime.GOOS == "windows" {
+			for _, candidate := range []string{
+				`C:\Program Files\Git\bin\bash.exe`,
+				`C:\Program Files\Git\usr\bin\bash.exe`,
+				`C:\Git\bin\bash.exe`,
+			} {
+				if _, err := os.Stat(candidate); err == nil {
+					bashBin = candidate
+					break
+				}
+			}
+		}
+		if bashBin == "" {
+			bashBin = "/bin/bash"
+		}
 	}
-	args := append([]string{"syncalibur", scriptPath}, extraArgs...)
+	progName := "syncalibur"
+	if runtime.GOOS == "windows" {
+		progName = bashBin
+	}
+	args := append([]string{progName, scriptPath}, extraArgs...)
 	cmd := &exec.Cmd{
 		Path:   bashBin,
 		Args:   args,
@@ -812,6 +868,12 @@ var knownSecretRegexes = []*regexp.Regexp{
 }
 
 func detectSecretsInFile(filePath string) (bool, string) {
+	// Skip unit test files and fixtures from credential quarantine
+	base := strings.ToLower(filepath.Base(filePath))
+	if strings.HasSuffix(base, "_test.go") || strings.Contains(base, "test") || strings.Contains(base, "fixture") {
+		return false, ""
+	}
+
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return false, ""
@@ -861,13 +923,20 @@ func detectSecretsInFile(filePath string) (bool, string) {
 			}
 		}
 
-		// Shannon Entropy check on long continuous strings
+		// Shannon Entropy check on long continuous strings (skip comments for raw entropy to avoid false positives)
+		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
 		words := strings.Fields(trimmed)
 		for _, w := range words {
 			if idx := strings.Index(w, "="); idx != -1 {
 				w = w[idx+1:]
 			}
-			w = strings.Trim(w, `"'=:,;()[]{}<>*`+"`")
+			w = strings.Trim(w, `"'=:,;()[]{}<>$*`+"`")
+			// Skip shell variable expansions, regexes, code syntax, or paths
+			if strings.Contains(w, "${") || strings.Contains(w, ":-") || strings.Contains(w, "/") || strings.Contains(w, "\\") || strings.Contains(w, ":") || strings.ContainsAny(w, "()[]{}<>^&|;*~") {
+				continue
+			}
 			if len(w) >= 24 {
 				// Exclude benign high-entropy structures: data URIs, base64 data, UUIDs, pure hex hashes
 				if strings.HasPrefix(w, "data:") || strings.Contains(w, "base64,") ||
@@ -1236,10 +1305,39 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 			return false, fmt.Sprintf("%s: invalid JSON: %v", relPath, err)
 		}
 	case ".yaml", ".yml":
+<<<<<<< HEAD
 		return validateYAMLSyntax(data, relPath)
 	case ".sh", ".bash", ".zsh":
 		if _, err := exec.LookPath("bash"); err == nil {
 			cmd := exec.Command("bash", "-n", absPath)
+=======
+		for lineNum, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(line, "\t") {
+				return false, fmt.Sprintf("%s:%d: YAML syntax error: tabs are forbidden for indentation", relPath, lineNum+1)
+			}
+		}
+		if ok, reason := checkLexicalBalance(data, ext); !ok {
+			return false, fmt.Sprintf("%s: %s", relPath, reason)
+		}
+	case ".sh", ".bash":
+		bashBin := ""
+		if p, err := exec.LookPath("bash"); err == nil {
+			bashBin = p
+		} else if runtime.GOOS == "windows" {
+			for _, candidate := range []string{
+				`C:\Program Files\Git\bin\bash.exe`,
+				`C:\Program Files\Git\usr\bin\bash.exe`,
+				`C:\Git\bin\bash.exe`,
+			} {
+				if _, err := os.Stat(candidate); err == nil {
+					bashBin = candidate
+					break
+				}
+			}
+		}
+		if bashBin != "" {
+			cmd := exec.Command(bashBin, "-n", absPath)
+>>>>>>> pr-2
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg == "" {
@@ -1873,6 +1971,147 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 }
 
 // ==============================================================================
+// 3b. Smart Staging Partition Engine (`smart-stage`)
+// ==============================================================================
+
+type stagingGroup struct {
+	Scope string   `json:"scope"`
+	Type  string   `json:"type"`
+	Files []string `json:"files"`
+}
+
+func planSmartStaging(repoRoot string) []stagingGroup {
+	var files []string
+	seen := make(map[string]bool)
+
+	out, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "diff", "HEAD", "--name-only").Output()
+	if err == nil {
+		for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			f = strings.TrimSpace(f)
+			if f != "" && !seen[f] {
+				seen[f] = true
+				files = append(files, f)
+			}
+		}
+	} else {
+		out, _ = exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "status", "--porcelain").Output()
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if len(line) > 3 {
+				f := strings.TrimSpace(line[3:])
+				if f != "" && !seen[f] {
+					seen[f] = true
+					files = append(files, f)
+				}
+			}
+		}
+	}
+
+	untracked, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard").Output()
+	if err == nil {
+		for _, f := range strings.Split(strings.TrimSpace(string(untracked)), "\n") {
+			f = strings.TrimSpace(f)
+			if f != "" && !seen[f] {
+				seen[f] = true
+				files = append(files, f)
+			}
+		}
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	groupMap := make(map[string]*stagingGroup)
+	var groupKeys []string
+
+	for _, f := range files {
+		f = filepath.ToSlash(f)
+		lower := strings.ToLower(f)
+		base := filepath.Base(f)
+		ext := strings.ToLower(filepath.Ext(f))
+
+		var key, scope, gType string
+
+		if ext == ".md" || ext == ".rst" || ext == ".txt" || strings.HasPrefix(lower, "docs/") || strings.EqualFold(base, "license") || strings.EqualFold(base, "contributing.md") {
+			key = "docs"
+			scope = "docs"
+			gType = "docs"
+		} else if strings.HasSuffix(lower, "_test.go") || strings.Contains(lower, "test") || strings.Contains(lower, "spec") {
+			key = "test"
+			scope = "test"
+			gType = "test"
+		} else if strings.HasPrefix(lower, ".github/") || strings.HasPrefix(lower, ".gitlab") || base == "Dockerfile" || base == "Makefile" || base == "go.mod" || base == "go.sum" || base == "package.json" || ext == ".yaml" || ext == ".yml" || ext == ".tf" {
+			key = "ci"
+			scope = "ci"
+			gType = "build"
+		} else if ext == ".css" || ext == ".scss" || ext == ".less" {
+			key = "style"
+			scope = "style"
+			gType = "style"
+		} else {
+			dir := filepath.ToSlash(filepath.Dir(f))
+			if dir == "." || dir == "" {
+				key = "core"
+				scope = "core"
+			} else {
+				parts := strings.Split(dir, "/")
+				if len(parts) >= 2 && parts[0] == "cmd" {
+					scope = parts[1]
+				} else {
+					scope = parts[0]
+				}
+				key = "code:" + scope
+			}
+			gType = "feat"
+		}
+
+		if grp, exists := groupMap[key]; exists {
+			grp.Files = append(grp.Files, f)
+		} else {
+			grp := &stagingGroup{
+				Scope: scope,
+				Type:  gType,
+				Files: []string{f},
+			}
+			groupMap[key] = grp
+			groupKeys = append(groupKeys, key)
+		}
+	}
+
+	sort.Slice(groupKeys, func(i, j int) bool {
+		order := func(k string) int {
+			if k == "docs" {
+				return 1
+			}
+			if k == "ci" {
+				return 2
+			}
+			if k == "style" {
+				return 3
+			}
+			if strings.HasPrefix(k, "code") {
+				return 4
+			}
+			if k == "test" {
+				return 5
+			}
+			return 6
+		}
+		oi, oj := order(groupKeys[i]), order(groupKeys[j])
+		if oi != oj {
+			return oi < oj
+		}
+		return groupKeys[i] < groupKeys[j]
+	})
+
+	var result []stagingGroup
+	for _, k := range groupKeys {
+		result = append(result, *groupMap[k])
+	}
+	return result
+}
+
+// ==============================================================================
 // 4. 7-Day Commit Velocity Sparkline Generator
 // ==============================================================================
 
@@ -2309,44 +2548,12 @@ func sendWebhook(webhookURL, eventType, repoName, branchName, title, message, de
 // 7. Two-Pane Interactive Live TUI with Scrollable Logs (`syncalibur ui`)
 // ==============================================================================
 
-type winsize struct {
-	Row    uint16
-	Col    uint16
-	Xpixel uint16
-	Ypixel uint16
-}
-
-func getTerminalSize() (int, int) {
-	ws := &winsize{}
-	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)))
-	if int(retCode) >= 0 && ws.Row > 0 && ws.Col > 0 {
-		return int(ws.Row), int(ws.Col)
-	}
-
-	cmd := exec.Command("stty", "size")
-	cmd.Stdin = os.Stdin
-	if out, err := cmd.Output(); err == nil {
-		parts := strings.Fields(strings.TrimSpace(string(out)))
-		if len(parts) >= 2 {
-			r, err1 := strconv.Atoi(parts[0])
-			c, err2 := strconv.Atoi(parts[1])
-			if err1 == nil && err2 == nil && r > 0 && c > 0 {
-				return r, c
-			}
-		}
-	}
-	return 24, 80
-}
-
 func getDaemonStatus(gitDir string) (bool, int) {
 	pidBytes, err := os.ReadFile(filepath.Join(gitDir, "syncalibur.pid"))
 	if err == nil {
 		pidStr := strings.TrimSpace(string(pidBytes))
 		if pid, err := strconv.Atoi(pidStr); err == nil && pid > 0 {
-			if syscall.Kill(pid, 0) == nil {
+			if isProcessAlive(pid) {
 				return true, pid
 			}
 		}

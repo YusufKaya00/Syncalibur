@@ -20,7 +20,7 @@ set -uo pipefail
 # NOTE: `set -e` is intentionally omitted. The daemon loop must survive
 # transient git/network errors rather than exiting unexpectedly.
 
-export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH}"
+export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/c/Program Files/Go/bin:/c/Go/bin:${PATH}"
 
 # ==============================================================================
 # Cross-platform portability helpers (Linux, macOS Bash 3.2+, Windows Git Bash)
@@ -182,6 +182,7 @@ CONFIG_KEYS=" SYNCALIBUR_REPO_PATH SYNCALIBUR_REPO_DIR SYNCALIBUR_AUTO_CREATE_RE
   SYNCALIBUR_USE_FS_EVENTS SYNCALIBUR_FLEET_LIST
   SYNCALIBUR_SERVICE_NAME SYNCALIBUR_REMOTE SYNCALIBUR_POLL_INTERVAL
   SYNCALIBUR_DEBOUNCE_WAIT SYNCALIBUR_MAX_DEBOUNCE SYNCALIBUR_MAX_FILE_SIZE_MB SYNCALIBUR_SENSITIVE_PATTERNS
+  SYNCALIBUR_PROTECT_SYNTAX SYNCALIBUR_SECRET_SHIELD SYNCALIBUR_SMART_STAGING
   SYNCALIBUR_RETRY_BASE SYNCALIBUR_RETRY_MAX SYNCALIBUR_PUSH_TIMEOUT SYNCALIBUR_LOG_MAX_KB
   GITHUB_TOKEN GH_TOKEN GITLAB_TOKEN
   AUTO_SYNC_REPO_PATH AUTO_SYNC_SERVICE_NAME AUTO_SYNC_REMOTE AUTO_SYNC_POLL_INTERVAL
@@ -306,6 +307,7 @@ if [[ "${SYNCALIBUR_COMMIT_STYLE:-conventional}" == "simple" ]]; then
   SEMANTIC_COMMITS="false"
 fi
 AI_COMMIT="${SYNCALIBUR_AI_COMMIT:-false}"
+SMART_STAGING="${SYNCALIBUR_SMART_STAGING:-true}"
 OLLAMA_MODEL="${SYNCALIBUR_OLLAMA_MODEL:-qwen2.5-coder:1.5b}"
 SELF_AUTO_UPDATE="${SYNCALIBUR_SELF_AUTO_UPDATE:-true}"
 SELF_CHECK_INTERVAL="${SYNCALIBUR_SELF_CHECK_INTERVAL:-120}"
@@ -1870,6 +1872,61 @@ commit_changes() {
         log "⛨ [SECRET SHIELD] Detected credential in working tree; holding commit."
         return 1
       fi
+    fi
+  fi
+
+  # Smart Staging Partition: If multiple distinct file scopes exist, commit them atomically
+  local smart_groups=()
+  if [[ "${SMART_STAGING:-true}" == "true" ]] && ensure_go_engine; then
+    while IFS= read -r s_line; do
+      [[ "${s_line}" =~ ^GROUP\| ]] && smart_groups+=("${s_line}")
+    done < <("${GO_ENGINE_BIN}" smart-stage "${REPO_ROOT}" 2>/dev/null || true)
+  fi
+
+  if (( ${#smart_groups[@]} > 1 )); then
+    local g_line g_scope g_type g_files_csv g_files total_committed=0
+    for g_line in "${smart_groups[@]}"; do
+      IFS='|' read -r _ g_scope g_type g_files_csv <<< "${g_line}"
+      IFS=',' read -r -a g_files <<< "${g_files_csv}"
+
+      local g_valid_files=()
+      for f in "${g_files[@]}"; do
+        if ! reason="$(block_reason "${f}")"; then
+          g_valid_files+=("${f}")
+        else
+          warn_blocked "${f}" "${reason}"
+        fi
+      done
+
+      (( ${#g_valid_files[@]} == 0 )) && continue
+
+      git add -- "${g_valid_files[@]}" 2>/dev/null || true
+      if git diff --cached --quiet; then
+        continue
+      fi
+
+      local g_msg=""
+      if [[ "${SEMANTIC_COMMITS}" == "true" ]] && ensure_go_engine; then
+        g_msg="$(SYNCALIBUR_AI_COMMIT="${AI_COMMIT}" SYNCALIBUR_OLLAMA_MODEL="${OLLAMA_MODEL}" "${GO_ENGINE_BIN}" commit-msg "${REPO_ROOT}" 2>/dev/null || true)"
+      fi
+      if [[ -z "${g_msg:-}" ]]; then
+        g_msg="${g_type}(${g_scope}): update ${g_valid_files[0]}"
+        (( ${#g_valid_files[@]} > 1 )) && g_msg+=", ${g_valid_files[1]}"
+        (( ${#g_valid_files[@]} > 2 )) && g_msg+=" (+$((${#g_valid_files[@]} - 2)) more)"
+      fi
+
+      if err_out="$(git commit -m "${g_msg}" 2>&1)"; then
+        printf '%s\n' "${err_out}" >> "${LOG_FILE}"
+        log "✓ [Smart Stage: ${g_scope}] Committed ${#g_valid_files[@]} file(s): ${g_msg}"
+        total_committed=$(( total_committed + 1 ))
+      else
+        printf '%s\n' "${err_out}" >> "${LOG_FILE}"
+        log "✕ [Smart Stage] 'git commit' failed: ${g_msg}"
+      fi
+    done
+
+    if (( total_committed > 0 )); then
+      return 0
     fi
   fi
 
