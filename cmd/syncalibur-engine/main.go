@@ -2575,6 +2575,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	var flashMsg string
 	var flashUntil time.Time
 	gitDir := filepath.Join(repoRoot, ".git")
+	logFile := filepath.Join(gitDir, "syncalibur.log")
 	candidatePaths := []string{
 		filepath.Join(filepath.Dir(scriptPath), "assets", "syncalibur-logo.ansi"),
 		filepath.Join(repoRoot, "assets", "syncalibur-logo.ansi"),
