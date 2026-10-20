@@ -3163,25 +3163,47 @@ cmd_logs() {
   done
 }
 
+cmd_version() {
+  ensure_go_engine
+  if [[ -x "${GO_ENGINE_BIN}" ]]; then
+    "${GO_ENGINE_BIN}" version
+  else
+    echo "Syncalibur v2.0.0 (bash fallback)"
+  fi
+}
+
+cmd_release() {
+  ensure_go_engine
+  local target_repo="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  if [[ -x "${GO_ENGINE_BIN}" ]]; then
+    "${GO_ENGINE_BIN}" release "$@" "${target_repo}"
+  else
+    echo "✕ Go engine required for automated release calculation." >&2
+    return 1
+  fi
+}
+
 usage() {
   print_syncalibur_dashboard
   cat << EOF
-  ${C_GOLD}${C_BOLD}Usage:${C_RESET} syncalibur ${C_CYAN}{push|commit|check|tidy|hook|install|status|ui|fleet|doctor|logs|...}${C_RESET}
+  ${C_GOLD}${C_BOLD}Usage:${C_RESET} syncalibur ${C_CYAN}{push|commit|check|release|version|tidy|hook|install|status|ui|fleet|doctor|logs|...}${C_RESET}
 
-  ${C_GOLD}${C_BOLD}Developer Push Ergonomics & Safety:${C_RESET}
+  ${C_GOLD}${C_BOLD}Developer Push Ergonomics & Release Engine:${C_RESET}
     ${C_CYAN}push [msg] [--tidy]${C_RESET}    One-shot preflight check, commit & multi-remote push (<1.5s)
     ${C_CYAN}commit [msg]${C_RESET}           Local preflight check & commit (skips network push)
     ${C_CYAN}check | preflight${C_RESET}     Run pre-push inspection (syntax hold, secret shield, diff, proposed msg)
+    ${C_CYAN}release [mode]${C_RESET}         Automated SemVer bump, CHANGELOG generation & Git release tag
+    ${C_CYAN}version | -v${C_RESET}          Print official release version & platform milestone
     ${C_CYAN}tidy${C_RESET}                    Squash unpushed local micro-commits into 1 clean conventional commit
     ${C_CYAN}hook <install|status>${C_RESET}  Install universal pre-commit & prepare-commit-msg Git hooks
 
   ${C_GOLD}${C_BOLD}Autonomous Daemon & Fleet Control:${C_RESET}
     ${C_CYAN}install [path]${C_RESET}         Configure OS auto-start, compile Go engine, link global CLI & start now
-    ${C_CYAN}ui${C_RESET}                     Launch interactive live TUI cockpit (7-day sparkline + hotkeys [p/s/b/u/d/q])
+    ${C_CYAN}ui${C_RESET}                     Launch interactive live TUI cockpit (TrueColor emblem + 7-day sparkline + hotkeys)
     ${C_CYAN}status${C_RESET}                 Show TrueColor emblem, live dashboard, velocity sparkline & recent logs
     ${C_CYAN}logs${C_RESET}                   Stream live colorized telemetry
     ${C_CYAN}fleet <subcmd>${C_RESET}         Manage multi-repo fleet: ${C_WHITE}status | add <path> | remove <path> | scan [dir] | start | stop${C_RESET}
-    ${C_CYAN}doctor${C_RESET}                 Run 10-point system diagnostic health check
+    ${C_CYAN}doctor${C_RESET}                 Run 11-point system diagnostic health check
     ${C_CYAN}notify [msg]${C_RESET}           Send an instant test notification to Telegram Bot / Discord / Slack Webhooks
     ${C_CYAN}pr [base|--preview]${C_RESET}    Open a structured Pull Request using Syncalibur's auto-populated PR Template
     ${C_CYAN}pull${C_RESET}                   Trigger immediate bidirectional remote fetch & safe rebase
@@ -3197,6 +3219,8 @@ case "${1:-}" in
   push)       shift; cmd_push "$@" ;;
   commit)     shift; cmd_commit "$@" ;;
   check | preflight) shift; cmd_check "${1:-}" ;;
+  release)    shift; cmd_release "$@" ;;
+  version | --version | -v) cmd_version ;;
   tidy)       shift; cmd_tidy "${1:-}" ;;
   hook)       shift; cmd_hook "${1:-status}" ;;
   install)    cmd_install "${2:-}" ;;
