@@ -161,6 +161,131 @@ def hello():
 	if valid, _ := validateFileSyntax(tmpDir, "broken.py"); valid {
 		t.Errorf("expected broken Python to fail syntax check")
 	}
+
+	// 13. Valid Helm ConfigMap with embedded HTML and CSS containing hex colors (#0f172a)
+	helmConfigMap := filepath.Join(tmpDir, "configmap.yaml")
+	helmContent := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-html
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>{{ .Values.appContent.title }}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
+        .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; max-width: 600px; border: 1px solid #334155; }
+        h1 { color: #38bdf8; margin-bottom: 1rem; }
+        p { color: #94a3b8; font-size: 1.1rem; line-height: 1.6; }
+        .badge { display: inline-block; padding: 0.25rem 0.75rem; background: #0284c7; color: white; border-radius: 9999px; font-size: 0.875rem; font-weight: 600; margin-top: 1rem; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>{{ .Values.appContent.heading }}</h1>
+        <p>{{ .Values.appContent.message }}</p>
+        <div class="badge">Running on Multi-Node K3s (Azure)</div>
+      </div>
+    </body>
+    </html>
+`
+	_ = os.WriteFile(helmConfigMap, []byte(helmContent), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "configmap.yaml"); !valid {
+		t.Errorf("expected Helm ConfigMap with embedded CSS to pass syntax check, got: %s", errReason)
+	}
+
+	// 14. Broken Helm YAML (unclosed template tag)
+	brokenHelm := filepath.Join(tmpDir, "broken_helm.yaml")
+	_ = os.WriteFile(brokenHelm, []byte("metadata:\n  name: {{ .Release.Name\n"), 0644)
+	if valid, _ := validateFileSyntax(tmpDir, "broken_helm.yaml"); valid {
+		t.Errorf("expected broken Helm template (unclosed '{{') to fail syntax check")
+	}
+
+	// 15. Broken YAML (forbidden tab indentation)
+	tabYAML := filepath.Join(tmpDir, "tab.yaml")
+	_ = os.WriteFile(tabYAML, []byte("key:\n\tvalue: 1\n"), 0644)
+	if valid, _ := validateFileSyntax(tmpDir, "tab.yaml"); valid {
+		t.Errorf("expected YAML with tabs to fail syntax check")
+	}
+
+	// 16. Valid Terraform HCL (.tf)
+	validTF := filepath.Join(tmpDir, "main.tf")
+	tfContent := `resource "azurerm_resource_group" "rg" {
+  name     = "rg-test"
+  location = "West Europe"
+  tags = {
+    environment = "dev"
+  }
+}
+`
+	_ = os.WriteFile(validTF, []byte(tfContent), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "main.tf"); !valid {
+		t.Errorf("expected valid Terraform HCL to pass, got: %s", errReason)
+	}
+
+	// 17. Broken Terraform HCL (unclosed brace)
+	brokenTF := filepath.Join(tmpDir, "broken.tf")
+	_ = os.WriteFile(brokenTF, []byte("resource \"azurerm_resource_group\" \"rg\" {\n  name = \"rg-test\"\n"), 0644)
+	if valid, _ := validateFileSyntax(tmpDir, "broken.tf"); valid {
+		t.Errorf("expected broken Terraform HCL to fail syntax check")
+	}
+
+	// 18. Valid CSS with hex colors and ID selectors
+	validCSS := filepath.Join(tmpDir, "style.css")
+	cssContent := `
+#header {
+  background-color: #0f172a;
+  color: #fff;
+  border: 1px solid #334155;
+}
+.card {
+  padding: 10px;
+}
+`
+	_ = os.WriteFile(validCSS, []byte(cssContent), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "style.css"); !valid {
+		t.Errorf("expected valid CSS with hex colors to pass, got: %s", errReason)
+	}
+
+	// 19. Broken CSS (missing closing brace)
+	brokenCSS := filepath.Join(tmpDir, "broken.css")
+	_ = os.WriteFile(brokenCSS, []byte(".card { color: #fff;\n"), 0644)
+	if valid, _ := validateFileSyntax(tmpDir, "broken.css"); valid {
+		t.Errorf("expected broken CSS to fail syntax check")
+	}
+
+	// 20. Valid JSONC (JSON with comments)
+	validJSONC := filepath.Join(tmpDir, "tsconfig.json")
+	jsoncContent := `{
+  // TypeScript configuration
+  "compilerOptions": {
+    "target": "ES2022", /* Modern target */
+    "module": "commonjs"
+  }
+}`
+	_ = os.WriteFile(validJSONC, []byte(jsoncContent), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "tsconfig.json"); !valid {
+		t.Errorf("expected valid JSONC to pass, got: %s", errReason)
+	}
+
+	// 21. Valid Dockerfile
+	validDocker := filepath.Join(tmpDir, "Dockerfile")
+	dockerContent := "FROM alpine:3.19\nRUN apk add --no-cache curl\nCMD [\"sh\"]\n"
+	_ = os.WriteFile(validDocker, []byte(dockerContent), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "Dockerfile"); !valid {
+		t.Errorf("expected valid Dockerfile to pass, got: %s", errReason)
+	}
+
+	// 22. Valid SQL (.sql)
+	validSQL := filepath.Join(tmpDir, "query.sql")
+	sqlContent := "-- Select users with permissions\nSELECT id, name FROM users WHERE role IN ('admin', 'editor');\n"
+	_ = os.WriteFile(validSQL, []byte(sqlContent), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "query.sql"); !valid {
+		t.Errorf("expected valid SQL to pass, got: %s", errReason)
+	}
 }
 
 func TestInspectGoAST(t *testing.T) {
