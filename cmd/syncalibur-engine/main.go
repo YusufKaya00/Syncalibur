@@ -1299,21 +1299,8 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 			return false, fmt.Sprintf("%s: invalid JSON: %v", relPath, err)
 		}
 	case ".yaml", ".yml":
-<<<<<<< HEAD
 		return validateYAMLSyntax(data, relPath)
 	case ".sh", ".bash", ".zsh":
-		if _, err := exec.LookPath("bash"); err == nil {
-			cmd := exec.Command("bash", "-n", absPath)
-=======
-		for lineNum, line := range strings.Split(string(data), "\n") {
-			if strings.HasPrefix(line, "\t") {
-				return false, fmt.Sprintf("%s:%d: YAML syntax error: tabs are forbidden for indentation", relPath, lineNum+1)
-			}
-		}
-		if ok, reason := checkLexicalBalance(data, ext); !ok {
-			return false, fmt.Sprintf("%s: %s", relPath, reason)
-		}
-	case ".sh", ".bash":
 		bashBin := ""
 		if p, err := exec.LookPath("bash"); err == nil {
 			bashBin = p
@@ -1331,7 +1318,6 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 		}
 		if bashBin != "" {
 			cmd := exec.Command(bashBin, "-n", absPath)
->>>>>>> pr-2
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg == "" {
