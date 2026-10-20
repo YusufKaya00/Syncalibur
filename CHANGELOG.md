@@ -1,5 +1,42 @@
 # Changelog
 
+## [v2.1.0] - 2026-10-20
+
+### 🚀 Features
+- **main**: update runRelease() (+43/-1) ([`4cd5bfa`](https://github.com/YusufKaya00/Syncalibur/commit/4cd5bfa))
+- **main**: update printVersion() (+8/-1) ([`c2a0a8a`](https://github.com/YusufKaya00/Syncalibur/commit/c2a0a8a))
+- **syncalibur**: update syncalibur.sh (+2/-2) ([`0055b16`](https://github.com/YusufKaya00/Syncalibur/commit/0055b16))
+- **syncalibur**: update syncalibur.sh (+2/-0) ([`26fe9d1`](https://github.com/YusufKaya00/Syncalibur/commit/26fe9d1))
+- update logo.ansi, main.go (+5 more) (+429/-39) ([`3a84104`](https://github.com/YusufKaya00/Syncalibur/commit/3a84104))
+- **20**: add 20 (+21/-0) ([`3f1db06`](https://github.com/YusufKaya00/Syncalibur/commit/3f1db06))
+- **main**: update main.go (+24/-0) ([`fe3569d`](https://github.com/YusufKaya00/Syncalibur/commit/fe3569d))
+- **main**: update runInteractiveTUI() (+1/-0) ([`fd92f9c`](https://github.com/YusufKaya00/Syncalibur/commit/fd92f9c))
+- **main**: update runInteractiveTUI() (+23/-3) ([`0835365`](https://github.com/YusufKaya00/Syncalibur/commit/0835365))
+- **main**: update renderLineANSI() (+8/-2) ([`b4b541d`](https://github.com/YusufKaya00/Syncalibur/commit/b4b541d))
+- **logo_data**: add logo_data.go (+26/-0) ([`2af6911`](https://github.com/YusufKaya00/Syncalibur/commit/2af6911))
+- add main() (+309/-5) ([`11ec779`](https://github.com/YusufKaya00/Syncalibur/commit/11ec779))
+
+### 🐛 Bug Fixes & Stability
+- **engine**: support cross-platform Windows terminal size and process check ([`1640872`](https://github.com/YusufKaya00/Syncalibur/commit/1640872))
+
+### 📚 Tooling, Tests & Fleet
+- **release**: add release.yml (+45/-0) ([`78e69bd`](https://github.com/YusufKaya00/Syncalibur/commit/78e69bd))
+- **main_test**: update main_test.go (+1/-0) ([`6999445`](https://github.com/YusufKaya00/Syncalibur/commit/6999445))
+- **logo**: remove logo.ansi (+0/-21) ([`b966615`](https://github.com/YusufKaya00/Syncalibur/commit/b966615))
+- **main_test**: update TestPlanSmartStaging (+47/-0) ([`196e884`](https://github.com/YusufKaya00/Syncalibur/commit/196e884))
+- **main_test**: update TestLoadLogoLines (+3/-2) ([`b089bd1`](https://github.com/YusufKaya00/Syncalibur/commit/b089bd1))
+- **main_test**: update main_test.go (+0/-1) ([`6795ff7`](https://github.com/YusufKaya00/Syncalibur/commit/6795ff7))
+- **main**: update validateFileSyntax() (+0/-14) ([`4109772`](https://github.com/YusufKaya00/Syncalibur/commit/4109772))
+- **main**: update main.go (+20/-26) ([`3b131ee`](https://github.com/YusufKaya00/Syncalibur/commit/3b131ee))
+- **ci**: update ci.yml (+1/-1) ([`89a8553`](https://github.com/YusufKaya00/Syncalibur/commit/89a8553))
+- **20**: remove 20 (+0/-21) ([`3ff15f2`](https://github.com/YusufKaya00/Syncalibur/commit/3ff15f2))
+- **CONTRIBUTING**: update CONTRIBUTING.md (+1/-1) ([`e9fb79f`](https://github.com/YusufKaya00/Syncalibur/commit/e9fb79f))
+- **ci**: update ci.yml (+1/-1) ([`bb9e44d`](https://github.com/YusufKaya00/Syncalibur/commit/bb9e44d))
+- **logo_data**: remove logo_data.go (+0/-26) ([`6ac5a48`](https://github.com/YusufKaya00/Syncalibur/commit/6ac5a48))
+- **main_test**: update TestLoadLogoLines (+17/-1) ([`2ee33a8`](https://github.com/YusufKaya00/Syncalibur/commit/2ee33a8))
+- **main**: update loadLogoLines() (+2/-25) ([`33eb136`](https://github.com/YusufKaya00/Syncalibur/commit/33eb136))
+
+
 All notable changes to **Syncalibur** are documented in this file.
 The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and follows [Conventional Commits](https://www.conventionalcommits.org/).
 
