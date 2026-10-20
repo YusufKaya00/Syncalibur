@@ -323,3 +323,142 @@ func HelperFunc() int {
 		t.Errorf("expected HelperFunc(), got kind=%s, symbol=%s", resFunc.Kind, resFunc.Symbol)
 	}
 }
+
+func TestParseConventionalCommit(t *testing.T) {
+	cases := []struct {
+		input       string
+		wantType    string
+		wantScope   string
+		wantBreak   bool
+		wantDesc    string
+	}{
+		{
+			input:     "feat(engine): add multi-language pre-flight AST gates",
+			wantType:  "feat",
+			wantScope: "engine",
+			wantBreak: false,
+			wantDesc:  "add multi-language pre-flight AST gates",
+		},
+		{
+			input:     "fix(yaml): resolve CSS hex color inside ConfigMap block scalar",
+			wantType:  "fix",
+			wantScope: "yaml",
+			wantBreak: false,
+			wantDesc:  "resolve CSS hex color inside ConfigMap block scalar",
+		},
+		{
+			input:     "feat(protocol)!: redesign synchronization wire protocol",
+			wantType:  "feat",
+			wantScope: "protocol",
+			wantBreak: true,
+			wantDesc:  "redesign synchronization wire protocol",
+		},
+		{
+			input:     "perf(tui): optimize terminal winsize ioctl",
+			wantType:  "perf",
+			wantScope: "tui",
+			wantBreak: false,
+			wantDesc:  "optimize terminal winsize ioctl",
+		},
+		{
+			input:     "docs: update README with release workflow",
+			wantType:  "docs",
+			wantScope: "",
+			wantBreak: false,
+			wantDesc:  "update README with release workflow",
+		},
+	}
+
+	for _, c := range cases {
+		cType, cScope, isBreak, cDesc := parseConventionalCommit(c.input)
+		if cType != c.wantType || cScope != c.wantScope || isBreak != c.wantBreak || cDesc != c.wantDesc {
+			t.Errorf("parseConventionalCommit(%q) = (%q, %q, %v, %q); want (%q, %q, %v, %q)",
+				c.input, cType, cScope, isBreak, cDesc, c.wantType, c.wantScope, c.wantBreak, c.wantDesc)
+		}
+	}
+}
+
+func TestDetermineSemVerBump(t *testing.T) {
+	// Case 1: Major bump due to breaking change
+	majorCommits := []CommitInfo{
+		{Type: "fix", Subject: "fix small bug"},
+		{Type: "feat", Subject: "feat(wire)!: break backward compatibility", IsBreaking: true},
+	}
+	if bump := determineSemVerBump(majorCommits); bump != BumpMajor {
+		t.Errorf("expected BumpMajor, got %v", bump)
+	}
+
+	// Case 2: Minor bump due to feat
+	minorCommits := []CommitInfo{
+		{Type: "fix", Subject: "fix small bug"},
+		{Type: "feat", Subject: "feat(ui): add emblem cockpit"},
+	}
+	if bump := determineSemVerBump(minorCommits); bump != BumpMinor {
+		t.Errorf("expected BumpMinor, got %v", bump)
+	}
+
+	// Case 3: Patch bump due to fixes only
+	patchCommits := []CommitInfo{
+		{Type: "fix", Subject: "fix small bug"},
+		{Type: "perf", Subject: "perf: improve speed"},
+	}
+	if bump := determineSemVerBump(patchCommits); bump != BumpPatch {
+		t.Errorf("expected BumpPatch, got %v", bump)
+	}
+}
+
+func TestCalculateNextVersion(t *testing.T) {
+	cases := []struct {
+		currentTag string
+		bump       SemVerBump
+		want       string
+	}{
+		{"", BumpMajor, "v2.0.0"},
+		{"v1.0.0", BumpMajor, "v2.0.0"},
+		{"v2.0.0", BumpMinor, "v2.1.0"},
+		{"v2.1.0", BumpPatch, "v2.1.1"},
+		{"v2.1.1", BumpMajor, "v3.0.0"},
+	}
+
+	for _, c := range cases {
+		got := calculateNextVersion(c.currentTag, c.bump)
+		if got != c.want {
+			t.Errorf("calculateNextVersion(%q, %v) = %q; want %q", c.currentTag, c.bump, got, c.want)
+		}
+	}
+}
+
+func TestGenerateChangelog(t *testing.T) {
+	commits := []CommitInfo{
+		{Hash: "d65f710", Type: "feat", Scope: "ui", Subject: "feat(ui): add emblem cockpit", Description: "add emblem cockpit"},
+		{Hash: "ea4cb4e", Type: "fix", Scope: "yaml", Subject: "fix(yaml): resolve CSS hex color inside block scalar", Description: "resolve CSS hex color inside block scalar"},
+		{Hash: "846e690", Type: "perf", Scope: "tui", Subject: "perf(tui): direct TIOCGWINSZ ioctl", Description: "direct TIOCGWINSZ ioctl"},
+	}
+
+	changelog := generateChangelog("v2.0.0", "2026-10-20", commits)
+	if !strings.Contains(changelog, "## [v2.0.0] - 2026-10-20") {
+		t.Errorf("expected version header in changelog, got:\n%s", changelog)
+	}
+	if !strings.Contains(changelog, "### 🚀 Features") {
+		t.Errorf("expected Features section in changelog")
+	}
+	if !strings.Contains(changelog, "### 🐛 Bug Fixes") {
+		t.Errorf("expected Bug Fixes section in changelog")
+	}
+	if !strings.Contains(changelog, "d65f710") {
+		t.Errorf("expected commit hash d65f710 in changelog")
+	}
+}
+
+func TestLoadLogoLines(t *testing.T) {
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("failed to get repo root: %v", err)
+	}
+	logoPath := filepath.Join(repoRoot, "assets", "syncalibur-logo.ansi")
+	lines := loadLogoLines(logoPath)
+	if len(lines) != 21 {
+		t.Errorf("expected 21 logo lines, got %d", len(lines))
+	}
+}
+
