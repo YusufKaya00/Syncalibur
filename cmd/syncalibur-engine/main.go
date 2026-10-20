@@ -193,29 +193,6 @@ func main() {
 		}
 		runInteractiveTUI(scriptPath, repoRoot)
 
-<<<<<<< HEAD
-	case "version", "--version", "-v":
-		printVersion()
-
-	case "release":
-		mode := "auto"
-		dryRun := false
-		repoRoot := "."
-		for _, arg := range os.Args[2:] {
-			if arg == "--dry-run" {
-				dryRun = true
-			} else if arg == "auto" || arg == "major" || arg == "minor" || arg == "patch" {
-				mode = arg
-			} else if !strings.HasPrefix(arg, "-") {
-				repoRoot = arg
-			}
-		}
-		if err := runRelease(repoRoot, mode, dryRun); err != nil {
-			fmt.Fprintf(os.Stderr, "release error: %v\n", err)
-			os.Exit(1)
-		}
-
-=======
 	case "smart-stage":
 		repo := "."
 		jsonOut := false
@@ -237,7 +214,25 @@ func main() {
 		}
 
 	case "version", "--version", "-v":
-		fmt.Printf("syncalibur v1.1.0 (%s/%s, go%s)\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
+		printVersion()
+
+	case "release":
+		mode := "auto"
+		dryRun := false
+		repoRoot := "."
+		for _, arg := range os.Args[2:] {
+			if arg == "--dry-run" {
+				dryRun = true
+			} else if arg == "auto" || arg == "major" || arg == "minor" || arg == "patch" {
+				mode = arg
+			} else if !strings.HasPrefix(arg, "-") {
+				repoRoot = arg
+			}
+		}
+		if err := runRelease(repoRoot, mode, dryRun); err != nil {
+			fmt.Fprintf(os.Stderr, "release error: %v\n", err)
+			os.Exit(1)
+		}
 
 	case "help", "--help", "-h":
 		fmt.Println("Syncalibur - Autonomous Git Auto-Sync Platform & Live Engine")
@@ -247,12 +242,11 @@ func main() {
 		fmt.Println("  smart-stage [repo]   Analyze and partition working tree changes into atomic scoped groups")
 		fmt.Println("  commit-msg [repo]    Generate Conventional Commit message for staged diff")
 		fmt.Println("  preflight [repo]     Run Shannon entropy & syntax validation")
+		fmt.Println("  release [mode]       Automated SemVer release & CHANGELOG generation")
 		fmt.Println("  sparkline [repo]     Render 7-day commit velocity sparkline")
 		fmt.Println("  fleet-scan [dir]     Recursively discover Git repositories")
 		fmt.Println("  fleet-status [file]  Probe status of multi-repo fleet list")
 		fmt.Println("  version              Display version and runtime information")
-
->>>>>>> pr-2
 	default:
 		os.Exit(1)
 	}
