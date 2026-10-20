@@ -1117,6 +1117,18 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	}
 
 	ext := strings.ToLower(filepath.Ext(relPath))
+	baseName := strings.ToLower(filepath.Base(relPath))
+
+	// Documentation and plain text files should NEVER be blocked by syntax hold
+	if ext == ".md" || ext == ".markdown" || ext == ".txt" || ext == ".rst" || ext == ".adoc" || ext == ".log" {
+		return true, ""
+	}
+
+	// Dockerfile / Containerfile
+	if baseName == "dockerfile" || baseName == "containerfile" || strings.HasPrefix(baseName, "dockerfile.") || strings.HasSuffix(baseName, ".dockerfile") {
+		return validateDockerfileSyntax(data, relPath)
+	}
+
 	switch ext {
 	case ".go":
 		fset := token.NewFileSet()
