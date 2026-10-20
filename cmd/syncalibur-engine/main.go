@@ -3400,7 +3400,14 @@ func printVersion() {
 	if err == nil {
 		hash = strings.TrimSpace(string(out))
 	}
-	fmt.Printf("%s%sSyncalibur %s%s (%s/%s)\n", cBold, cCyan, SyncaliburVersion, cReset, runtime.GOOS, runtime.GOARCH)
+	ver := SyncaliburVersion
+	if tagOut, err := exec.Command("git", "describe", "--tags", "--abbrev=0").Output(); err == nil {
+		t := strings.TrimSpace(string(tagOut))
+		if t != "" {
+			ver = t
+		}
+	}
+	fmt.Printf("%s%sSyncalibur %s%s (%s/%s)\n", cBold, cCyan, ver, cReset, runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("%sMilestone    :%s %s%s%s\n", cGold, cReset, cWhite, SyncaliburMilestone, cReset)
 	fmt.Printf("%sGit Commit   :%s %s\n", cGold, cReset, hash)
 	fmt.Printf("%sArchitecture :%s Autonomous Multi-Remote Git Synchronization & Pre-flight Code Guard\n", cGold, cReset)
