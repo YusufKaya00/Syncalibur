@@ -36,7 +36,7 @@ jobs:
         run: |
           go vet ./cmd/syncalibur-engine
           mkdir -p bin
-          go build -trimpath -ldflags="-s -w" -o bin/syncalibur-engine ./cmd/syncalibur-engine/main.go
+          go build -trimpath -ldflags="-s -w" -o bin/syncalibur-engine ./cmd/syncalibur-engine
 
       - name: Smoke Test Engine Subcommands & Security Hygiene
         run: |
