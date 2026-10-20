@@ -2476,6 +2476,14 @@ func renderLineANSI(s string, maxCols int, horizOffset int) string {
 
 	if hasMore {
 		out.WriteString(cGold + "…" + cReset)
+		printedCols++
+	}
+	if strings.HasPrefix(s, "│") {
+		pad := maxCols - 1 - printedCols
+		if pad > 0 {
+			out.WriteString(strings.Repeat(" ", pad))
+		}
+		out.WriteString(cGold + "│" + cReset)
 	}
 	out.WriteString(cReset + "\033[K")
 	return out.String()
