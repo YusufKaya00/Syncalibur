@@ -325,7 +325,6 @@ func HelperFunc() int {
 	}
 }
 
-<<<<<<< HEAD
 func TestParseConventionalCommit(t *testing.T) {
 	cases := []struct {
 		input       string
