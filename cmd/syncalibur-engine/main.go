@@ -3414,6 +3414,8 @@ func printVersion() {
 }
 
 func runRelease(repoRoot string, mode string, dryRun bool) error {
+	_ = exec.Command("git", "-C", repoRoot, "fetch", "--tags").Run()
+
 	tagCmd := exec.Command("git", "-C", repoRoot, "describe", "--tags", "--abbrev=0")
 	tagOut, _ := tagCmd.Output()
 	lastTag := strings.TrimSpace(string(tagOut))
@@ -3455,7 +3457,7 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 	}
 
 	if len(commits) == 0 && lastTag != "" {
-		fmt.Printf("%s%s No new commits since %s. Everything is up to date.%s\n", cAmber, iconWarn, lastTag, cReset)
+		fmt.Printf("%s%s No new commits since %s. Everything is up to date.%s\n", cGreen, iconCheck, lastTag, cReset)
 		return nil
 	}
 
@@ -3475,6 +3477,13 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 	}
 
 	nextVersion := calculateNextVersion(lastTag, bump)
+
+	// Idempotency guard: If nextVersion tag already exists, nothing to release
+	if err := exec.Command("git", "-C", repoRoot, "rev-parse", "--verify", "refs/tags/"+nextVersion).Run(); err == nil {
+		fmt.Printf("%s%s Release %s is already tagged and up to date.%s\n", cGreen, iconCheck, nextVersion, cReset)
+		return nil
+	}
+
 	today := time.Now().Format("2006-01-02")
 	changelogDraft := generateChangelog(nextVersion, today, commits)
 
