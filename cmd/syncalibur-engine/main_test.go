@@ -476,7 +476,9 @@ func TestLoadLogoLines(t *testing.T) {
 	}
 	if !hasTrueColor {
 		t.Errorf("expected fallback logo to contain 24-bit TrueColor ANSI escape sequences")
-=======
+	}
+}
+
 func TestDetectSecretsShellExpansion(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -489,7 +491,6 @@ OLLAMA_MODEL="${SYNCALIBUR_OLLAMA_MODEL:-qwen2.5-coder:1.5b}"
 	_ = os.WriteFile(scriptFile, []byte(content), 0644)
 	if hasSecret, reason := detectSecretsInFile(scriptFile); hasSecret {
 		t.Errorf("expected shell parameter expansion to NOT be flagged as secret, got: %s", reason)
->>>>>>> pr-2
 	}
 }
 
