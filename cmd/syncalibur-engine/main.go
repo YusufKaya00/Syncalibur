@@ -188,6 +188,27 @@ func main() {
 		}
 		runInteractiveTUI(scriptPath, repoRoot)
 
+	case "version", "--version", "-v":
+		printVersion()
+
+	case "release":
+		mode := "auto"
+		dryRun := false
+		repoRoot := "."
+		for _, arg := range os.Args[2:] {
+			if arg == "--dry-run" {
+				dryRun = true
+			} else if arg == "auto" || arg == "major" || arg == "minor" || arg == "patch" {
+				mode = arg
+			} else if !strings.HasPrefix(arg, "-") {
+				repoRoot = arg
+			}
+		}
+		if err := runRelease(repoRoot, mode, dryRun); err != nil {
+			fmt.Fprintf(os.Stderr, "release error: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		os.Exit(1)
 	}
