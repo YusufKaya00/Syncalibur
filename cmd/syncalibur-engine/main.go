@@ -2429,6 +2429,12 @@ func renderLineANSI(s string, maxCols int, horizOffset int) string {
 	if maxCols < 10 {
 		maxCols = 10
 	}
+	isBoxRow := strings.HasPrefix(s, "│")
+	limit := maxCols
+	if isBoxRow {
+		limit = maxCols - 2
+	}
+
 	var out strings.Builder
 	runes := []rune(s)
 	n := len(runes)
@@ -2463,7 +2469,7 @@ func renderLineANSI(s string, maxCols int, horizOffset int) string {
 		}
 
 		if visCol >= horizOffset {
-			if printedCols+charWidth <= maxCols-1 {
+			if printedCols+charWidth <= limit {
 				out.WriteRune(r)
 				printedCols += charWidth
 			} else {
@@ -2478,7 +2484,7 @@ func renderLineANSI(s string, maxCols int, horizOffset int) string {
 		out.WriteString(cGold + "…" + cReset)
 		printedCols++
 	}
-	if strings.HasPrefix(s, "│") {
+	if isBoxRow {
 		pad := maxCols - 1 - printedCols
 		if pad > 0 {
 			out.WriteString(strings.Repeat(" ", pad))
