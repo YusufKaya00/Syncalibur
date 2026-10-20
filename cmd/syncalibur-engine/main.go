@@ -58,6 +58,12 @@ const (
 	cBgBar = "\033[48;2;30;41;59m"
 )
 
+// Syncalibur Official Release & Semantic Version
+const (
+	SyncaliburVersion   = "v2.0.0"
+	SyncaliburMilestone = "Excalibur Evolution"
+)
+
 // Lucide / Minimalist Typography Icons
 const (
 	iconCheck   = "✓"
