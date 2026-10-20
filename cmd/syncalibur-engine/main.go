@@ -2575,9 +2575,29 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	var flashMsg string
 	var flashUntil time.Time
 	gitDir := filepath.Join(repoRoot, ".git")
-	logFile := filepath.Join(gitDir, "syncalibur.log")
-	logoFile := filepath.Join(repoRoot, "assets", "syncalibur-logo.ansi")
-	logoLines := loadLogoLines(logoFile)
+	candidatePaths := []string{
+		filepath.Join(filepath.Dir(scriptPath), "assets", "syncalibur-logo.ansi"),
+		filepath.Join(repoRoot, "assets", "syncalibur-logo.ansi"),
+		"/home/ysf/Syncalibur/assets/syncalibur-logo.ansi",
+	}
+	if exePath, err := os.Executable(); err == nil {
+		if realExe, err := filepath.EvalSymlinks(exePath); err == nil {
+			candidatePaths = append(candidatePaths, filepath.Join(filepath.Dir(filepath.Dir(realExe)), "assets", "syncalibur-logo.ansi"))
+		}
+	}
+	var logoLines []string
+	for _, p := range candidatePaths {
+		if _, err := os.Stat(p); err == nil {
+			lines := loadLogoLines(p)
+			if len(lines) == 21 {
+				logoLines = lines
+				break
+			}
+		}
+	}
+	if len(logoLines) != 21 {
+		logoLines = defaultEmbeddedLogoLines
+	}
 	showLogo := true
 
 	scrollOffset := 0
