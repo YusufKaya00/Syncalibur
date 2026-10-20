@@ -1,5 +1,17 @@
 # Changelog
 
+## [v2.2.0] - 2026-10-20
+
+### 🚀 Features
+- **main**: update runRelease() (+10/-1) ([`86dfbcc`](https://github.com/YusufKaya00/Syncalibur/commit/86dfbcc))
+
+### 🐛 Bug Fixes & Stability
+- **main**: fix runRelease() (+4/-4) ([`f336c50`](https://github.com/YusufKaya00/Syncalibur/commit/f336c50))
+
+### 📚 Tooling, Tests & Fleet
+- **release**: update release.yml (+3/-0) ([`dadc4bd`](https://github.com/YusufKaya00/Syncalibur/commit/dadc4bd))
+
+
 ## [v2.1.0] - 2026-10-20
 
 ### 🚀 Features

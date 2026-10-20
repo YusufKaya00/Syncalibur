@@ -59,7 +59,7 @@ const (
 
 // Syncalibur Official Release & Semantic Version
 const (
-	SyncaliburVersion   = "v2.1.0"
+	SyncaliburVersion   = "v2.2.0"
 	SyncaliburMilestone = "Excalibur Evolution"
 )
 
