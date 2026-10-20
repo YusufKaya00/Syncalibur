@@ -1190,21 +1190,15 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 		if ok, reason := checkLexicalBalance(data, ext); !ok {
 			return false, fmt.Sprintf("%s: %s", relPath, reason)
 		}
-	case ".json":
+	case ".json", ".jsonc", ".json5":
+		cleanJSON := stripCommentsFromJSON(data)
 		var v any
-		if err := json.Unmarshal(data, &v); err != nil {
+		if err := json.Unmarshal(cleanJSON, &v); err != nil {
 			return false, fmt.Sprintf("%s: invalid JSON: %v", relPath, err)
 		}
 	case ".yaml", ".yml":
-		for lineNum, line := range strings.Split(string(data), "\n") {
-			if strings.HasPrefix(line, "\t") {
-				return false, fmt.Sprintf("%s:%d: YAML syntax error: tabs are forbidden for indentation", relPath, lineNum+1)
-			}
-		}
-		if ok, reason := checkLexicalBalance(data, ext); !ok {
-			return false, fmt.Sprintf("%s: %s", relPath, reason)
-		}
-	case ".sh", ".bash":
+		return validateYAMLSyntax(data, relPath)
+	case ".sh", ".bash", ".zsh":
 		if _, err := exec.LookPath("bash"); err == nil {
 			cmd := exec.Command("bash", "-n", absPath)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1218,9 +1212,517 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 		if ok, reason := checkLexicalBalance(data, ext); !ok {
 			return false, fmt.Sprintf("%s: %s", relPath, reason)
 		}
-	case ".c", ".cpp", ".cc", ".h", ".hpp", ".rs", ".kt", ".cs", ".swift", ".php", ".css", ".scss":
+	case ".rb":
+		if _, err := exec.LookPath("ruby"); err == nil {
+			cmd := exec.Command("ruby", "-c", absPath)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				errMsg := strings.TrimSpace(string(out))
+				if errMsg != "" && strings.Contains(errMsg, "syntax error") {
+					lines := strings.Split(errMsg, "\n")
+					return false, fmt.Sprintf("%s: %s", relPath, lines[0])
+				}
+			}
+		}
 		if ok, reason := checkLexicalBalance(data, ext); !ok {
 			return false, fmt.Sprintf("%s: %s", relPath, reason)
+		}
+	case ".php":
+		if _, err := exec.LookPath("php"); err == nil {
+			cmd := exec.Command("php", "-l", absPath)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				errMsg := strings.TrimSpace(string(out))
+				if errMsg != "" {
+					lines := strings.Split(errMsg, "\n")
+					return false, fmt.Sprintf("%s: %s", relPath, lines[0])
+				}
+			}
+		}
+		if ok, reason := checkLexicalBalance(data, ext); !ok {
+			return false, fmt.Sprintf("%s: %s", relPath, reason)
+		}
+	case ".tf", ".tfvars", ".hcl":
+		return validateHCLSyntax(data, relPath)
+	case ".sql":
+		return validateSQLSyntax(data, relPath)
+	case ".css", ".scss", ".sass", ".less":
+		return validateCSSSyntax(data, relPath)
+	case ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".kt", ".kts", ".cs", ".swift", ".scala", ".lua":
+		if ok, reason := checkLexicalBalance(data, ext); !ok {
+			return false, fmt.Sprintf("%s: %s", relPath, reason)
+		}
+	}
+	return true, ""
+}
+
+func stripCommentsFromJSON(data []byte) []byte {
+	var out []byte
+	inString := false
+	escaped := false
+	n := len(data)
+
+	for i := 0; i < n; i++ {
+		ch := data[i]
+		if inString {
+			out = append(out, ch)
+			if escaped {
+				escaped = false
+			} else if ch == '\\' {
+				escaped = true
+			} else if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		if ch == '"' {
+			inString = true
+			out = append(out, ch)
+			continue
+		}
+
+		if ch == '/' && i+1 < n && data[i+1] == '/' {
+			for i < n && data[i] != '\n' {
+				i++
+			}
+			if i < n {
+				out = append(out, '\n')
+			}
+			continue
+		}
+
+		if ch == '/' && i+1 < n && data[i+1] == '*' {
+			i += 2
+			for i+1 < n && !(data[i] == '*' && data[i+1] == '/') {
+				i++
+			}
+			i++
+			continue
+		}
+
+		out = append(out, ch)
+	}
+	return out
+}
+
+func validateYAMLSyntax(data []byte, relPath string) (bool, string) {
+	lines := strings.Split(string(data), "\n")
+
+	inBlockScalar := false
+	blockScalarIndent := 0
+
+	templateStack := 0
+	flowStack := []rune{}
+
+	for lineNum, line := range lines {
+		trimmed := strings.TrimRight(line, "\r")
+
+		// 1. Check forbidden tabs for indentation (YAML spec)
+		if strings.HasPrefix(trimmed, "\t") {
+			return false, fmt.Sprintf("%s:%d: YAML syntax error: tabs are forbidden for indentation", relPath, lineNum+1)
+		}
+
+		// Calculate indentation
+		indent := 0
+		for _, ch := range trimmed {
+			if ch == ' ' {
+				indent++
+			} else {
+				break
+			}
+		}
+
+		cleanLine := strings.TrimSpace(trimmed)
+		if cleanLine == "" {
+			continue
+		}
+
+		// Check if inside multiline literal/folded block scalar (| or >)
+		// e.g. ConfigMap with embedded HTML, CSS, Shell, JSON, Nginx
+		if inBlockScalar {
+			if indent > blockScalarIndent {
+				// Embedded content lines: do NOT parse YAML syntax or CSS hex (#0f172a) as comments!
+				// Only verify template tag balances ({{ ... }}) if present
+				if strings.Contains(cleanLine, "{{") || strings.Contains(cleanLine, "}}") {
+					for i := 0; i < len(cleanLine); i++ {
+						if i+1 < len(cleanLine) && cleanLine[i] == '{' && cleanLine[i+1] == '{' {
+							templateStack++
+							i++
+						} else if i+1 < len(cleanLine) && cleanLine[i] == '}' && cleanLine[i+1] == '}' {
+							if templateStack > 0 {
+								templateStack--
+							}
+							i++
+						}
+					}
+				}
+				continue
+			} else {
+				inBlockScalar = false
+			}
+		}
+
+		// Check if this line begins a multiline block scalar
+		// e.g. "index.html: |", "script: |-", "config: >"
+		if strings.Contains(cleanLine, ": |") || strings.Contains(cleanLine, ": |-") ||
+			strings.Contains(cleanLine, ": |+") || strings.Contains(cleanLine, ": >") ||
+			strings.Contains(cleanLine, ": >-") || strings.Contains(cleanLine, ": >+") ||
+			cleanLine == "|" || cleanLine == "|-" || cleanLine == ">" || cleanLine == ">-" {
+			inBlockScalar = true
+			blockScalarIndent = indent
+		}
+
+		// Parse line outside block scalar
+		runes := []rune(cleanLine)
+		n := len(runes)
+		inQuote := rune(0)
+
+		for i := 0; i < n; i++ {
+			r := runes[i]
+
+			if inQuote != 0 {
+				if r == inQuote {
+					if r == '\'' && i+1 < n && runes[i+1] == '\'' {
+						i++ // escaped '' in YAML
+						continue
+					}
+					inQuote = 0
+				}
+				continue
+			}
+			if r == '"' || r == '\'' {
+				if i == 0 || unicode.IsSpace(runes[i-1]) || runes[i-1] == ':' || runes[i-1] == '-' || runes[i-1] == '[' || runes[i-1] == '{' {
+					inQuote = r
+				}
+				continue
+			}
+
+			// Comment check: YAML comments start with # preceded by whitespace or at line start
+			if r == '#' && (i == 0 || unicode.IsSpace(runes[i-1])) {
+				break
+			}
+
+			// Template tags: {{ and }}
+			if i+1 < n && r == '{' && runes[i+1] == '{' {
+				templateStack++
+				i++
+				continue
+			}
+			if i+1 < n && r == '}' && runes[i+1] == '}' {
+				if templateStack > 0 {
+					templateStack--
+				}
+				i++
+				continue
+			}
+
+			// Flow mapping braces outside template tags
+			if templateStack == 0 {
+				if r == '{' || r == '[' {
+					flowStack = append(flowStack, r)
+				} else if r == '}' || r == ']' {
+					if len(flowStack) > 0 {
+						top := flowStack[len(flowStack)-1]
+						if (r == '}' && top == '{') || (r == ']' && top == '[') {
+							flowStack = flowStack[:len(flowStack)-1]
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if templateStack > 0 {
+		return false, fmt.Sprintf("%s: unclosed template tag '{{' at end of file", relPath)
+	}
+	if len(flowStack) > 0 {
+		return false, fmt.Sprintf("%s: unclosed flow mapping '%c' at end of file", relPath, flowStack[len(flowStack)-1])
+	}
+	return true, ""
+}
+
+func validateCSSSyntax(data []byte, relPath string) (bool, string) {
+	lines := strings.Split(string(data), "\n")
+	var stack []bracketToken
+	inBlockComment := false
+	inString := rune(0)
+	escaped := false
+
+	for lineNum, line := range lines {
+		runes := []rune(line)
+		n := len(runes)
+
+		for i := 0; i < n; i++ {
+			r := runes[i]
+
+			if inBlockComment {
+				if r == '*' && i+1 < n && runes[i+1] == '/' {
+					inBlockComment = false
+					i++
+				}
+				continue
+			}
+
+			if inString != 0 {
+				if escaped {
+					escaped = false
+				} else if r == '\\' {
+					escaped = true
+				} else if r == inString {
+					inString = 0
+				}
+				continue
+			}
+
+			// Single-line SCSS/Less comment //
+			if r == '/' && i+1 < n && runes[i+1] == '/' {
+				break
+			}
+			// Block comment /*
+			if r == '/' && i+1 < n && runes[i+1] == '*' {
+				inBlockComment = true
+				i++
+				continue
+			}
+
+			if r == '"' || r == '\'' {
+				inString = r
+				continue
+			}
+
+			if r == '{' || r == '(' || r == '[' {
+				stack = append(stack, bracketToken{char: r, line: lineNum + 1})
+			} else if r == '}' || r == ')' || r == ']' {
+				if len(stack) == 0 {
+					return false, fmt.Sprintf("%s:%d: unexpected closing '%c' with no matching open bracket", relPath, lineNum+1, r)
+				}
+				top := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				if (r == '}' && top.char != '{') || (r == ')' && top.char != '(') || (r == ']' && top.char != '[') {
+					return false, fmt.Sprintf("%s:%d: mismatched closing '%c' (expected closing for '%c' from line %d)", relPath, lineNum+1, r, top.char, top.line)
+				}
+			}
+		}
+	}
+
+	if inBlockComment {
+		return false, fmt.Sprintf("%s: unclosed block comment '/*' at end of file", relPath)
+	}
+	if inString != 0 {
+		return false, fmt.Sprintf("%s: unclosed string literal '%c' at end of file", relPath, inString)
+	}
+	if len(stack) > 0 {
+		top := stack[len(stack)-1]
+		return false, fmt.Sprintf("%s: line %d: unclosed '%c' at end of file", relPath, top.line, top.char)
+	}
+	return true, ""
+}
+
+func validateHCLSyntax(data []byte, relPath string) (bool, string) {
+	lines := strings.Split(string(data), "\n")
+	var stack []bracketToken
+	inBlockComment := false
+	inHeredoc := false
+	heredocMarker := ""
+	inString := false
+	escaped := false
+
+	for lineNum, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if inHeredoc {
+			if trimmed == heredocMarker {
+				inHeredoc = false
+				heredocMarker = ""
+			}
+			continue
+		}
+
+		runes := []rune(line)
+		n := len(runes)
+
+		for i := 0; i < n; i++ {
+			r := runes[i]
+
+			if inBlockComment {
+				if r == '*' && i+1 < n && runes[i+1] == '/' {
+					inBlockComment = false
+					i++
+				}
+				continue
+			}
+
+			if inString {
+				if escaped {
+					escaped = false
+				} else if r == '\\' {
+					escaped = true
+				} else if r == '"' {
+					inString = false
+				}
+				continue
+			}
+
+			if r == '#' || (r == '/' && i+1 < n && runes[i+1] == '/') {
+				break
+			}
+			if r == '/' && i+1 < n && runes[i+1] == '*' {
+				inBlockComment = true
+				i++
+				continue
+			}
+
+			if r == '<' && i+1 < n && runes[i+1] == '<' {
+				rem := strings.TrimSpace(string(runes[i+2:]))
+				rem = strings.TrimPrefix(rem, "-")
+				marker := strings.TrimSpace(rem)
+				if marker != "" && !strings.ContainsAny(marker, " \t\r\n\"'{}()") {
+					inHeredoc = true
+					heredocMarker = marker
+					break
+				}
+			}
+
+			if r == '"' {
+				inString = true
+				continue
+			}
+
+			if r == '{' || r == '(' || r == '[' {
+				stack = append(stack, bracketToken{char: r, line: lineNum + 1})
+			} else if r == '}' || r == ')' || r == ']' {
+				if len(stack) == 0 {
+					return false, fmt.Sprintf("%s:%d: unexpected closing '%c'", relPath, lineNum+1, r)
+				}
+				top := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				if (r == '}' && top.char != '{') || (r == ')' && top.char != '(') || (r == ']' && top.char != '[') {
+					return false, fmt.Sprintf("%s:%d: mismatched closing '%c' (expected closing for '%c' from line %d)", relPath, lineNum+1, r, top.char, top.line)
+				}
+			}
+		}
+	}
+
+	if inHeredoc {
+		return false, fmt.Sprintf("%s: unclosed heredoc '<<%s' at end of file", relPath, heredocMarker)
+	}
+	if inBlockComment {
+		return false, fmt.Sprintf("%s: unclosed block comment '/*' at end of file", relPath)
+	}
+	if inString {
+		return false, fmt.Sprintf("%s: unclosed string literal '\"' at end of file", relPath)
+	}
+	if len(stack) > 0 {
+		top := stack[len(stack)-1]
+		return false, fmt.Sprintf("%s: line %d: unclosed '%c' at end of file", relPath, top.line, top.char)
+	}
+	return true, ""
+}
+
+func validateSQLSyntax(data []byte, relPath string) (bool, string) {
+	lines := strings.Split(string(data), "\n")
+	var stack []bracketToken
+	inBlockComment := false
+	inString := false
+
+	for lineNum, line := range lines {
+		runes := []rune(line)
+		n := len(runes)
+
+		for i := 0; i < n; i++ {
+			r := runes[i]
+
+			if inBlockComment {
+				if r == '*' && i+1 < n && runes[i+1] == '/' {
+					inBlockComment = false
+					i++
+				}
+				continue
+			}
+
+			if inString {
+				if r == '\'' {
+					if i+1 < n && runes[i+1] == '\'' {
+						i++
+						continue
+					}
+					inString = false
+				}
+				continue
+			}
+
+			if (r == '-' && i+1 < n && runes[i+1] == '-') || r == '#' {
+				break
+			}
+			if r == '/' && i+1 < n && runes[i+1] == '*' {
+				inBlockComment = true
+				i++
+				continue
+			}
+
+			if r == '\'' {
+				inString = true
+				continue
+			}
+
+			if r == '(' {
+				stack = append(stack, bracketToken{char: r, line: lineNum + 1})
+			} else if r == ')' {
+				if len(stack) == 0 {
+					return false, fmt.Sprintf("%s:%d: unexpected closing ')'", relPath, lineNum+1)
+				}
+				stack = stack[:len(stack)-1]
+			}
+		}
+	}
+
+	if inString {
+		return false, fmt.Sprintf("%s: unclosed string literal ''' at end of file", relPath)
+	}
+	if len(stack) > 0 {
+		top := stack[len(stack)-1]
+		return false, fmt.Sprintf("%s: line %d: unclosed '(' at end of file", relPath, top.line)
+	}
+	return true, ""
+}
+
+func validateDockerfileSyntax(data []byte, relPath string) (bool, string) {
+	lines := strings.Split(string(data), "\n")
+	validInstructions := map[string]bool{
+		"FROM": true, "RUN": true, "CMD": true, "LABEL": true, "MAINTAINER": true,
+		"EXPOSE": true, "ENV": true, "ADD": true, "COPY": true, "ENTRYPOINT": true,
+		"VOLUME": true, "USER": true, "WORKDIR": true, "ARG": true, "ONBUILD": true,
+		"STOPSIGNAL": true, "HEALTHCHECK": true, "SHELL": true,
+	}
+
+	inContinuation := false
+
+	for lineNum, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		if inContinuation {
+			if strings.HasSuffix(trimmed, "\\") {
+				inContinuation = true
+			} else {
+				inContinuation = false
+			}
+			continue
+		}
+
+		parts := strings.Fields(trimmed)
+		if len(parts) == 0 {
+			continue
+		}
+
+		instr := strings.ToUpper(parts[0])
+		if !validInstructions[instr] {
+			return false, fmt.Sprintf("%s:%d: unknown Dockerfile instruction '%s'", relPath, lineNum+1, parts[0])
+		}
+
+		if strings.HasSuffix(trimmed, "\\") {
+			inContinuation = true
 		}
 	}
 	return true, ""
