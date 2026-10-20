@@ -3511,6 +3511,24 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 		return fmt.Errorf("failed to write CHANGELOG.md: %w", err)
 	}
 
+	// 1. Update version constant in cmd/syncalibur-engine/main.go
+	engineMainFile := filepath.Join(repoRoot, "cmd", "syncalibur-engine", "main.go")
+	if mainData, err := os.ReadFile(engineMainFile); err == nil {
+		reVer := regexp.MustCompile(`SyncaliburVersion\s*=\s*"[^"]+"`)
+		newMain := reVer.ReplaceAllString(string(mainData), fmt.Sprintf(`SyncaliburVersion   = "%s"`, nextVersion))
+		_ = os.WriteFile(engineMainFile, []byte(newMain), 0644)
+		_ = exec.Command("git", "-C", repoRoot, "add", filepath.Join("cmd", "syncalibur-engine", "main.go")).Run()
+	}
+
+	// 2. Update version constant in syncalibur.sh
+	shFile := filepath.Join(repoRoot, "syncalibur.sh")
+	if shData, err := os.ReadFile(shFile); err == nil {
+		reSh := regexp.MustCompile(`SYNCALIBUR_PLATFORM_VERSION="[^"]+"`)
+		newSh := reSh.ReplaceAllString(string(shData), fmt.Sprintf(`SYNCALIBUR_PLATFORM_VERSION="%s"`, nextVersion))
+		_ = os.WriteFile(shFile, []byte(newSh), 0755)
+		_ = exec.Command("git", "-C", repoRoot, "add", "syncalibur.sh").Run()
+	}
+
 	_ = exec.Command("git", "-C", repoRoot, "add", "CHANGELOG.md").Run()
 	commitMsg := fmt.Sprintf("chore(release): bump version to %s", nextVersion)
 	_ = exec.Command("git", "-C", repoRoot, "commit", "-m", commitMsg).Run()
@@ -3529,7 +3547,31 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 	fmt.Printf("\n  %s%s%s RELEASE %s SUCCESSFUL!%s\n", cGreen, cBold, iconCheck, nextVersion, cReset)
 	fmt.Printf("  %s•%s Tagged as %s%s%s\n", cGold, cReset, cBold, nextVersion, cReset)
 	fmt.Printf("  %s•%s CHANGELOG.md updated with %d commits\n", cGold, cReset, len(commits))
-	fmt.Printf("  %s•%s Pushed tags to %s\n\n", cGold, cReset, strings.Join(remotes, ", "))
+	fmt.Printf("  %s•%s Pushed tags to %s\n", cGold, cReset, strings.Join(remotes, ", "))
+
+	// 3. Create official GitHub Release via gh CLI if available
+	if _, err := exec.LookPath("gh"); err == nil {
+		tmpNotes, err := os.CreateTemp("", "syncalibur-release-notes-*.md")
+		if err == nil {
+			_, _ = tmpNotes.WriteString(changelogDraft)
+			_ = tmpNotes.Close()
+			defer os.Remove(tmpNotes.Name())
+
+			ghArgs := []string{"release", "create", nextVersion, "--title", fmt.Sprintf("Syncalibur %s", nextVersion), "--notes-file", tmpNotes.Name()}
+			binPath := filepath.Join(repoRoot, "bin", "syncalibur")
+			if _, err := os.Stat(binPath); err == nil {
+				ghArgs = append(ghArgs, binPath)
+			}
+			cmdGH := exec.Command("gh", ghArgs...)
+			cmdGH.Dir = repoRoot
+			if out, err := cmdGH.CombinedOutput(); err == nil {
+				fmt.Printf("  %s•%s Official GitHub Release created: https://github.com/YusufKaya00/Syncalibur/releases/tag/%s\n", cGreen, cReset, nextVersion)
+			} else {
+				fmt.Printf("  %s•%s GitHub Release notice: %s\n", cAmber, cReset, strings.TrimSpace(string(out)))
+			}
+		}
+	}
+	fmt.Println()
 
 	return nil
 }
