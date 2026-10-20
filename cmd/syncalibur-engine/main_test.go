@@ -494,3 +494,50 @@ OLLAMA_MODEL="${SYNCALIBUR_OLLAMA_MODEL:-qwen2.5-coder:1.5b}"
 	}
 }
 
+func TestPlanSmartStaging(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Initialize git repo
+	_ = exec.Command("git", "-C", tmpDir, "init").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.email", "test@test.com").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.name", "Test").Run()
+
+	// Initial commit
+	initFile := filepath.Join(tmpDir, "README.md")
+	_ = os.WriteFile(initFile, []byte("# Initial"), 0644)
+	_ = exec.Command("git", "-C", tmpDir, "add", ".").Run()
+	_ = exec.Command("git", "-C", tmpDir, "commit", "-m", "chore: init").Run()
+
+	// Create multiple changes across scopes: docs, ci, code, and test
+	_ = os.WriteFile(initFile, []byte("# Updated README"), 0644) // docs
+	_ = os.MkdirAll(filepath.Join(tmpDir, ".github", "workflows"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, ".github", "workflows", "ci.yml"), []byte("name: CI"), 0644) // ci
+	_ = os.MkdirAll(filepath.Join(tmpDir, "cmd", "app"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "cmd", "app", "main.go"), []byte("package main"), 0644) // code:app
+	_ = os.WriteFile(filepath.Join(tmpDir, "cmd", "app", "main_test.go"), []byte("package main"), 0644) // test
+
+	groups := planSmartStaging(tmpDir)
+	if len(groups) < 3 {
+		t.Errorf("expected at least 3 partition groups (docs, ci, code/test), got %d", len(groups))
+	}
+
+	foundDocs := false
+	foundCI := false
+	foundCode := false
+	for _, g := range groups {
+		if g.Scope == "docs" {
+			foundDocs = true
+		}
+		if g.Scope == "ci" {
+			foundCI = true
+		}
+		if g.Scope == "app" {
+			foundCode = true
+		}
+	}
+
+	if !foundDocs || !foundCI || !foundCode {
+		t.Errorf("expected groups to contain docs, ci, and app, got: %+v", groups)
+	}
+}
+
