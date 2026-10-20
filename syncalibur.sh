@@ -989,7 +989,7 @@ print_syncalibur_dashboard() {
 
   local -a info_lines=(
     "${C_GOLD}╭──────────────────────────────────────────────────────────────────────╮${C_RESET}"
-    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}v2.0.0${C_RESET}  ${C_SLATE}•${C_RESET}   ${C_CYAN}Autonomous Git Auto-Sync Platform${C_RESET}        ${C_GOLD}│${C_RESET}"
+    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}${SYNCALIBUR_PLATFORM_VERSION}${C_RESET}  ${C_SLATE}•${C_RESET}   ${C_CYAN}Autonomous Git Auto-Sync Platform${C_RESET}        ${C_GOLD}│${C_RESET}"
     "${C_GOLD}╰──────────────────────────────────────────────────────────────────────╯${C_RESET}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Status    :${C_RESET} ${state_str}  ${C_SLATE}•${C_RESET}  ${engine_badge}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}OS / Mode :${C_RESET} ${C_WHITE}${OS_KERNEL} (${SERVICE_BACKEND})${C_RESET}  ${C_SLATE}•${C_RESET}  ${autostart_str}"
@@ -3227,7 +3227,7 @@ cmd_version() {
   if [[ -x "${GO_ENGINE_BIN}" ]]; then
     "${GO_ENGINE_BIN}" version
   else
-    echo "Syncalibur v2.0.0 (bash fallback)"
+    echo "Syncalibur ${SYNCALIBUR_PLATFORM_VERSION} (bash fallback)"
   fi
 }
 
