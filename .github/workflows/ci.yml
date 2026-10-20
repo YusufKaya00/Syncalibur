@@ -40,7 +40,7 @@ jobs:
 
       - name: Smoke Test Engine Subcommands & Security Hygiene
         run: |
-          ./bin/syncalibur-engine render-logo assets/syncalibur-logo.png 20 > /dev/null
+          ./bin/syncalibur-engine render-logo assets/syncalibur-logo.png /tmp/logo.ansi > /dev/null
           ./bin/syncalibur-engine sparkline . > /dev/null
           if git ls-files --error-unmatch syncalibur.env >/dev/null 2>&1; then
             echo "ERROR: Personal syncalibur.env must never be tracked in Git!"
