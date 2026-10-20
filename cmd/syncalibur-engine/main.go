@@ -2913,6 +2913,14 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				case 'd', 'D': // Doctor
 					flashMsg = fmt.Sprintf("%s%s %sDOCTOR:%s Running 11-point diagnostic check...", cGreen, iconDoctor, cBold, cReset)
 					flashUntil = time.Now().Add(3 * time.Second)
+				case 't', 'T', 'e', 'E': // Toggle Emblem / Logo
+					showLogo = !showLogo
+					if showLogo {
+						flashMsg = fmt.Sprintf("%s%s %sEMBLEM COCKPIT:%s TrueColor sword logo & telemetry expanded.", cCyan, iconZap, cBold, cReset)
+					} else {
+						flashMsg = fmt.Sprintf("%s%s %sCOMPACT TAIL VIEW:%s Maximized log viewport.", cGreen, iconZap, cBold, cReset)
+					}
+					flashUntil = time.Now().Add(3 * time.Second)
 				case 'r', 'R': // Redraw
 				}
 				if shouldExit {
