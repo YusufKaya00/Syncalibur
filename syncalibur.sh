@@ -22,7 +22,7 @@ set -uo pipefail
 
 export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/c/Program Files/Go/bin:/c/Go/bin:${PATH}"
 
-SYNCALIBUR_PLATFORM_VERSION="v2.0.0"
+SYNCALIBUR_PLATFORM_VERSION="v2.1.0"
 
 # ==============================================================================
 # Cross-platform portability helpers (Linux, macOS Bash 3.2+, Windows Git Bash)
