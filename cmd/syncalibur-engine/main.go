@@ -2570,6 +2570,9 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	var flashUntil time.Time
 	gitDir := filepath.Join(repoRoot, ".git")
 	logFile := filepath.Join(gitDir, "syncalibur.log")
+	logoFile := filepath.Join(repoRoot, "assets", "syncalibur-logo.ansi")
+	logoLines := loadLogoLines(logoFile)
+	showLogo := true
 
 	scrollOffset := 0
 	horizOffset := 0
@@ -2629,32 +2632,85 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		var frame strings.Builder
 		frame.WriteString("\033[H")
 
-		// 1. Telemetry Cockpit Header (Strictly 7 lines)
-		fmt.Fprintf(&frame, "  %s╭%s╮%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
+		useSideBySide := showLogo && termCols >= 96 && termRows >= 28
 
-		line1 := fmt.Sprintf("│  %s%s%s SYNCALIBUR COCKPIT%s  •  %s  •  Loop: %s  •  Today: %s%s commits%s  •  %s%s%s",
-			cCyan, cBold, iconDiamond, cReset, onlineStr, pauseState, cGreen, commitsToday, cReset, cSlate, nowStr, cReset)
-		fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line1, boxWidth, 0))
+		if useSideBySide {
+			// Side-by-side Emblem Cockpit (21 rows)
+			rightBoxWidth := termCols - 50
+			if rightBoxWidth > 76 {
+				rightBoxWidth = 76
+			}
+			if rightBoxWidth < 46 {
+				rightBoxWidth = 46
+			}
 
-		line2 := fmt.Sprintf("│  %s◈ Watching :%s %s%s [%s]%s  •  %sUnpushed :%s %s%s commits%s",
-			cGold, cReset, cBold, repoRoot, branch, cReset, cGold, cReset, cAmber, unpushed, cReset)
-		fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line2, boxWidth, 0))
+			rightLines := make([]string, 21)
+			rightLines[0] = fmt.Sprintf("╭%s╮", strings.Repeat("─", rightBoxWidth-2))
+			rightLines[1] = fmt.Sprintf("│  %s%s%s SYNCALIBUR COCKPIT %s[%s]%s", cCyan, cBold, iconDiamond, cGold, SyncaliburVersion, cReset)
+			rightLines[2] = fmt.Sprintf("│  Status    : %s", onlineStr)
+			rightLines[3] = fmt.Sprintf("│  Daemon    : %s  •  Loop: %s", cWhite+"Go Native"+cReset, pauseState)
+			rightLines[4] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
+			rightLines[5] = fmt.Sprintf("│  %s◈ Watching%s : %s", cGold, cReset, repoRoot)
+			rightLines[6] = fmt.Sprintf("│  %s◈ Branch%s   : %s%s%s  •  Unpushed: %s%s%s", cGold, cReset, cBold, branch, cReset, cAmber, unpushed, cReset)
+			rightLines[7] = fmt.Sprintf("│  %s◈ Today%s    : %s%s commits%s  •  Time: %s%s%s", cGold, cReset, cGreen, commitsToday, cReset, cSlate, nowStr, cReset)
+			rightLines[8] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
+			rightLines[9] = fmt.Sprintf("│  %s◈ Shields%s  : %s%s Syntax Pre-flight (AST)%s", cGold, cReset, cGreen, iconCheck, cReset)
+			rightLines[10] = fmt.Sprintf("│              %s%s Shannon Entropy Guard%s", cGreen, iconCheck, cReset)
+			rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
+			rightLines[12] = fmt.Sprintf("│  %s◈ Velocity%s : %s (7-day activity)", cGold, cReset, spark)
+			rightLines[13] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
+			rightLines[14] = fmt.Sprintf("│  %s◈ Release%s  : %s%s%s (%s)", cGold, cReset, cGreen, SyncaliburVersion, cReset, SyncaliburMilestone)
+			rightLines[15] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
+			if time.Now().Before(flashUntil) && flashMsg != "" {
+				rightLines[16] = fmt.Sprintf("│  %s", flashMsg)
+				rightLines[17] = fmt.Sprintf("│  %s", cSlate+"Press any hotkey to interact..."+cReset)
+				rightLines[18] = fmt.Sprintf("│")
+				rightLines[19] = fmt.Sprintf("│")
+			} else {
+				rightLines[16] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cGold, cReset)
+				rightLines[17] = fmt.Sprintf("│           %s[b]%s Pull  %s[t]%s Logo   %s[d]%s Doctor", cGold, cReset, cCyan, cReset, cGold, cReset)
+				rightLines[18] = fmt.Sprintf("│           %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail", cCyan, cReset, cCyan, cReset, cGreen, cReset)
+				rightLines[19] = fmt.Sprintf("│           %s[0]%s Reset Pan  %s[r]%s Redraw", cCyan, cReset, cSlate, cReset)
+			}
+			rightLines[20] = fmt.Sprintf("╰%s╯", strings.Repeat("─", rightBoxWidth-2))
 
-		line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s%s Syntax Pre-flight%s  •  %s%s Entropy Shield%s  •  %s7d Velocity :%s %s",
-			cGold, cReset, cGreen, iconCheck, cReset, cGreen, iconCheck, cReset, cGold, cReset, spark)
-		fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line3, boxWidth, 0))
-
-		fmt.Fprintf(&frame, "  %s├%s┤%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
-
-		if time.Now().Before(flashUntil) && flashMsg != "" {
-			lineFlash := fmt.Sprintf("│  %s", flashMsg)
-			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
+			for r := 0; r < 21; r++ {
+				lPart := ""
+				if r < len(logoLines) {
+					lPart = logoLines[r]
+				} else {
+					lPart = strings.Repeat(" ", 44)
+				}
+				fmt.Fprintf(&frame, "  %s  %s%s\n", lPart, cGold, renderLineANSI(rightLines[r], rightBoxWidth, 0))
+			}
 		} else {
-			lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[s]%s Sync  %s[b]%s Pull  %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail  %s[d]%s Doctor",
-				cBold, cReset, cRed, cReset, cGold, cReset, cGold, cReset, cGold, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset, cGold, cReset)
-			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
+			// Compact Header (Strictly 7 lines)
+			fmt.Fprintf(&frame, "  %s╭%s╮%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
+
+			line1 := fmt.Sprintf("│  %s%s%s SYNCALIBUR COCKPIT %s[%s]%s  •  %s  •  Loop: %s  •  Today: %s%s commits%s  •  %s%s%s",
+				cCyan, cBold, iconDiamond, cGold, SyncaliburVersion, cReset, onlineStr, pauseState, cGreen, commitsToday, cReset, cSlate, nowStr, cReset)
+			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line1, boxWidth, 0))
+
+			line2 := fmt.Sprintf("│  %s◈ Watching :%s %s%s [%s]%s  •  %sUnpushed :%s %s%s commits%s",
+				cGold, cReset, cBold, repoRoot, branch, cReset, cGold, cReset, cAmber, unpushed, cReset)
+			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line2, boxWidth, 0))
+
+			line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s%s Syntax Pre-flight%s  •  %s%s Entropy Shield%s  •  %s7d Velocity :%s %s",
+				cGold, cReset, cGreen, iconCheck, cReset, cGreen, iconCheck, cReset, cGold, cReset, spark)
+			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line3, boxWidth, 0))
+
+			fmt.Fprintf(&frame, "  %s├%s┤%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
+
+			if time.Now().Before(flashUntil) && flashMsg != "" {
+				lineFlash := fmt.Sprintf("│  %s", flashMsg)
+				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
+			} else {
+				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[s]%s Sync  %s[b]%s Pull  %s[t]%s Logo  %s[↑/↓]%s Scroll  %s[f]%s Tail  %s[d]%s Doctor",
+					cBold, cReset, cRed, cReset, cGold, cReset, cGold, cReset, cGold, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset, cGold, cReset)
+				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
+			}
+			fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
 		}
-		fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
 
 		// 2. Log Viewport Section
 		allLogs := loadLogLines(logFile, 1000)
@@ -2673,11 +2729,15 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			cBold, cCyan, iconChevron, cReset, cSlate, totalLogs, followBadge, panBadge, cReset)
 		fmt.Fprintf(&frame, "  %s%s%s\033[K\n", cSlate, strings.Repeat("─", boxWidth), cReset)
 
-		// Exact row accounting to prevent terminal overflow & scrolling
 		headerRows := 9
+		if useSideBySide {
+			headerRows = 23
+		}
 		footerRows := 1
 		logRows := termRows - headerRows - footerRows
 		if logRows < 3 {
+			logRows = 3
+		}
 			logRows = 3
 		}
 
