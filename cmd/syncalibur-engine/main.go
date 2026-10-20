@@ -3514,8 +3514,8 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 	// 1. Update version constant in cmd/syncalibur-engine/main.go
 	engineMainFile := filepath.Join(repoRoot, "cmd", "syncalibur-engine", "main.go")
 	if mainData, err := os.ReadFile(engineMainFile); err == nil {
-		reVer := regexp.MustCompile(`SyncaliburVersion\s*=\s*"[^"]+"`)
-		newMain := reVer.ReplaceAllString(string(mainData), fmt.Sprintf(`SyncaliburVersion   = "v2.1.0"`, nextVersion))
+		reVer := regexp.MustCompile(`(?m)^\s*SyncaliburVersion\s*=\s*"[^"]+"`)
+		newMain := reVer.ReplaceAllString(string(mainData), "\tSyncaliburVersion   = \""+nextVersion+"\"")
 		_ = os.WriteFile(engineMainFile, []byte(newMain), 0644)
 		_ = exec.Command("git", "-C", repoRoot, "add", filepath.Join("cmd", "syncalibur-engine", "main.go")).Run()
 	}
@@ -3523,8 +3523,8 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 	// 2. Update version constant in syncalibur.sh
 	shFile := filepath.Join(repoRoot, "syncalibur.sh")
 	if shData, err := os.ReadFile(shFile); err == nil {
-		reSh := regexp.MustCompile(`SYNCALIBUR_PLATFORM_VERSION="[^"]+"`)
-		newSh := reSh.ReplaceAllString(string(shData), fmt.Sprintf(`SYNCALIBUR_PLATFORM_VERSION="%s"`, nextVersion))
+		reSh := regexp.MustCompile(`(?m)^\s*SYNCALIBUR_PLATFORM_VERSION="[^"]+"`)
+		newSh := reSh.ReplaceAllString(string(shData), "SYNCALIBUR_PLATFORM_VERSION=\""+nextVersion+"\"")
 		_ = os.WriteFile(shFile, []byte(newSh), 0755)
 		_ = exec.Command("git", "-C", repoRoot, "add", "syncalibur.sh").Run()
 	}
