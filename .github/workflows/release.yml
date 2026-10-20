@@ -1,0 +1,45 @@
+name: Syncalibur Automated Release
+
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - "CHANGELOG.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: SemVer Release & Asset Broadcast
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Configure Git Identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Build Engine
+        run: |
+          mkdir -p bin
+          go build -trimpath -ldflags="-s -w" -o bin/syncalibur ./cmd/syncalibur-engine
+
+      - name: Run Automated Release Engine
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./bin/syncalibur release auto
