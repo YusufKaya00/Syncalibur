@@ -68,7 +68,7 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
   - **Exit Code 0:** Clean (pass).
   - **Exit Code 2:** Syntax Hold (code contains unclosed brackets/syntax errors; commit is held until fixed).
   - **Exit Code 3:** Secret Shield (credential detected; specific files are quarantined from git add).
-- `ui [scriptPath] [repoRoot]`: Launches fullscreen interactive two-pane cockpit.
+- `status / ui [scriptPath] [repoRoot]`: Launches fullscreen interactive two-pane cockpit with live telemetry, active operating mode, and log viewport.
 - `render-logo <src.png> <dst.ansi>`: Downsamples PNG to 44x21 character TrueColor ANSI using 2x2 quadrant subpixel clustering.
 - `sparkline [repoRoot]`: Computes 7-day commit velocity bar chart (`  ▂▃▄▅▆▇█`).
 - `fleet-scan [dir]`: Recursively discovers Git repositories up to depth 3 using parallel goroutines.
