@@ -437,11 +437,12 @@ PUSH_TIMEOUT="${SYNCALIBUR_PUSH_TIMEOUT:-${AUTO_SYNC_PUSH_TIMEOUT:-120}}"
 LOG_MAX_KB="${SYNCALIBUR_LOG_MAX_KB:-${AUTO_SYNC_LOG_MAX_KB:-1024}}"
 REMOTE_OVERRIDE="${SYNCALIBUR_REMOTE:-${AUTO_SYNC_REMOTE:-}}"
 
-# Operating Modes: "commit-generator" | "developer" | "devops" | "pr" (default: "developer")
+# Operating Modes: "instant-push" | "developer" | "devops" | "pr" (default: "developer")
 MODE="${SYNCALIBUR_MODE:-developer}"
 
 case "${MODE}" in
-  commit-generator | stream | continuous)
+  instant-push | instant | stream | continuous | commit-generator | commit-gen)
+    MODE="instant-push"
     BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-10}"
     TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-999}"
     AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-false}"
