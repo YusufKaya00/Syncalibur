@@ -863,7 +863,7 @@ func Greet() string { return "Hello from feature" }
 	if !found {
 		t.Errorf("expected detectConflictMarkers to find conflict, got none")
 	}
-	if !strings.Contains(msg, "<<<<<<<") || !strings.Contains(msg, "line 3") {
+	if !strings.Contains(msg, "<<<<<<<") || !strings.Contains(msg, ":3:") {
 		t.Errorf("expected conflict message to mention line 3 and <<<<<<<, got %s", msg)
 	}
 }
