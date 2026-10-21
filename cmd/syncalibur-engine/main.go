@@ -3005,7 +3005,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				cCyan, cBold, iconDiamond, cGold, SyncaliburVersion, cReset, onlineStr, modeBadge, pauseState)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line1, boxWidth, 0))
 
-			line2 := fmt.Sprintf("│  %s◈ Watching :%s %s%s [%s]%s  •  %sToday :%s %s%s commits%s  •  %sUnpushed :%s %s%s",
+			line2 := fmt.Sprintf("│  %s◈ Watching :%s %s%s [%s]%s  •  %sToday :%s %s%s commits%s  •  %sUnpushed :%s %s%s%s",
 				cGold, cReset, cBold, repoRoot, branch, cReset, cGold, cReset, cGreen, commitsToday, cReset, cGold, cReset, cAmber, unpushed, cReset)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line2, boxWidth, 0))
 
@@ -3020,7 +3020,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
 			} else {
 				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[m]%s Mode  %s[s]%s Sync  %s[b]%s Pull  %s[t]%s Logo  %s[↑/↓]%s Scroll  %s[f]%s Tail",
-					cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset)
+					cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
 			}
 			fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
