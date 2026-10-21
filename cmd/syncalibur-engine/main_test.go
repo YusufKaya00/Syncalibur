@@ -639,3 +639,287 @@ func TestGetCommitVelocity(t *testing.T) {
 	}
 }
 
+func TestDevOpsKubernetesPortMismatch(t *testing.T) {
+	// 1. Valid matching Service & Deployment
+	validK8s := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  labels:
+    app: web
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25.3-alpine
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+spec:
+  selector:
+    app: web
+  ports:
+  - port: 80
+    targetPort: 8080
+`
+	docs := splitYAMLDocuments(validK8s)
+	parsed := make([]K8sDoc, 0, len(docs))
+	for _, d := range docs {
+		if pd := parseK8sDoc(d); pd != nil {
+			parsed = append(parsed, *pd)
+		}
+	}
+	errs := validateServicePortTargetPort("test.yaml", parsed)
+	if len(errs) != 0 {
+		t.Errorf("expected 0 port mismatch errors for matching Service/Deployment, got: %+v", errs)
+	}
+
+	// 2. Mismatched targetPort (Service targetPort 9090 vs Container port 8080)
+	mismatchedK8s := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  labels:
+    app: web
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25.3-alpine
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+spec:
+  selector:
+    app: web
+  ports:
+  - port: 80
+    targetPort: 9090
+`
+	mDocs := splitYAMLDocuments(mismatchedK8s)
+	mParsed := make([]K8sDoc, 0, len(mDocs))
+	for _, d := range mDocs {
+		if pd := parseK8sDoc(d); pd != nil {
+			mParsed = append(mParsed, *pd)
+		}
+	}
+	mErrs := validateServicePortTargetPort("bad-service.yaml", mParsed)
+	if len(mErrs) == 0 {
+		t.Errorf("expected port mismatch error for targetPort 9090 vs containerPort 8080, got 0 errors")
+	}
+}
+
+func TestDevOpsConfigMapSecrets(t *testing.T) {
+	// ConfigMap with plaintext AWS API secret
+	badConfigMap := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  DATABASE_URL: "postgres://user:secret123@db:5432/prod"
+`
+	docs := splitYAMLDocuments(badConfigMap)
+	parsed := make([]K8sDoc, 0, len(docs))
+	for _, d := range docs {
+		if pd := parseK8sDoc(d); pd != nil {
+			parsed = append(parsed, *pd)
+		}
+	}
+	errs := validateConfigMapSecrets("configmap.yaml", parsed)
+	if len(errs) == 0 {
+		t.Errorf("expected secret detection error in ConfigMap data, got 0")
+	}
+}
+
+func TestDevOpsContainerProbes(t *testing.T) {
+	// Probe hitting an undeclared container port
+	badProbe := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: api
+        image: myapp:v1.0.0
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+`
+	docs := splitYAMLDocuments(badProbe)
+	parsed := make([]K8sDoc, 0, len(docs))
+	for _, d := range docs {
+		if pd := parseK8sDoc(d); pd != nil {
+			parsed = append(parsed, *pd)
+		}
+	}
+	errs := validateContainerProbes("deploy.yaml", parsed)
+	if len(errs) == 0 {
+		t.Errorf("expected readinessProbe port mismatch error for port 3000, got 0")
+	}
+}
+
+func TestDevOpsDockerfileLint(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Dockerfile with :latest and no USER directive
+	badDocker := filepath.Join(tmpDir, "Dockerfile")
+	_ = os.WriteFile(badDocker, []byte("FROM golang:latest\nCOPY . .\nCMD [\"./app\"]\n"), 0644)
+	errs := lintDockerfile(badDocker, "Dockerfile")
+	if len(errs) == 0 {
+		t.Errorf("expected lintDockerfile to flag ':latest' and missing USER non-root, got 0 errors")
+	}
+
+	// 2. Multi-stage Dockerfile with non-root USER and pinned tag
+	goodDocker := filepath.Join(tmpDir, "Dockerfile.good")
+	goodContent := `FROM golang:1.22.1-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o /app/server .
+
+FROM alpine:3.19.1
+RUN adduser -D -u 10001 appuser
+USER 10001
+WORKDIR /app
+COPY --from=builder /app/server /app/server
+ENTRYPOINT ["/app/server"]
+`
+	_ = os.WriteFile(goodDocker, []byte(goodContent), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, ".dockerignore"), []byte(".git\n*.env\n"), 0644)
+	goodErrs := lintDockerfile(goodDocker, "Dockerfile.good")
+	if len(goodErrs) != 0 {
+		t.Errorf("expected clean multi-stage Dockerfile to pass, got: %+v", goodErrs)
+	}
+}
+
+func TestDevOpsTerraformHygiene(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Missing .gitignore with .tf file present
+	tfFile := filepath.Join(tmpDir, "main.tf")
+	_ = os.WriteFile(tfFile, []byte("resource \"aws_s3_bucket\" \"b\" {}\n"), 0644)
+	errs := lintTerraformHygiene(tmpDir, []string{"main.tf"})
+	if len(errs) == 0 {
+		t.Errorf("expected missing .gitignore error when .tf files exist, got 0")
+	}
+
+	// 2. Plaintext credentials in terraform.tfvars
+	_ = os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".terraform/\n*.tfstate*\n"), 0644)
+	tfvarsFile := filepath.Join(tmpDir, "terraform.tfvars")
+	_ = os.WriteFile(tfvarsFile, []byte("db_password = \"supersecret123456\"\n"), 0644)
+	varErrs := lintTerraformHygiene(tmpDir, []string{"main.tf", "terraform.tfvars"})
+	if len(varErrs) == 0 {
+		t.Errorf("expected plaintext credential error in terraform.tfvars, got 0")
+	}
+}
+
+func TestDetectConflictMarkers(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// File with Git conflict markers
+	conflictFile := filepath.Join(tmpDir, "merge.go")
+	conflictContent := `package main
+
+<<<<<<< HEAD
+func Greet() string { return "Hello from main" }
+=======
+func Greet() string { return "Hello from feature" }
+>>>>>>> feature-branch
+`
+	_ = os.WriteFile(conflictFile, []byte(conflictContent), 0644)
+	found, lineNum, marker := detectConflictMarkers(conflictFile)
+	if !found {
+		t.Errorf("expected detectConflictMarkers to find conflict, got none")
+	}
+	if lineNum != 3 || marker != "<<<<<<<" {
+		t.Errorf("expected conflict on line 3 with <<<<<<<, got line %d with %s", lineNum, marker)
+	}
+}
+
+func TestIsBinaryFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// UTF-8 plain text file
+	textFile := filepath.Join(tmpDir, "readme.txt")
+	_ = os.WriteFile(textFile, []byte("Hello World, this is normal text.\n"), 0644)
+	if isBinaryFile(textFile) {
+		t.Errorf("expected plain text file NOT to be flagged as binary")
+	}
+
+	// Binary file with null bytes
+	binFile := filepath.Join(tmpDir, "data.bin")
+	_ = os.WriteFile(binFile, []byte{0x7f, 'E', 'L', 'F', 0x02, 0x01, 0x00, 0x00}, 0644)
+	if !isBinaryFile(binFile) {
+		t.Errorf("expected file with null bytes to be flagged as binary")
+	}
+}
+
+func TestModeCycleAndBadge(t *testing.T) {
+	// Mode badge checks
+	if !strings.Contains(getModeBadge("devops"), "☸ DevOps") {
+		t.Errorf("expected getModeBadge('devops') to contain '☸ DevOps', got %s", getModeBadge("devops"))
+	}
+	if !strings.Contains(getModeBadge("commit-generator"), "Commit-Generator") {
+		t.Errorf("expected Commit-Generator badge, got %s", getModeBadge("commit-generator"))
+	}
+
+	// 4-state mode cycle check
+	tmpDir := t.TempDir()
+	_ = exec.Command("git", "-C", tmpDir, "init").Run()
+	_ = os.WriteFile(filepath.Join(tmpDir, ".syncalibur"), []byte("MODE=\"commit-generator\"\n"), 0644)
+
+	// commit-generator -> developer
+	m1 := cycleActiveMode("syncalibur.sh", tmpDir)
+	if m1 != "developer" {
+		t.Errorf("expected developer after commit-generator, got %s", m1)
+	}
+
+	// developer -> devops
+	m2 := cycleActiveMode("syncalibur.sh", tmpDir)
+	if m2 != "devops" {
+		t.Errorf("expected devops after developer, got %s", m2)
+	}
+
+	// devops -> pr
+	m3 := cycleActiveMode("syncalibur.sh", tmpDir)
+	if m3 != "pr" {
+		t.Errorf("expected pr after devops, got %s", m3)
+	}
+
+	// pr -> commit-generator
+	m4 := cycleActiveMode("syncalibur.sh", tmpDir)
+	if m4 != "commit-generator" {
+		t.Errorf("expected commit-generator after pr, got %s", m4)
+	}
+}
+
+
