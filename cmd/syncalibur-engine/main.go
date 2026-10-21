@@ -3999,6 +3999,8 @@ func getModeBadge(mode string) string {
 	switch strings.ToLower(mode) {
 	case "commit-generator", "stream", "continuous":
 		return cCyan + cBold + "⚡ Commit-Generator" + cReset
+	case "devops", "infra", "k8s", "iac":
+		return cBlue + cBold + "☸ DevOps" + cReset
 	case "pr", "review":
 		return cAmber + cBold + "🔀 PR" + cReset
 	default:
@@ -4013,13 +4015,15 @@ func cycleActiveMode(scriptPath, repoRoot string) string {
 	case "commit-generator", "stream", "continuous":
 		next = "developer"
 	case "developer", "pro", "team":
+		next = "devops"
+	case "devops", "infra", "k8s", "iac":
 		next = "pr"
 	default:
 		next = "commit-generator"
 	}
 
 	targetCfg := filepath.Join(repoRoot, ".syncalibur")
-	if _, err := os.Stat(filepath.Join(repoRoot, ".git")); err != nil {
+	if !isGitRepoDir(repoRoot) {
 		targetCfg = findConfigFile(scriptPath, repoRoot)
 	}
 
