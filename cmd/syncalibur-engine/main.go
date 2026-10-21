@@ -2367,7 +2367,7 @@ func validateServicePortTargetPort(services []*K8sResource, workloads []*K8sReso
 	return issues
 }
 
-var sensitiveKeyRegex = regexp.MustCompile(`(?i)(password|passwd|api[_-]?key|auth[_-]?token|secret[_-]?key|jwt|db_pass|private_key)`)
+var sensitiveKeyRegex = regexp.MustCompile(`(?i)(password|passwd|api[_-]?key|access[_-]?key|auth[_-]?token|secret|jwt|db_pass|private_key)`)
 var benignPlaceholderRegex = regexp.MustCompile(`(?i)^(<.+>|\$\{.+\}|\{\{.+}}|changeme|dummy|todo|example|null|none|placeholder)$`)
 
 func validateConfigMapSecrets(cms []*K8sResource) []InfraIssue {
