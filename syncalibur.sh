@@ -3410,6 +3410,7 @@ usage() {
     ${C_CYAN}status${C_RESET}                 Show TrueColor emblem, live dashboard, velocity sparkline & recent logs
     ${C_CYAN}logs${C_RESET}                   Stream live colorized telemetry
     ${C_CYAN}fleet <subcmd>${C_RESET}         Manage multi-repo fleet: ${C_WHITE}status | add <path> | remove <path> | scan [dir] | start | stop${C_RESET}
+    ${C_CYAN}mode [name]${C_RESET}            Inspect or switch operating mode: ${C_WHITE}commit-generator | developer | pr${C_RESET}
     ${C_CYAN}doctor${C_RESET}                 Run 11-point system diagnostic health check
     ${C_CYAN}notify [msg]${C_RESET}           Send an instant test notification to Telegram Bot / Discord / Slack Webhooks
     ${C_CYAN}pr [base|--preview]${C_RESET}    Open a structured Pull Request using Syncalibur's auto-populated PR Template
@@ -3429,6 +3430,7 @@ case "${1:-}" in
   release)    shift; cmd_release "$@" ;;
   version | --version | -v) cmd_version ;;
   tidy)       shift; cmd_tidy "${1:-}" ;;
+  mode)       shift; cmd_mode "$@" ;;
   hook)       shift; cmd_hook "${1:-status}" ;;
   install)    cmd_install "${2:-}" ;;
   uninstall)  cmd_uninstall ;;
