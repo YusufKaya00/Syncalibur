@@ -2958,9 +2958,33 @@ func planSmartStaging(repoRoot string) []stagingGroup {
 			key = "test"
 			scope = "test"
 			gType = "test"
-		} else if strings.HasPrefix(lower, ".github/") || strings.HasPrefix(lower, ".gitlab") || base == "Dockerfile" || base == "Makefile" || base == "go.mod" || base == "go.sum" || base == "package.json" || ext == ".yaml" || ext == ".yml" || ext == ".tf" {
+		} else if strings.HasPrefix(lower, "charts/") || base == "chart.yaml" || strings.HasPrefix(base, "values") {
+			key = "helm"
+			scope = "helm"
+			gType = "helm"
+		} else if strings.HasPrefix(lower, "k8s/") || strings.HasPrefix(lower, "deploy/") || strings.HasPrefix(lower, "manifests/") || strings.HasPrefix(lower, "base/") || strings.HasPrefix(lower, "overlays/") {
+			key = "k8s"
+			scope = "infra(k8s)"
+			gType = "infra"
+		} else if strings.HasPrefix(base, "dockerfile") || base == ".dockerignore" || base == "compose.yaml" || base == "docker-compose.yml" {
+			key = "docker"
+			scope = "docker"
+			gType = "build"
+		} else if strings.HasSuffix(lower, ".tf") || strings.HasSuffix(lower, ".tfvars") || strings.HasPrefix(lower, "terraform/") {
+			key = "tf"
+			scope = "tf"
+			gType = "infra"
+		} else if strings.HasPrefix(lower, "argocd/") || strings.HasPrefix(lower, "flux-system/") || strings.HasPrefix(lower, "apps/") {
+			key = "gitops"
+			scope = "gitops"
+			gType = "gitops"
+		} else if strings.HasPrefix(lower, ".github/") || strings.HasPrefix(lower, ".gitlab") || base == "jenkinsfile" {
 			key = "ci"
 			scope = "ci"
+			gType = "ci"
+		} else if base == "makefile" || base == "go.mod" || base == "go.sum" || base == "package.json" {
+			key = "build"
+			scope = "build"
 			gType = "build"
 		} else if ext == ".css" || ext == ".scss" || ext == ".less" {
 			key = "style"
@@ -3001,19 +3025,37 @@ func planSmartStaging(repoRoot string) []stagingGroup {
 			if k == "docs" {
 				return 1
 			}
-			if k == "ci" {
+			if k == "helm" {
 				return 2
 			}
-			if k == "style" {
+			if k == "k8s" {
 				return 3
 			}
-			if strings.HasPrefix(k, "code") {
+			if k == "docker" {
 				return 4
 			}
-			if k == "test" {
+			if k == "tf" {
 				return 5
 			}
-			return 6
+			if k == "ci" {
+				return 6
+			}
+			if k == "gitops" {
+				return 7
+			}
+			if k == "build" {
+				return 8
+			}
+			if k == "style" {
+				return 9
+			}
+			if strings.HasPrefix(k, "code") {
+				return 10
+			}
+			if k == "test" {
+				return 11
+			}
+			return 12
 		}
 		oi, oj := order(groupKeys[i]), order(groupKeys[j])
 		if oi != oj {
