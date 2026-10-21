@@ -1,7 +1,7 @@
 # Syncalibur — Comprehensive Project Memory & Living System Blueprint
 
 > **Status:** Active Platform Specification & Living Memory Ledger  
-> **Platform Version:** `v2.2.0` (Milestone: *"Excalibur Evolution"*)  
+> **Platform Version:** `v2.3.0` (Milestone: *"DevOps Intelligence & GitOps Guard"*)  
 > **Architecture:** Hybrid Native Go Core (`cmd/syncalibur-engine`) + Fault-Tolerant Bash Supervisor (`syncalibur.sh`)  
 > **Living Memory Rule:** *Every functional modification, architecture change, or configuration addition MUST update this document.*
 
