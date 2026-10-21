@@ -3273,7 +3273,7 @@ func parseFleetEntry(line string) *fleetRepoConfig {
 			v := strings.TrimSpace(kv[1])
 			switch k {
 			case "mode":
-				cfg.Mode = v
+				cfg.Mode = canonicalizeMode(v)
 			case "remote":
 				cfg.Remote = v
 			case "interval":
