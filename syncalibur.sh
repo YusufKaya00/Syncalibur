@@ -2623,12 +2623,7 @@ cmd_fleet() {
 # ==============================================================================
 
 cmd_ui() {
-  [[ -t 0 && -t 1 ]] || { echo "✕ 'syncalibur ui' requires an interactive terminal (TTY)." >&2; return 1; }
-  if ensure_go_engine; then
-    "${GO_ENGINE_BIN}" ui "${SCRIPT_PATH}" "${REPO_ROOT}"
-  else
-    cmd_logs
-  fi
+  cmd_status "$@"
 }
 
 cmd_doctor() {
