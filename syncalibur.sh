@@ -3393,7 +3393,7 @@ cmd_release() {
 usage() {
   print_syncalibur_dashboard
   cat << EOF
-  ${C_GOLD}${C_BOLD}Usage:${C_RESET} syncalibur ${C_CYAN}{push|commit|check|release|version|tidy|hook|install|status|ui|fleet|doctor|logs|...}${C_RESET}
+  ${C_GOLD}${C_BOLD}Usage:${C_RESET} syncalibur ${C_CYAN}{push|commit|check|release|version|tidy|mode|hook|install|status|fleet|doctor|logs|...}${C_RESET}
 
   ${C_GOLD}${C_BOLD}Developer Push Ergonomics & Release Engine:${C_RESET}
     ${C_CYAN}push [msg] [--tidy]${C_RESET}    One-shot preflight check, commit & multi-remote push (<1.5s)
@@ -3406,11 +3406,10 @@ usage() {
 
   ${C_GOLD}${C_BOLD}Autonomous Daemon & Fleet Control:${C_RESET}
     ${C_CYAN}install [path]${C_RESET}         Configure OS auto-start, compile Go engine, link global CLI & start now
-    ${C_CYAN}ui${C_RESET}                     Launch interactive live TUI cockpit (TrueColor emblem + 7-day sparkline + hotkeys)
-    ${C_CYAN}status${C_RESET}                 Show TrueColor emblem, live dashboard, velocity sparkline & recent logs
+    ${C_CYAN}status [--static]${C_RESET}      Launch interactive cockpit in TTY (or static dashboard with --static)
+    ${C_CYAN}mode [name]${C_RESET}            Inspect or switch operating mode: ${C_WHITE}commit-generator | developer | pr${C_RESET}
     ${C_CYAN}logs${C_RESET}                   Stream live colorized telemetry
     ${C_CYAN}fleet <subcmd>${C_RESET}         Manage multi-repo fleet: ${C_WHITE}status | add <path> | remove <path> | scan [dir] | start | stop${C_RESET}
-    ${C_CYAN}mode [name]${C_RESET}            Inspect or switch operating mode: ${C_WHITE}commit-generator | developer | pr${C_RESET}
     ${C_CYAN}doctor${C_RESET}                 Run 11-point system diagnostic health check
     ${C_CYAN}notify [msg]${C_RESET}           Send an instant test notification to Telegram Bot / Discord / Slack Webhooks
     ${C_CYAN}pr [base|--preview]${C_RESET}    Open a structured Pull Request using Syncalibur's auto-populated PR Template
