@@ -888,10 +888,121 @@ var knownSecretRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?:api[_-]?key|secret|password|auth[_-]?token|bearer)\s*[:=]\s*["']([A-Za-z0-9_\-+/=]{20,})["']`), // Generic Secret assignments
 }
 
+var defaultSensitiveGlobs = []string{
+	".env*", "*.tfstate*", "*.tfvars*", "credentials.json", "*serviceaccount*.json",
+	"client_secret*.json", "azureProfile.json", "*.pem", "*.key", "*.p12", "*.pfx",
+	"*.pkcs12", "*.jks", "*.keystore", "id_rsa*", "id_ecdsa*", "id_ed25519*", "id_dsa*",
+	"*.asc", "secring.gpg", "*.kdbx", "kubeconfig", "*.kubeconfig", "*.ovpn", "*.tblk",
+	"auth.json", ".netrc", ".npmrc", ".pypirc", "*.htpasswd", "*.dump", "*.rdb",
+}
+
+func matchesSensitivePattern(filePath string) bool {
+	base := strings.ToLower(filepath.Base(filePath))
+	// Whitelist templates and samples
+	if strings.HasSuffix(base, ".example") || strings.HasSuffix(base, ".sample") ||
+		strings.HasSuffix(base, ".template") || strings.HasSuffix(base, ".dist") ||
+		strings.HasSuffix(base, ".default") || strings.HasSuffix(base, ".skel") {
+		return false
+	}
+	for _, pattern := range defaultSensitiveGlobs {
+		if matched, _ := filepath.Match(pattern, base); matched {
+			return true
+		}
+	}
+	return false
+}
+
+func isBinaryFile(filePath string) (bool, error) {
+	st, err := os.Lstat(filePath)
+	if err != nil {
+		return false, err
+	}
+	// Never load files > 10MB into memory for secret/syntax analysis
+	if st.Size() > 10*1024*1024 {
+		return true, nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 8000)
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+
+	for i := 0; i < n; i++ {
+		if buf[i] == 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func isSafePath(repoRoot, relPath string) (bool, string) {
+	absPath := filepath.Join(repoRoot, relPath)
+	lst, err := os.Lstat(absPath)
+	if err != nil {
+		return false, "failed to lstat path"
+	}
+
+	if lst.Mode()&os.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(absPath)
+		if err != nil {
+			return false, "broken or cyclic symlink"
+		}
+		relToRoot, err := filepath.Rel(repoRoot, target)
+		if err != nil || strings.HasPrefix(relToRoot, "..") || filepath.IsAbs(relToRoot) {
+			return false, fmt.Sprintf("symlink targets location outside repository: %s -> %s", relPath, target)
+		}
+	}
+
+	if !lst.Mode().IsRegular() && lst.Mode()&os.ModeSymlink == 0 {
+		return false, fmt.Sprintf("special file/socket/pipe rejected: %s", relPath)
+	}
+	return true, ""
+}
+
+func detectConflictMarkers(filePath string) (bool, string) {
+	st, err := os.Lstat(filePath)
+	if err != nil || !st.Mode().IsRegular() || st.Size() > 10*1024*1024 {
+		return false, ""
+	}
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false, ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		if strings.HasPrefix(line, "<<<<<<< ") || line == "=======" || strings.HasPrefix(line, ">>>>>>> ") {
+			return true, fmt.Sprintf("%s:%d: unresolved merge conflict marker '%s'", filepath.Base(filePath), lineNum, strings.Fields(line)[0])
+		}
+	}
+	return false, ""
+}
+
 func detectSecretsInFile(filePath string) (bool, string) {
 	// Skip unit test files and fixtures from credential quarantine
 	base := strings.ToLower(filepath.Base(filePath))
 	if strings.HasSuffix(base, "_test.go") || strings.Contains(base, "test") || strings.Contains(base, "fixture") {
+		return false, ""
+	}
+
+	// 1. Blacklist pattern verification
+	if matchesSensitivePattern(filePath) {
+		return true, fmt.Sprintf("%s (matches sensitive file pattern blacklist)", filepath.Base(filePath))
+	}
+
+	// 2. Binary / size safety check
+	if isBin, _ := isBinaryFile(filePath); isBin {
 		return false, ""
 	}
 
