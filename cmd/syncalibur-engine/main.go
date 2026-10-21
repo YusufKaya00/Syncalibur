@@ -2133,7 +2133,7 @@ func generateSparkline(repoRoot string) string {
 			b.WriteString(cGreen + glyphs[idx] + cReset)
 		}
 	}
-	fmt.Fprintf(&b, " %s(7d: %d commits • peak %d/day)%s", cSlate, total7d, maxC, cReset)
+	fmt.Fprintf(&b, " %s(%d commits/7d • peak %d)%s", cSlate, total7d, maxC, cReset)
 	return b.String()
 }
 
