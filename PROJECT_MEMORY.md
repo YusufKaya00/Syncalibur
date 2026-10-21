@@ -198,9 +198,9 @@ Syncalibur provides an automated infrastructure policy engine for Kubernetes, He
 
 #### Operating Modes & Adaptive History Hygiene (`SYNCALIBUR_MODE`)
 Syncalibur provides four specialized automation personas configured per-repository via `.syncalibur` or globally via `syncalibur.env` (or via `syncalibur mode <name>` / `[m]` hotkey):
-1. **`commit-generator` (Continuous Stream Mode):**
+1. **`instant-push` (Continuous Stream Mode):**
    - Immediate push on every save (even a 1-line edit) after passing Syntax Hold & Secret Shield.
-   - Quiescence settle cooldown defaults to 10s (`BURST_COOLDOWN=10`), allowing rapid consecutive saves to settle cleanly without spamming micro-commits.
+   - Quiescence settle cooldown defaults to 5s (`BURST_COOLDOWN=5`), allowing rapid consecutive saves to settle cleanly without spamming micro-commits.
    - Squashing is bypassed (`TIDY_THRESHOLD=999`, `AUTO_TIDY="false"`), and `AUTO_PR="false"`.
    - Directly pushes to `main` without delay. Ideal for personal study/notes repos (`k8sfundamentals`), learning journals, and solo sandbox projects.
 2. **`developer` (Adaptive Burst & Squash Mode) [Default]:**
