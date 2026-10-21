@@ -82,8 +82,26 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - Implements Shannon entropy formula:
   $$H(X) = -\sum_{i=1}^{n} P(x_i) \log_2 P(x_i)$$
 - Words $\ge 24$ chars with entropy $\ge 4.4\text{ bits/char}$ trigger credential quarantine.
-- Hardcoded signatures: AWS keys (`AKIA...`), GitHub PATs (`ghp_...`), Slack tokens (`xox[baprs]-...`), OpenAI keys (`sk-...`), RSA/EC private keys (`-----BEGIN ... PRIVATE KEY-----`).
-- **Precision Filter (Zero False Positives):** Automatically ignores UUIDs, SVG paths, Subresource Integrity hashes (`sha512-`), base64 data URIs (`data:image/...`), pure 32+ char hex hashes, URLs, file paths, shell expansions (`${...}`), and test files.
+- Hardcoded & regex signatures:
+  - AWS Access Key IDs (`AKIA[0-9A-Z]{16}`) and Secret Access Keys (`(?i)aws_secret_access_key\s*=\s*[A-Za-z0-9/+=]{40}`)
+  - GitHub Classic PATs (`ghp_[A-Za-z0-9]{36}`) and Fine-Grained PATs (`github_pat_[A-Za-z0-9_]{82}`)
+  - GitLab Personal Access Tokens (`glpat-[A-Za-z0-9\-_]{20,}`)
+  - Slack tokens (`xox[baprs]-[0-9a-zA-Z]{10,48}`)
+  - OpenAI API keys (`sk-[A-Za-z0-9_-]{32,}`) and Anthropic API keys (`sk-ant-[A-Za-z0-9_-]{32,}`)
+  - Stripe Secret & Restricted API keys (`sk_live_[0-9a-zA-Z]{24,}`, `rk_live_[0-9a-zA-Z]{24,}`)
+  - RSA/EC/OpenSSH private keys (`-----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----`)
+  - Generic token/password assignment statements with high-entropy values.
+- Expanded file blacklists in `DEFAULT_SENSITIVE_PATTERNS`: `.env`, `.env.*`, `*.tfstate*`, `*.tfvars`, `*.tfvars.json`, `credentials.json`, `client_secret*.json`, `service-account*.json`, `azureProfile.json`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.pkcs12`, `*.jks`, `*.keystore`, `*.kdbx`, `*.ovpn`, `*.tblk`, `auth.json`, `.netrc`, `.npmrc`, `.pypirc`, `*.dump`, `*.rdb`, `*.bak`, `*.backup`.
+- **Precision Filter & Template Whitelist:** Automatically whitelists benign template files (`*.example`, `*.sample`, `*.template`, `*.dist`, `*.default`, `*.skel`), UUIDs, SVG paths, Subresource Integrity hashes (`sha512-`), base64 data URIs (`data:image/...`), pure hex hashes, URLs, file paths, and shell expansions (`${...}`).
+
+#### Single-Pass Commit Velocity Engine (`getCommitVelocity`)
+- Derives 7-day commit counts, today's commit count, and calibrated sparkline glyphs (`  ▂▃▄▅▆▇█`) from a single atomic `git log --format=%ct` invocation.
+- Eliminates 7 subprocess forks per second in live TUI.
+- Computes exact rolling 7-day average (`%.1f/d`) and peak daily velocity with zero timezone boundary double-counting.
+
+#### Non-Blocking Network Liveness Probe (`probeRemoteLiveness`)
+- Probes remote Git target host and port via fast TCP dial (`net.DialTimeout`) with $\le 1.0\text{s}$ timeout.
+- Pure Go standard library (zero external packages). Supports SSH (`git@host:port`), HTTPS (`https://host:port`), and custom ports.
 
 #### Polyglot Syntax Hold Engine (`checkLexicalBalance` & Native Parsers)
 - **Go:** Full AST validation via native `go/parser.ParseFile`.
