@@ -277,15 +277,15 @@ Syncalibur supervises an arbitrary fleet of repositories simultaneously, with ea
   /home/ysf/Syncalibur
 
   # Bracketed attributes
-  /home/ysf/k8sfundamentals [mode=commit-generator] [remote=origin]
+  /home/ysf/k8sfundamentals [mode=instant-push] [remote=origin]
 
   # Inline key-value attributes
   /home/ysf/Erasmus-Connect mode=pr remote=origin
   ```
 - **Commands:**
   - `syncalibur fleet scan [dir]`: Recursively crawls directory to depth 3 and auto-enrolls all Git repositories.
-  - `syncalibur fleet add <path> [--mode=commit-generator|developer|pr]`: Enrolls repository with specified mode.
-  - `syncalibur fleet status`: Concurrent Go probe displaying tabular status of all enrolled repositories, including active `MODE` (`⚡ commit-gen`, `🛠 developer`, `🔀 pr`), daemon PID, unpushed counts, and dirty file status.
+  - `syncalibur fleet add <path> [--mode=instant-push|developer|devops|pr]`: Enrolls repository with specified mode.
+  - `syncalibur fleet status`: Concurrent Go probe displaying tabular status of all enrolled repositories, including active `MODE` (`⚡ instant-push`, `🛠 developer`, `☸ devops`, `🔀 pr`), daemon PID, unpushed counts, and dirty file status.
   - `syncalibur fleet start`: Starts background sync daemons for all repositories according to their configured per-repo modes.
   - `syncalibur fleet stop`: Terminates all fleet background daemons.
 
@@ -333,7 +333,7 @@ Syncalibur supervises an arbitrary fleet of repositories simultaneously, with ea
 | `SYNCALIBUR_OLLAMA_MODEL` | `"qwen2.5-coder:1.5b"`| Local Ollama model identifier. |
 | `SYNCALIBUR_SELF_AUTO_UPDATE` | `"true"` | Watches Syncalibur's own repo, auto-pulls, rebuilds, hot-reloads. |
 | `SYNCALIBUR_SELF_CHECK_INTERVAL`| `120` | Interval in seconds for checking upstream Syncalibur updates. |
-| `SYNCALIBUR_AUTO_CREATE_REMOTE` | `"true"` | Auto-creates remote repository on GitHub/GitLab if absent. |
+| `SYNCALIBUR_AUTO_CREATE_REMOTE` | `"false"` | Auto-creates remote repository on GitHub/GitLab if absent. |
 | `SYNCALIBUR_REPO_VISIBILITY` | `"private"` | Visibility for auto-created repositories (`private`/`public`). |
 | `SYNCALIBUR_ALERT_TERMINAL` | `"true"` | Pops open a diagnostic terminal window upon sync error. |
 | `SYNCALIBUR_ALERT_COOLDOWN` | `600` | Cooldown period (in seconds) between popup alert windows. |
