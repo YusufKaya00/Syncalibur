@@ -859,12 +859,12 @@ func Greet() string { return "Hello from feature" }
 >>>>>>> feature-branch
 `
 	_ = os.WriteFile(conflictFile, []byte(conflictContent), 0644)
-	found, lineNum, marker := detectConflictMarkers(conflictFile)
+	found, msg := detectConflictMarkers(conflictFile)
 	if !found {
 		t.Errorf("expected detectConflictMarkers to find conflict, got none")
 	}
-	if lineNum != 3 || marker != "<<<<<<<" {
-		t.Errorf("expected conflict on line 3 with <<<<<<<, got line %d with %s", lineNum, marker)
+	if !strings.Contains(msg, "<<<<<<<") || !strings.Contains(msg, "line 3") {
+		t.Errorf("expected conflict message to mention line 3 and <<<<<<<, got %s", msg)
 	}
 }
 
@@ -874,15 +874,17 @@ func TestIsBinaryFile(t *testing.T) {
 	// UTF-8 plain text file
 	textFile := filepath.Join(tmpDir, "readme.txt")
 	_ = os.WriteFile(textFile, []byte("Hello World, this is normal text.\n"), 0644)
-	if isBinaryFile(textFile) {
-		t.Errorf("expected plain text file NOT to be flagged as binary")
+	isBin, err := isBinaryFile(textFile)
+	if err != nil || isBin {
+		t.Errorf("expected plain text file NOT to be flagged as binary (isBin=%v, err=%v)", isBin, err)
 	}
 
 	// Binary file with null bytes
 	binFile := filepath.Join(tmpDir, "data.bin")
 	_ = os.WriteFile(binFile, []byte{0x7f, 'E', 'L', 'F', 0x02, 0x01, 0x00, 0x00}, 0644)
-	if !isBinaryFile(binFile) {
-		t.Errorf("expected file with null bytes to be flagged as binary")
+	isBin2, err := isBinaryFile(binFile)
+	if err != nil || !isBin2 {
+		t.Errorf("expected file with null bytes to be flagged as binary (isBin=%v, err=%v)", isBin2, err)
 	}
 }
 
