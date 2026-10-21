@@ -4650,7 +4650,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	}
 
 	renderFrame()
-	ticker := time.NewTicker(1000 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -4766,18 +4766,22 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 						_ = os.WriteFile(pauseFile, []byte("1\n"), 0644)
 						flashMsg = fmt.Sprintf("%s%s %sPAUSED:%s Daemon paused. Press [p] again to resume.", cAmber, iconPause, cBold, cReset)
 					}
+					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 'm', 'M': // Cycle operating mode
 					newMode := cycleActiveMode(scriptPath, repoRoot)
 					flashMsg = fmt.Sprintf("%s%s %sMODE SWITCHED:%s Active mode is now %s.", cGreen, iconZap, cBold, cReset, strings.ToUpper(newMode))
+					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 's', 'S': // Sync now
 					_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.sync"), []byte("1\n"), 0644)
 					flashMsg = fmt.Sprintf("%s%s %sSYNC NOW:%s Immediate commit & push triggered!", cCyan, iconZap, cBold, cReset)
+					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 'b', 'B': // Bidirectional pull
 					_ = exec.Command("bash", scriptPath, "pull").Run()
 					flashMsg = fmt.Sprintf("%s%s %sBIDIRECTIONAL PULL:%s Checked upstream & rebased cleanly.", cCyan, iconSync, cBold, cReset)
+					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 'z', 'Z': // Undo to previous checkpoint
 					out, err := exec.Command("bash", scriptPath, "undo").CombinedOutput()
@@ -4786,10 +4790,12 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 					} else {
 						flashMsg = fmt.Sprintf("%s%s %sUNDO:%s Rolled back to previous checkpoint cleanly.", cGreen, iconCheck, cBold, cReset)
 					}
+					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(4 * time.Second)
 				case 'u', 'U': // Self-update
 					_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.upd"), []byte("1\n"), 0644)
 					flashMsg = fmt.Sprintf("%s%s %sSELF-UPDATE:%s Upstream self-update check triggered.", cGold, iconSync, cBold, cReset)
+					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 'd', 'D': // Doctor
 					flashMsg = fmt.Sprintf("%s%s %sDOCTOR:%s Running 12-point diagnostic check...", cGreen, iconDoctor, cBold, cReset)
@@ -4812,9 +4818,11 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			if shouldExit {
 				return
 			}
+			animFrame++
 			renderFrame()
 
 		case <-ticker.C:
+			animFrame++
 			renderFrame()
 		}
 	}
