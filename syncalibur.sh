@@ -3311,6 +3311,11 @@ cmd_restart() {
 
 cmd_status() {
   local mode="${1:-}"
+  if [[ -t 0 && -t 1 ]] && [[ "${mode}" != "--static" ]] && ensure_go_engine; then
+    "${GO_ENGINE_BIN}" status "${SCRIPT_PATH}" "${REPO_ROOT}"
+    return $?
+  fi
+
   cd "${REPO_ROOT}" || return 1
   print_syncalibur_dashboard
 
