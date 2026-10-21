@@ -68,13 +68,26 @@ Once installed, the global `syncalibur` command is automatically linked into `~/
 - **Multi-Repository Fleet Supervisor (`repos.list`):** Watch 5, 10, or 50 repositories simultaneously! Run `syncalibur fleet scan ~/projects` to auto-discover all Git repositories using concurrent Go goroutines and supervise them in parallel.
 
 ### 2. Operating Modes & Adaptive History Hygiene
-Syncalibur provides three specialized automation personas designed for different development workflows:
-- **`commit-generator` (Continuous Stream Mode):** Every single save (even a 1-line edit) passes Syntax Hold & Secret Shield, is staged into a pinpoint Conventional Commit, and pushed immediately to `main`. Zero burst cooldown, no squashing. Perfect for solo study/notes repos (`k8sfundamentals`), learning journals, and personal sandboxes.
+Syncalibur provides three specialized automation personas designed for different development workflows, configurable **per-repository** (via `.syncalibur`) or globally:
+- **`commit-generator` (Continuous Stream Mode):** Every save (even a 1-line edit) passes Syntax Hold & Secret Shield, settles after a 10s cooldown quiescence, is staged into a pinpoint Conventional Commit, and pushed directly to `main`. Perfect for solo study/notes repos (`k8sfundamentals`), learning journals, and personal sandboxes.
 - **`developer` (Adaptive Burst & Squash Mode) [Default]:** Balances continuous local micro-commits with clean remote history. 1-2 small commits push directly; if you make 3+ rapid changes (active burst sprint), Syncalibur waits for a 20s cooldown quiescence, squashes them into 1 clean Conventional Commit, and pushes. If the remote branch is protected, it automatically opens a Pull Request instead.
-- **`pr` (Strict Pull Request Mode):** Never pushes directly to `main`; always creates an isolated sync branch (`sync/auto-*`) and opens a Pull Request with a structured Markdown PR template.
-- **Switch Modes Anytime:** Run `syncalibur mode <commit-generator|developer|pr>` or press `[m]` in the interactive cockpit (`syncalibur status`).
+- **`pr` (Strict Pull Request Mode):** Never pushes directly to `main`; always creates an isolated sync branch (`sync/<user>/<branch>-<timestamp>`) and opens a Pull Request with a structured Markdown PR template.
+- **Per-Repository Tailoring:** Different repositories can run different modes! For example:
+  - `~/k8sfundamentals` in `commit-generator` mode
+  - `~/Syncalibur` in `developer` mode
+  - `~/team-project` in `pr` mode
+- **Switch Modes Anytime:**
+  - For current repository: `syncalibur mode <commit-generator|developer|pr>` (saves to `<repo>/.syncalibur`)
+  - Globally for all repositories: `syncalibur mode <mode> --global`
+  - Interactive Cockpit: Press `[m]` in `syncalibur status`
 
-### 3. Two-Pane Live Cockpit, Lucide Typography & Diagnostics
+### 3. Offline Mode & Network Disconnection Shield
+- **100% Autonomous Offline Protection:** Working on a train, plane, or when your WiFi drops? Syncalibur continues monitoring files, running AST syntax validations, scanning Shannon entropy secrets, and creating clean local atomic commits on your local branch without interruption.
+- **Zero Disruptive Alerts:** Network timeouts or connectivity drops are treated as normal working conditions—Syncalibur never spawns diagnostic alert terminal popups for offline drops.
+- **Local Queuing & Non-Blocking TCP Dial:** Uses a fast non-blocking TCP probe ($\le 1.0\text{s}$) to detect network status. Commits queue safely on local `HEAD`.
+- **Automatic Reconnection Flush:** As soon as connectivity returns, Syncalibur automatically performs a safe fetch and rebase (`git pull --rebase --autostash`), flushes the queued commits in an atomic push, and logs the restored state.
+
+### 4. Two-Pane Live Cockpit, Lucide Typography & Diagnostics
 - **Native `syncalibur` Process Identity (`top` / `htop` / Activity Monitor / Task Manager):** Runs under its own compiled binary process name **`syncalibur`** across Linux, macOS, and Windows so you can inspect exact CPU (~0.0%) and RAM (~7 MB) usage directly in `top` or `syncalibur status`.
 - **Interactive Two-Pane Live Cockpit (`syncalibur status`):** Full-screen, flicker-free terminal control center built in Go using raw terminal mode and alternate screen buffering. Running `syncalibur status` in an interactive terminal launches this cockpit automatically (or use `syncalibur status --static` for a plain text snapshot). Split into two dedicated panes:
   - **Top Pane (Live Telemetry Cockpit):** Displays real-time daemon state, active operating mode, today's commit count, 7-day velocity sparkline (` ▂█▅··▅▃`), Syntax & Secret Shield status, and hotkey cheatsheet (updated live every second).
