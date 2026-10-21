@@ -14,6 +14,7 @@
 #
 # 2. Bracketed attributes (tailored mode per repo):
 # /home/username/projects/k8sfundamentals [mode=commit-generator] [remote=origin]
+# /home/username/projects/infrastructure-iac [mode=devops] [remote=origin]
 # /home/username/projects/corporate-api [mode=pr] [remote=origin]
 #
 # 3. Inline key-value format:
