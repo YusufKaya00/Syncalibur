@@ -4615,7 +4615,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	}
 
 	renderFrame()
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(1000 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
