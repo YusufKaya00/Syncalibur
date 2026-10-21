@@ -922,19 +922,22 @@ func TestModeCycleAndBadge(t *testing.T) {
 	if !strings.Contains(getModeBadge("devops"), "☸ DevOps") {
 		t.Errorf("expected getModeBadge('devops') to contain '☸ DevOps', got %s", getModeBadge("devops"))
 	}
-	if !strings.Contains(getModeBadge("commit-generator"), "Commit-Generator") {
-		t.Errorf("expected Commit-Generator badge, got %s", getModeBadge("commit-generator"))
+	if !strings.Contains(getModeBadge("instant-push"), "Instant-Push") {
+		t.Errorf("expected Instant-Push badge, got %s", getModeBadge("instant-push"))
+	}
+	if !strings.Contains(getModeBadge("commit-generator"), "Instant-Push") {
+		t.Errorf("expected commit-generator alias to produce Instant-Push badge, got %s", getModeBadge("commit-generator"))
 	}
 
 	// 4-state mode cycle check
 	tmpDir := t.TempDir()
 	_ = exec.Command("git", "-C", tmpDir, "init").Run()
-	_ = os.WriteFile(filepath.Join(tmpDir, ".syncalibur"), []byte("MODE=\"commit-generator\"\n"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, ".syncalibur"), []byte("MODE=\"instant-push\"\n"), 0644)
 
-	// commit-generator -> developer
+	// instant-push -> developer
 	m1 := cycleActiveMode("syncalibur.sh", tmpDir)
 	if m1 != "developer" {
-		t.Errorf("expected developer after commit-generator, got %s", m1)
+		t.Errorf("expected developer after instant-push, got %s", m1)
 	}
 
 	// developer -> devops
@@ -949,10 +952,10 @@ func TestModeCycleAndBadge(t *testing.T) {
 		t.Errorf("expected pr after devops, got %s", m3)
 	}
 
-	// pr -> commit-generator
+	// pr -> instant-push
 	m4 := cycleActiveMode("syncalibur.sh", tmpDir)
-	if m4 != "commit-generator" {
-		t.Errorf("expected commit-generator after pr, got %s", m4)
+	if m4 != "instant-push" {
+		t.Errorf("expected instant-push after pr, got %s", m4)
 	}
 }
 
