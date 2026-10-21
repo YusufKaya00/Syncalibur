@@ -2978,7 +2978,7 @@ cmd_fleet() {
         repo_mode="developer"
         if [[ "${rest}" =~ mode=([a-zA-Z0-9_-]+) ]]; then
           repo_mode="${BASH_REMATCH[1]}"
-        elif [[ "${rest}" =~ (commit-generator|developer|pr) ]]; then
+        elif [[ "${rest}" =~ (instant-push|instant|stream|continuous|commit-generator|commit-gen|developer|devops|pr) ]]; then
           repo_mode="${BASH_REMATCH[1]}"
         fi
         SYNCALIBUR_REPO_PATH="${repo_path}" SYNCALIBUR_MODE="${repo_mode}" "${SCRIPT_PATH}" start
