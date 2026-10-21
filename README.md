@@ -67,19 +67,28 @@ Once installed, the global `syncalibur` command is automatically linked into `~/
 - **Native Filesystem Event Watching (`inotifywait` / `fswatch`):** Zero-CPU event-driven watching when `inotifywait` (Linux) or `fswatch` (macOS) is installed, with automatic fallback to lightweight polling.
 - **Multi-Repository Fleet Supervisor (`repos.list`):** Watch 5, 10, or 50 repositories simultaneously! Run `syncalibur fleet scan ~/projects` to auto-discover all Git repositories using concurrent Go goroutines and supervise them in parallel.
 
-### 2. Two-Pane Live TUI Cockpit, Lucide Typography & Diagnostics
+### 2. Operating Modes & Adaptive History Hygiene
+Syncalibur provides three specialized automation personas designed for different development workflows:
+- **`commit-generator` (Continuous Stream Mode):** Every single save (even a 1-line edit) passes Syntax Hold & Secret Shield, is staged into a pinpoint Conventional Commit, and pushed immediately to `main`. Zero burst cooldown, no squashing. Perfect for solo study/notes repos (`k8sfundamentals`), learning journals, and personal sandboxes.
+- **`developer` (Adaptive Burst & Squash Mode) [Default]:** Balances continuous local micro-commits with clean remote history. 1-2 small commits push directly; if you make 3+ rapid changes (active burst sprint), Syncalibur waits for a 20s cooldown quiescence, squashes them into 1 clean Conventional Commit, and pushes. If the remote branch is protected, it automatically opens a Pull Request instead.
+- **`pr` (Strict Pull Request Mode):** Never pushes directly to `main`; always creates an isolated sync branch (`sync/auto-*`) and opens a Pull Request with a structured Markdown PR template.
+- **Switch Modes Anytime:** Run `syncalibur mode <commit-generator|developer|pr>` or press `[m]` in the interactive cockpit (`syncalibur status`).
+
+### 3. Two-Pane Live Cockpit, Lucide Typography & Diagnostics
 - **Native `syncalibur` Process Identity (`top` / `htop` / Activity Monitor / Task Manager):** Runs under its own compiled binary process name **`syncalibur`** across Linux, macOS, and Windows so you can inspect exact CPU (~0.0%) and RAM (~7 MB) usage directly in `top` or `syncalibur status`.
-- **Interactive Two-Pane Live TUI Cockpit (`syncalibur ui`):** Full-screen, flicker-free terminal control center built in Go using raw terminal mode and alternate screen buffering. Split into two dedicated panes:
-  - **Top Pane (Live Telemetry Cockpit):** Displays real-time daemon state, today's commit count, 7-day velocity sparkline (` ▂█▅··▅▃`), Syntax & Secret Shield status, and hotkey cheatsheet (updated live every second).
+- **Interactive Two-Pane Live Cockpit (`syncalibur status`):** Full-screen, flicker-free terminal control center built in Go using raw terminal mode and alternate screen buffering. Running `syncalibur status` in an interactive terminal launches this cockpit automatically (or use `syncalibur status --static` for a plain text snapshot). Split into two dedicated panes:
+  - **Top Pane (Live Telemetry Cockpit):** Displays real-time daemon state, active operating mode, today's commit count, 7-day velocity sparkline (` ▂█▅··▅▃`), Syntax & Secret Shield status, and hotkey cheatsheet (updated live every second).
   - **Bottom Pane (Scrollable Live Log Viewport):** Dynamically sized viewport that reads `syncalibur.log` with full keyboard scrolling (`↑/↓` or Vim `j/k`, `PageUp/PageDown`, `g` Top, `G` Bottom) and Follow mode toggle (`f`).
   - **Single-Keystroke Hotkeys:**
+    - `[m]` Toggle Operating Mode (`commit-generator` ⇄ `developer` ⇄ `pr`)
     - `[p]` Pause / Resume Auto-Sync
     - `[s]` Force Immediate Commit & Push
     - `[b]` Force Bidirectional Pull (`--rebase`)
+    - `[t]` Toggle TrueColor Sword Emblem View
     - `[f]` Toggle Live Log Follow Mode
     - `[↑/↓]` or `[j/k]` Scroll Log Viewport
     - `[d]` Run 11-Point System Doctor
-    - `[q]` Quit TUI cleanly
+    - `[q]` Quit Cockpit cleanly
 - **Lucide Minimalist Typography:** All terminal outputs, emblems, banners, and diagnostic tables use sleek, standardized Lucide minimalist glyphs (`✓`, `✕`, `▲`, `⛨`, `✦`, `↗`, `↙`, `●`, `○`, `⇄`, `✚`, `◆`) instead of distracting colored emojis.
 - **Telegram Bot & Multi-Channel Webhooks (`Telegram`, `Discord`, `Slack`, `Generic JSON`):** Configure `SYNCALIBUR_TELEGRAM_BOT_TOKEN` & `SYNCALIBUR_TELEGRAM_CHAT_ID` (or `SYNCALIBUR_WEBHOOK_URL`) in `syncalibur.env` to receive instant rich notifications on push failures, rebase conflicts, self-updates, or every sync, and test anytime with `syncalibur notify` (`syncalibur telegram-test`).
 - **11-Point `syncalibur doctor` Diagnostic Suite:** Verifies Git identity, Go engine binary health, filesystem watcher availability, SSH connectivity (`github.com` / `gitlab.com`), `gh` / `glab` CLI authentication, OS background service registration, remote push permissions, and Syntax & Secret Shield verification.
