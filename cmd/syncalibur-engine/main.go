@@ -3212,6 +3212,10 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 						flashMsg = fmt.Sprintf("%s%s %sPAUSED:%s Daemon paused. Press [p] again to resume.", cAmber, iconPause, cBold, cReset)
 					}
 					flashUntil = time.Now().Add(3 * time.Second)
+				case 'm', 'M': // Cycle operating mode
+					newMode := cycleActiveMode(scriptPath, repoRoot)
+					flashMsg = fmt.Sprintf("%s%s %sMODE SWITCHED:%s Active mode is now %s.", cGreen, iconZap, cBold, cReset, strings.ToUpper(newMode))
+					flashUntil = time.Now().Add(3 * time.Second)
 				case 's', 'S': // Sync now
 					_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.sync"), []byte("1\n"), 0644)
 					flashMsg = fmt.Sprintf("%s%s %sSYNC NOW:%s Immediate commit & push triggered!", cCyan, iconZap, cBold, cReset)
