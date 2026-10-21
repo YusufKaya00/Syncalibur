@@ -3170,6 +3170,22 @@ func generateSparkline(repoRoot string) string {
 // 5. Multi-Repository Fleet Scanner & Parallel Status Probe
 // ==============================================================================
 
+func isGitRepoDir(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
+func resolveGitDir(repoPath string) string {
+	out, err := exec.Command("git", "-C", repoPath, "rev-parse", "--absolute-git-dir").Output()
+	if err == nil {
+		gdir := strings.TrimSpace(string(out))
+		if gdir != "" {
+			return gdir
+		}
+	}
+	return filepath.Join(repoPath, ".git")
+}
+
 func scanGitRepos(root string, maxDepth int) []string {
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
@@ -3181,7 +3197,7 @@ func scanGitRepos(root string, maxDepth int) []string {
 		if depth > maxDepth {
 			return
 		}
-		if st, err := os.Stat(filepath.Join(dir, ".git")); err == nil && st.IsDir() {
+		if isGitRepoDir(dir) {
 			repos = append(repos, dir)
 			return
 		}
