@@ -1825,20 +1825,100 @@ trim_log() {
   rm -f "${tmp}"
 }
 
+is_lock_held_by_process() {
+  local lock_file="$1"
+  [[ ! -e "${lock_file}" ]] && return 1
+  if command -v fuser >/dev/null 2>&1; then
+    fuser "${lock_file}" >/dev/null 2>&1 && return 0
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -t "${lock_file}" >/dev/null 2>&1 && return 0
+  fi
+  local real_lock
+  real_lock="$(readlink -f "${lock_file}" 2>/dev/null || echo "${lock_file}")"
+  for fd in /proc/[0-9]*/fd/*; do
+    [[ ! -e "${fd}" ]] && continue
+    local target
+    target="$(readlink "${fd}" 2>/dev/null || true)"
+    if [[ "${target}" == "${real_lock}" ]]; then
+      return 0
+    fi
+  done 2>/dev/null
+  return 1
+}
+
+find_git_locks() {
+  local locks=()
+  for marker in index.lock refs/heads/*.lock HEAD.lock config.lock MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG BISECT_START rebase-merge rebase-apply sequencer AUTO_MERGE; do
+    for path in "${GIT_DIR}"/${marker}; do
+      [[ -e "${path}" ]] && locks+=("${path}")
+    done
+  done
+  printf '%s\n' "${locks[@]}"
+}
+
+run_git_with_backoff() {
+  local max_attempts=5 delay=1 attempt=1
+  while (( attempt <= max_attempts )); do
+    local err_file
+    err_file="$(mktemp "${TMPDIR:-/tmp}/syncalibur-git-err.XXXXXX")"
+    if "$@" 2>"${err_file}"; then
+      rm -f "${err_file}"
+      return 0
+    fi
+    local err_msg
+    err_msg="$(cat "${err_file}")"
+    rm -f "${err_file}"
+
+    if [[ "${err_msg}" =~ "index.lock" || "${err_msg}" =~ "Another git process is running" ]]; then
+      if [[ -f "${GIT_DIR}/index.lock" ]]; then
+        local l_age=$(( $(date +%s) - $(file_mtime_epoch "${GIT_DIR}/index.lock" 2>/dev/null || echo 0) ))
+        if (( l_age > 60 )) && ! is_lock_held_by_process "${GIT_DIR}/index.lock"; then
+          log "▲ Auto-healed stale '${GIT_DIR}/index.lock' (${l_age}s old; no process holding fd)."
+          rm -f "${GIT_DIR}/index.lock" 2>/dev/null || true
+        fi
+      fi
+      sleep "${delay}"
+      delay=$(( delay * 2 ))
+      (( attempt++ ))
+    else
+      echo "${err_msg}" >&2
+      return 1
+    fi
+  done
+  return 1
+}
+
+assert_git_operable() {
+  local repo_dir="${1:-${REPO_ROOT}}"
+  if ! git -C "${repo_dir}" rev-parse --git-dir >/dev/null 2>&1; then
+    echo -e "${C_RED}✕ Not a git repository: '${repo_dir}'${C_RESET}" >&2
+    return 1
+  fi
+  if ! git -C "${repo_dir}" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    echo -e "${C_RED}✕ Detached HEAD state detected in '${repo_dir}'. Syncalibur requires an active named branch (e.g. main/dev) to prevent orphaned commits.${C_RESET}" >&2
+    return 1
+  fi
+  local busy
+  if busy="$(repo_busy)"; then
+    echo -e "${C_AMBER}▲ Git repository is currently busy with operation '${busy}'. Syncalibur auto-operation paused until resolved.${C_RESET}" >&2
+    return 1
+  fi
+  return 0
+}
+
 repo_busy() {
   local marker lock_age
-  # 1. Stale index.lock recovery: if index.lock is >120s old and no git process is running, auto-heal
+  # 1. Stale index.lock recovery: if index.lock is >60s old and no active process holds fd, auto-heal
   if [[ -e "${GIT_DIR}/index.lock" ]]; then
     lock_age=$(( $(date +%s) - $(file_mtime_epoch "${GIT_DIR}/index.lock" 2>/dev/null || echo 0) ))
-    if (( lock_age > 120 )); then
-      if ! pgrep -f "git.*${REPO_ROOT##*/}" >/dev/null 2>&1; then
-        log "▲ Auto-healed stale '${GIT_DIR}/index.lock' (${lock_age}s old; no active git process)."
-        rm -f "${GIT_DIR}/index.lock" 2>/dev/null || true
-      fi
+    if (( lock_age > 60 )) && ! is_lock_held_by_process "${GIT_DIR}/index.lock"; then
+      log "▲ Auto-healed stale '${GIT_DIR}/index.lock' (${lock_age}s old; no process holding fd)."
+      rm -f "${GIT_DIR}/index.lock" 2>/dev/null || true
     fi
   fi
 
-  for marker in index.lock MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG BISECT_START rebase-merge rebase-apply sequencer AUTO_MERGE; do
+  for marker in index.lock refs/heads/*.lock HEAD.lock MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG BISECT_START rebase-merge rebase-apply sequencer AUTO_MERGE; do
     if [[ -e "${GIT_DIR}/${marker}" ]]; then
       echo "${marker}"
       return 0
