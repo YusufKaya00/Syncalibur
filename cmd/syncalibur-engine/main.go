@@ -2737,32 +2737,39 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 	}
 
 	var files []string
-	gitArgs := []string{"-C", repoRoot, "-c", "core.quotePath=false", "diff"}
-	if stagedOnly {
-		gitArgs = append(gitArgs, "--cached")
-	}
-	gitArgs = append(gitArgs, "--name-only")
-
-	out, err := exec.Command("git", gitArgs...).Output()
-	if err == nil {
+	fileMap := make(map[string]bool)
+	addFiles := func(out []byte) {
 		for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 			if f = strings.TrimSpace(f); f != "" {
-				files = append(files, f)
+				fileMap[f] = true
 			}
 		}
 	}
 
-	// Also inspect untracked files if not staged-only
-	if !stagedOnly {
-		untrackedOut, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard").Output()
+	if stagedOnly {
+		out, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "diff", "--cached", "--name-only").Output()
 		if err == nil {
-			for _, f := range strings.Split(strings.TrimSpace(string(untrackedOut)), "\n") {
-				if f = strings.TrimSpace(f); f != "" {
-					files = append(files, f)
-				}
-			}
+			addFiles(out)
+		}
+	} else {
+		outStaged, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "diff", "--cached", "--name-only").Output()
+		if err == nil {
+			addFiles(outStaged)
+		}
+		outUnstaged, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "diff", "--name-only").Output()
+		if err == nil {
+			addFiles(outUnstaged)
+		}
+		outUntracked, err := exec.Command("git", "-C", repoRoot, "-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard").Output()
+		if err == nil {
+			addFiles(outUntracked)
 		}
 	}
+
+	for f := range fileMap {
+		files = append(files, f)
+	}
+	sort.Strings(files)
 
 	var syntaxErrors []string
 	var quarantinedFiles []string
