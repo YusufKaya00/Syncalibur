@@ -1129,7 +1129,7 @@ func detectSecretsInFile(filePath string) (bool, string) {
 				if strings.Contains(w, "<") && strings.Contains(w, ">") {
 					continue
 				}
-				if strings.Count(w, "/") >= 2 || strings.Count(w, "\\") >= 2 {
+				if (strings.Count(w, "/") >= 2 || strings.Count(w, "\\") >= 2) && !strings.HasSuffix(w, "=") {
 					continue
 				}
 				if strings.HasPrefix(w, "./") || strings.HasPrefix(w, "../") || strings.HasPrefix(w, "/") {
