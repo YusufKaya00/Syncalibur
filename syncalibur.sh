@@ -929,7 +929,7 @@ print_syncalibur_dashboard() {
 
   local pid state_str autostart_str branch remote unpushed_str cfg_short watch_short self_str engine_badge res_badge=""
   if [[ -f "${PAUSE_FILE}" ]]; then
-    state_str="${C_AMBER}${C_BOLD}▲ PAUSED${C_RESET} ${C_SLATE}(resume via 'syncalibur resume' or [p] in UI)${C_RESET}"
+    state_str="${C_AMBER}${C_BOLD}▲ PAUSED${C_RESET} ${C_SLATE}(resume via 'syncalibur resume' or [p] in status)${C_RESET}"
   elif pid="$(daemon_pid)"; then
     res_badge="$(daemon_resource_badge "${pid}")"
     state_str="${C_GREEN}${C_BOLD}● ONLINE${C_RESET} ${C_SLATE}(PID ${pid})${C_RESET} ${res_badge}"
