@@ -4095,6 +4095,202 @@ func cycleActiveMode(scriptPath, repoRoot string) string {
 	return next
 }
 
+func boostAnsiColors(line string, factor float64, addR, addG, addB int) string {
+	if factor == 1.0 && addR == 0 && addG == 0 && addB == 0 {
+		return line
+	}
+	var sb strings.Builder
+	sb.Grow(len(line) + 64)
+	i := 0
+	n := len(line)
+	for i < n {
+		if i+7 < n && line[i] == '\033' && line[i+1] == '[' && (strings.HasPrefix(line[i+2:], "38;2;") || strings.HasPrefix(line[i+2:], "48;2;")) {
+			isFg := line[i+2] == '3'
+			prefix := "\033[38;2;"
+			if !isFg {
+				prefix = "\033[48;2;"
+			}
+			idx := i + 7
+			mIdx := strings.IndexByte(line[idx:], 'm')
+			if mIdx != -1 {
+				parts := strings.Split(line[idx:idx+mIdx], ";")
+				if len(parts) == 3 {
+					r, _ := strconv.Atoi(parts[0])
+					g, _ := strconv.Atoi(parts[1])
+					b, _ := strconv.Atoi(parts[2])
+
+					if r > 0 || g > 0 || b > 0 {
+						nr := int(float64(r)*factor) + addR
+						ng := int(float64(g)*factor) + addG
+						nb := int(float64(b)*factor) + addB
+						if nr > 255 {
+							nr = 255
+						}
+						if ng > 255 {
+							ng = 255
+						}
+						if nb > 255 {
+							nb = 255
+						}
+						if nr < 0 {
+							nr = 0
+						}
+						if ng < 0 {
+							ng = 0
+						}
+						if nb < 0 {
+							nb = 0
+						}
+						sb.WriteString(prefix)
+						sb.WriteString(strconv.Itoa(nr))
+						sb.WriteByte(';')
+						sb.WriteString(strconv.Itoa(ng))
+						sb.WriteByte(';')
+						sb.WriteString(strconv.Itoa(nb))
+						sb.WriteByte('m')
+						i = idx + mIdx + 1
+						continue
+					}
+				}
+			}
+		}
+		sb.WriteByte(line[i])
+		i++
+	}
+	return sb.String()
+}
+
+func injectMarginEmbers(line string, r, frame int) string {
+	const resetSpace = "\x1b[0m "
+	leadCount := 0
+	idx := 0
+	for strings.HasPrefix(line[idx:], resetSpace) {
+		leadCount++
+		idx += len(resetSpace)
+	}
+	if leadCount > 3 {
+		slot := (r*3 + frame/2) % leadCount
+		if (frame+r*7)%5 == 0 && slot > 0 && slot < leadCount {
+			sparkles := []string{
+				"\x1b[38;2;90;225;255m✦\x1b[0m",
+				"\x1b[38;2;255;215;0m✧\x1b[0m",
+				"\x1b[38;2;167;243;208m·\x1b[0m",
+				"\x1b[38;2;255;255;255m°\x1b[0m",
+				"\x1b[38;2;251;191;36m⋆\x1b[0m",
+			}
+			char := sparkles[(frame+r)%len(sparkles)]
+			before := strings.Repeat(resetSpace, slot)
+			after := strings.Repeat(resetSpace, leadCount-slot-1)
+			line = before + char + after + line[idx:]
+		}
+	}
+
+	const trailSpace = " \x1b[0m"
+	trailCount := 0
+	endIdx := len(line)
+	for endIdx >= len(trailSpace) && strings.HasSuffix(line[:endIdx], trailSpace) {
+		trailCount++
+		endIdx -= len(trailSpace)
+	}
+	if trailCount > 3 {
+		slot := (r*2 + frame/3) % trailCount
+		if (frame+r*5)%6 == 0 && slot > 0 && slot < trailCount {
+			sparkles := []string{
+				"\x1b[38;2;255;215;0m✦\x1b[0m",
+				"\x1b[38;2;90;225;255m✧\x1b[0m",
+				"\x1b[38;2;255;255;255m·\x1b[0m",
+				"\x1b[38;2;147;197;253m⋆\x1b[0m",
+			}
+			char := sparkles[(frame+r*2)%len(sparkles)]
+			before := strings.Repeat(trailSpace, slot)
+			after := strings.Repeat(trailSpace, trailCount-slot-1)
+			line = line[:endIdx] + before + char + after
+		}
+	}
+	return line
+}
+
+func applyAnimatedLogo(baseLines []string, frame int) []string {
+	res := make([]string, len(baseLines))
+	gleamRow := frame % 28
+	for r, l := range baseLines {
+		withEmbers := injectMarginEmbers(l, r, frame)
+		var factor float64 = 1.0
+		var addR, addG, addB int
+		if gleamRow < 21 {
+			if r == gleamRow {
+				factor = 1.55
+				addR, addG, addB = 55, 70, 95
+			} else if r == gleamRow-1 || r == gleamRow+1 {
+				factor = 1.25
+				addR, addG, addB = 25, 30, 45
+			}
+		} else {
+			pulse := (frame % 4)
+			switch pulse {
+			case 0:
+				factor = 1.05
+				addR, addG, addB = 8, 12, 18
+			case 1:
+				factor = 1.12
+				addR, addG, addB = 15, 22, 30
+			case 2:
+				factor = 1.08
+				addR, addG, addB = 10, 16, 22
+			default:
+				factor = 1.0
+			}
+		}
+		res[r] = boostAnsiColors(withEmbers, factor, addR, addG, addB)
+	}
+	return res
+}
+
+func getEkgWave(frame int, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	runes := []rune("───────/\\_───/\\/\\──────────────/\\_───/\\/\\───────")
+	cycle := 24
+	offset := (frame * 2) % cycle
+	var result []rune
+	for len(result) < width {
+		needed := width - len(result)
+		avail := len(runes) - offset
+		if needed <= avail {
+			result = append(result, runes[offset:offset+needed]...)
+			break
+		}
+		result = append(result, runes[offset:]...)
+		offset = 0
+	}
+	return string(result)
+}
+
+func getAnimatedModeBadge(mode string, frame int) string {
+	switch canonicalizeMode(mode) {
+	case "instant-push":
+		bolts := []string{"⚡", "🗲", "⚡", "⚡"}
+		bolt := bolts[(frame/2)%len(bolts)]
+		if (frame/4)%2 == 0 {
+			return fmt.Sprintf("%s%s%s Instant-Push%s", cCyan, cBold, bolt, cReset)
+		}
+		return fmt.Sprintf("%s%s%s Instant-Push%s", cGold, cBold, bolt, cReset)
+	case "devops":
+		helmColors := []string{cBlue, cCyan}
+		col := helmColors[(frame/3)%len(helmColors)]
+		return fmt.Sprintf("%s%s☸ DevOps%s", col, cBold, cReset)
+	case "pr":
+		arrows := []string{"🔀", "⇄", "🔀"}
+		arr := arrows[(frame/3)%len(arrows)]
+		return fmt.Sprintf("%s%s%s PR-Autopilot%s", cAmber, cBold, arr, cReset)
+	default:
+		devTools := []string{"🛠", "⚙", "🛠"}
+		tool := devTools[(frame/4)%len(devTools)]
+		return fmt.Sprintf("%s%s%s Developer%s", cGreen, cBold, tool, cReset)
+	}
+}
+
 func runInteractiveTUI(scriptPath, repoRoot string) {
 	sttyOrigCmd := exec.Command("stty", "-g")
 	sttyOrigCmd.Stdin = os.Stdin
