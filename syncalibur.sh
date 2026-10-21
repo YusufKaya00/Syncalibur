@@ -3803,6 +3803,8 @@ usage() {
     ${C_CYAN}push [msg] [--tidy]${C_RESET}    One-shot preflight check, commit & multi-remote push (<1.5s)
     ${C_CYAN}commit [msg]${C_RESET}           Local preflight check & commit (skips network push)
     ${C_CYAN}check | preflight${C_RESET}     Run pre-push inspection (syntax hold, secret shield, diff, proposed msg)
+    ${C_CYAN}undo${C_RESET}                   Safely revert to previous checkpoint via soft reset (Time Machine)
+    ${C_CYAN}checkpoint [list|save]${C_RESET} List or create safety rollback checkpoints
     ${C_CYAN}release [mode]${C_RESET}         Automated SemVer bump, CHANGELOG generation & Git release tag
     ${C_CYAN}version | -v${C_RESET}          Print official release version & platform milestone
     ${C_CYAN}tidy${C_RESET}                    Squash unpushed local micro-commits into 1 clean conventional commit
@@ -3811,10 +3813,10 @@ usage() {
   ${C_GOLD}${C_BOLD}Autonomous Daemon & Fleet Control:${C_RESET}
     ${C_CYAN}install [path]${C_RESET}         Configure OS auto-start, compile Go engine, link global CLI & start now
     ${C_CYAN}status [--static]${C_RESET}      Launch interactive cockpit in TTY (or static dashboard with --static)
-    ${C_CYAN}mode [name]${C_RESET}            Inspect or switch operating mode: ${C_WHITE}commit-generator | developer | pr${C_RESET}
+    ${C_CYAN}mode [name]${C_RESET}            Inspect or switch operating mode: ${C_WHITE}commit-generator | developer | devops | pr${C_RESET}
     ${C_CYAN}logs${C_RESET}                   Stream live colorized telemetry
     ${C_CYAN}fleet <subcmd>${C_RESET}         Manage multi-repo fleet: ${C_WHITE}status | add <path> | remove <path> | scan [dir] | start | stop${C_RESET}
-    ${C_CYAN}doctor${C_RESET}                 Run 11-point system diagnostic health check
+    ${C_CYAN}doctor${C_RESET}                 Run 12-point system diagnostic health check
     ${C_CYAN}notify [msg]${C_RESET}           Send an instant test notification to Telegram Bot / Discord / Slack Webhooks
     ${C_CYAN}pr [base|--preview]${C_RESET}    Open a structured Pull Request using Syncalibur's auto-populated PR Template
     ${C_CYAN}pull${C_RESET}                   Trigger immediate bidirectional remote fetch & safe rebase
@@ -3830,6 +3832,8 @@ case "${1:-}" in
   push)       shift; cmd_push "$@" ;;
   commit)     shift; cmd_commit "$@" ;;
   check | preflight) shift; cmd_check "${1:-}" ;;
+  undo)       shift; cmd_undo "$@" ;;
+  checkpoint | checkpoints) shift; cmd_checkpoint "$@" ;;
   release)    shift; cmd_release "$@" ;;
   version | --version | -v) cmd_version ;;
   tidy)       shift; cmd_tidy "${1:-}" ;;
