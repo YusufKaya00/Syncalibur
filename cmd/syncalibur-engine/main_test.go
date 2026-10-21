@@ -563,10 +563,15 @@ func TestParseFleetEntry(t *testing.T) {
 		t.Errorf("expected path /home/user/project, got %+v", e1)
 	}
 
-	// 2. Bracketed attributes
+	// 2. Bracketed attributes with canonicalized mode
 	e2 := parseFleetEntry("/home/user/repo [mode=commit-generator] [remote=upstream]")
-	if e2 == nil || e2.Mode != "commit-generator" || e2.Remote != "upstream" {
-		t.Errorf("expected mode=commit-generator, remote=upstream, got %+v", e2)
+	if e2 == nil || e2.Mode != "instant-push" || e2.Remote != "upstream" {
+		t.Errorf("expected mode=instant-push, remote=upstream, got %+v", e2)
+	}
+
+	e2b := parseFleetEntry("/home/user/repo [mode=instant-push] [remote=upstream]")
+	if e2b == nil || e2b.Mode != "instant-push" || e2b.Remote != "upstream" {
+		t.Errorf("expected mode=instant-push, remote=upstream, got %+v", e2b)
 	}
 
 	// 3. Inline key=value
@@ -576,9 +581,14 @@ func TestParseFleetEntry(t *testing.T) {
 	}
 
 	// 4. Positional mode
-	e4 := parseFleetEntry("/home/user/test commit-generator")
-	if e4 == nil || e4.Mode != "commit-generator" {
-		t.Errorf("expected positional mode commit-generator, got %+v", e4)
+	e4 := parseFleetEntry("/home/user/test instant-push")
+	if e4 == nil || e4.Mode != "instant-push" {
+		t.Errorf("expected positional mode instant-push, got %+v", e4)
+	}
+
+	e4b := parseFleetEntry("/home/user/test commit-generator")
+	if e4b == nil || e4b.Mode != "instant-push" {
+		t.Errorf("expected positional mode commit-generator alias to map to instant-push, got %+v", e4b)
 	}
 
 	// 5. Comment line
@@ -618,10 +628,15 @@ func TestResolveEffectiveRepoMode(t *testing.T) {
 		t.Errorf("expected default developer, got %s", m1)
 	}
 
-	// Case 2: Fleet line mode takes precedence
+	// Case 2: Fleet line mode takes precedence and canonicalizes aliases
 	m2 := resolveEffectiveRepoMode(tmpDir, "commit-generator")
-	if m2 != "commit-generator" {
-		t.Errorf("expected fleet mode commit-generator, got %s", m2)
+	if m2 != "instant-push" {
+		t.Errorf("expected fleet mode commit-generator to resolve to instant-push, got %s", m2)
+	}
+
+	m2b := resolveEffectiveRepoMode(tmpDir, "instant-push")
+	if m2b != "instant-push" {
+		t.Errorf("expected fleet mode instant-push, got %s", m2b)
 	}
 
 	// Case 3: Repo-local .syncalibur file
