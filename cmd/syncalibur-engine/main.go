@@ -3281,17 +3281,37 @@ func parseFleetEntry(line string) *fleetRepoConfig {
 			}
 		} else if len(kv) == 1 {
 			val := strings.ToLower(strings.TrimSpace(kv[0]))
-			if val == "commit-generator" || val == "developer" || val == "pr" {
-				cfg.Mode = val
+			cMode := canonicalizeMode(val)
+			if cMode == "instant-push" || cMode == "developer" || cMode == "devops" || cMode == "pr" {
+				cfg.Mode = cMode
 			}
 		}
 	}
 	return cfg
 }
 
+func canonicalizeMode(m string) string {
+	m = strings.ToLower(strings.TrimSpace(m))
+	switch m {
+	case "instant-push", "instant", "stream", "continuous", "commit-generator", "commit-gen":
+		return "instant-push"
+	case "devops", "infra", "k8s", "iac":
+		return "devops"
+	case "pr", "review":
+		return "pr"
+	case "developer", "pro", "team":
+		return "developer"
+	default:
+		if m == "" {
+			return "developer"
+		}
+		return m
+	}
+}
+
 func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 	if fleetLineMode != "" && fleetLineMode != "default" {
-		return fleetLineMode
+		return canonicalizeMode(fleetLineMode)
 	}
 	for _, fname := range []string{".syncalibur", ".syncalibur.env", "syncalibur.env"} {
 		fpath := filepath.Join(repoPath, fname)
@@ -3301,14 +3321,14 @@ func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 				if strings.HasPrefix(line, "MODE=") || strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
 					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
 					if val != "" {
-						return strings.ToLower(val)
+						return canonicalizeMode(val)
 					}
 				}
 			}
 		}
 	}
 	if env := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); env != "" {
-		return strings.ToLower(env)
+		return canonicalizeMode(env)
 	}
 	return "developer"
 }
