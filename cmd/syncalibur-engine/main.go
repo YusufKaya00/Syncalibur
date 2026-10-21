@@ -2851,20 +2851,7 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 	}
 	return exitCode, sb.String()
 }
-	if len(syntaxErrors) > 0 {
-		if sb.Len() > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString(fmt.Sprintf("%s%s %sSYNTAX ERRORS DETECTED (%d)%s\n", cAmber, iconWarn, cBold, len(syntaxErrors), cReset))
-		for _, s := range syntaxErrors {
-			sb.WriteString(fmt.Sprintf("  %s%s%s %s\n", cAmber, iconCross, cReset, s))
-		}
-	}
-	for _, d := range details {
-		sb.WriteString(fmt.Sprintf("    %s%s %s%s\n", cSlate, iconChevron, d, cReset))
-	}
-	return exitCode, sb.String()
-}
+
 
 // ==============================================================================
 // 3b. Smart Staging Partition Engine (`smart-stage`)
