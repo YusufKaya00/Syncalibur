@@ -1443,12 +1443,31 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 			tscBin = p
 		}
 		if tscBin != "" {
-			cmd := exec.Command(tscBin, "--noEmit", "--skipLibCheck", "--jsx", "react-jsx", absPath)
+			cmd := exec.Command(tscBin, "--noEmit", "--skipLibCheck", "--jsx", "preserve", absPath)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
-				if errMsg != "" && !strings.Contains(errMsg, "Cannot find module") && !strings.Contains(errMsg, "Cannot find name") {
+				if errMsg != "" {
 					lines := strings.Split(errMsg, "\n")
-					return false, fmt.Sprintf("%s: %s", relPath, lines[0])
+					for _, l := range lines {
+						lTrim := strings.TrimSpace(l)
+						if lTrim == "" || !strings.Contains(lTrim, "error TS") {
+							continue
+						}
+						// Ignore missing type definitions, declarations, or ambient modules
+						if strings.Contains(lTrim, "Cannot find module") ||
+							strings.Contains(lTrim, "Cannot find name") ||
+							strings.Contains(lTrim, "JSX.IntrinsicElements") ||
+							strings.Contains(lTrim, "implicitly has type 'any'") ||
+							strings.Contains(lTrim, "TS7026") ||
+							strings.Contains(lTrim, "TS2686") ||
+							strings.Contains(lTrim, "TS2709") ||
+							strings.Contains(lTrim, "TS2304") ||
+							strings.Contains(lTrim, "TS2307") ||
+							strings.Contains(lTrim, "TS7016") {
+							continue
+						}
+						return false, fmt.Sprintf("%s: %s", relPath, lTrim)
+					}
 				}
 			}
 		}
