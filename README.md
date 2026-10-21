@@ -4,7 +4,7 @@
 
 # Syncalibur
 
-**Autonomous Git Auto Commit & Auto Pusher Daemon • Multi-Remote Git Sync Engine, Organic Commit Gainer & Live TUI Cockpit**
+**Zero-Data-Loss Git Autopilot & Workstation Sentinel • Multi-Remote Sync Engine, Developer Flight Recorder & Live TUI Cockpit**
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/YusufKaya00/Syncalibur/ci.yml?branch=main&style=for-the-badge&label=CI%20Verify)](https://github.com/YusufKaya00/Syncalibur/actions)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-0ea5e9?style=for-the-badge)](#cli-command-reference)
@@ -12,7 +12,7 @@
 [![Git Remotes](https://img.shields.io/badge/Multi--Remote-GitHub%20%2B%20GitLab%20%2B%20Self--Hosted-10b981?style=for-the-badge)](#what-is-syncalibur)
 [![PRs Welcome](https://img.shields.io/badge/PRs-Protected%20Main%20%7C%201%20Review%20Required-a855f7?style=for-the-badge)](CONTRIBUTING.md)
 
-*Forge-grade **Git auto-commit**, **auto-pusher**, and **organic commit gainer** for your repositories — powered by a compiled Go core (`syncalibur`), Semantic Conventional Commit generation, concurrent Multi-Repo Fleet orchestration, Telegram & Multi-Channel Webhooks, and an Interactive Live TUI Cockpit.*
+*Forge-grade **Git auto-commit**, **auto-pusher**, and **Developer Flight Recorder** for your repositories — powered by a compiled Go core (`syncalibur`), AST-aware Conventional Commit generation, concurrent Multi-Repo Fleet orchestration, Telegram & Multi-Channel Webhooks, and an Interactive Live TUI Cockpit.*
 
 </div>
 
