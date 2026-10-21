@@ -1611,7 +1611,7 @@ cmd_pr() {
   fi
 
   echo "↗ Pushing branch '${pr_branch}' to origin..."
-  git push -u origin "HEAD:refs/heads/${pr_branch}" || return 1
+  git push --recurse-submodules=on-demand -u origin "HEAD:refs/heads/${pr_branch}" || return 1
 
   if command -v gh >/dev/null 2>&1; then
     echo "⇄ Opening GitHub Pull Request (${pr_branch} -> ${base_branch}) with Syncalibur PR Template..."
