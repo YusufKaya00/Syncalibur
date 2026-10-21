@@ -1025,15 +1025,23 @@ func detectConflictMarkers(filePath string) (bool, string) {
 }
 
 func detectSecretsInFile(filePath string) (bool, string) {
-	// Skip unit test files and fixtures from credential quarantine
 	base := strings.ToLower(filepath.Base(filePath))
-	if strings.HasSuffix(base, "_test.go") || strings.Contains(base, "test") || strings.Contains(base, "fixture") {
-		return false, ""
-	}
 
-	// 1. Blacklist pattern verification
+	// Unit test files: only skip heuristic entropy scanning to avoid false positives on mock/dummy test values,
+	// but ALWAYS verify blacklist patterns (.env, id_rsa, *.pem, credentials.json, etc.).
+	// NEVER use strings.Contains(base, "test") as that would blindly bypass test_api_keys.json or latest_creds.py!
+	isTestCode := strings.HasSuffix(base, "_test.go") || strings.HasSuffix(base, ".test.ts") ||
+		strings.HasSuffix(base, ".test.js") || strings.HasSuffix(base, ".spec.ts") ||
+		strings.HasSuffix(base, ".spec.js") || strings.HasPrefix(base, "fixture_") ||
+		strings.HasSuffix(base, "_fixture.json")
+
+	// 1. Blacklist pattern verification (always enforced, even in test code)
 	if matchesSensitivePattern(filePath) {
 		return true, fmt.Sprintf("%s (matches sensitive file pattern blacklist)", filepath.Base(filePath))
+	}
+
+	if isTestCode {
+		return false, ""
 	}
 
 	// 2. Binary / size safety check
