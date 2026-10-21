@@ -1041,7 +1041,7 @@ print_syncalibur_dashboard() {
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Velocity  :${C_RESET} ${unpushed_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Shield    :${C_RESET} ${C_SLATE}Poll ${POLL_INTERVAL}s • Debounce ${DEBOUNCE_WAIT}s • ≤ ${MAX_FILE_SIZE_MB} MiB & Secret Guard${C_RESET}"
     "  ${C_SLATE}──────────────────────────────────────────────────────────────────────${C_RESET}"
-    "  ${C_SLATE}Commands  : ${C_CYAN}ui${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}release${C_SLATE} | ${C_CYAN}version${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}doctor${C_RESET}"
+    "  ${C_SLATE}Commands  : ${C_CYAN}status${C_SLATE} | ${C_CYAN}mode${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}release${C_SLATE} | ${C_CYAN}version${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}doctor${C_RESET}"
   )
 
   local -a logo_lines=()
