@@ -640,6 +640,8 @@ func TestGetCommitVelocity(t *testing.T) {
 }
 
 func TestDevOpsKubernetesPortMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+
 	// 1. Valid matching Service & Deployment
 	validK8s := `apiVersion: apps/v1
 kind: Deployment
@@ -673,16 +675,16 @@ spec:
   - port: 80
     targetPort: 8080
 `
-	docs := splitYAMLDocuments(validK8s)
-	parsed := make([]K8sDoc, 0, len(docs))
-	for _, d := range docs {
-		if pd := parseK8sDoc(d); pd != nil {
-			parsed = append(parsed, *pd)
+	_ = os.WriteFile(filepath.Join(tmpDir, "valid.yaml"), []byte(validK8s), 0644)
+	issuesValid := validateDevOpsGate(tmpDir, []string{"valid.yaml"})
+	var portErrorsValid []InfraIssue
+	for _, iss := range issuesValid {
+		if iss.Code == "K8S_PORT_MISMATCH" {
+			portErrorsValid = append(portErrorsValid, iss)
 		}
 	}
-	errs := validateServicePortTargetPort("test.yaml", parsed)
-	if len(errs) != 0 {
-		t.Errorf("expected 0 port mismatch errors for matching Service/Deployment, got: %+v", errs)
+	if len(portErrorsValid) != 0 {
+		t.Errorf("expected 0 port mismatch errors for matching Service/Deployment, got: %+v", portErrorsValid)
 	}
 
 	// 2. Mismatched targetPort (Service targetPort 9090 vs Container port 8080)
@@ -718,21 +720,21 @@ spec:
   - port: 80
     targetPort: 9090
 `
-	mDocs := splitYAMLDocuments(mismatchedK8s)
-	mParsed := make([]K8sDoc, 0, len(mDocs))
-	for _, d := range mDocs {
-		if pd := parseK8sDoc(d); pd != nil {
-			mParsed = append(mParsed, *pd)
+	_ = os.WriteFile(filepath.Join(tmpDir, "bad.yaml"), []byte(mismatchedK8s), 0644)
+	issuesBad := validateDevOpsGate(tmpDir, []string{"bad.yaml"})
+	var portErrorsBad []InfraIssue
+	for _, iss := range issuesBad {
+		if iss.Code == "K8S_PORT_MISMATCH" {
+			portErrorsBad = append(portErrorsBad, iss)
 		}
 	}
-	mErrs := validateServicePortTargetPort("bad-service.yaml", mParsed)
-	if len(mErrs) == 0 {
+	if len(portErrorsBad) == 0 {
 		t.Errorf("expected port mismatch error for targetPort 9090 vs containerPort 8080, got 0 errors")
 	}
 }
 
 func TestDevOpsConfigMapSecrets(t *testing.T) {
-	// ConfigMap with plaintext AWS API secret
+	tmpDir := t.TempDir()
 	badConfigMap := `apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -741,21 +743,21 @@ data:
   AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
   DATABASE_URL: "postgres://user:secret123@db:5432/prod"
 `
-	docs := splitYAMLDocuments(badConfigMap)
-	parsed := make([]K8sDoc, 0, len(docs))
-	for _, d := range docs {
-		if pd := parseK8sDoc(d); pd != nil {
-			parsed = append(parsed, *pd)
+	_ = os.WriteFile(filepath.Join(tmpDir, "cm.yaml"), []byte(badConfigMap), 0644)
+	issues := validateDevOpsGate(tmpDir, []string{"cm.yaml"})
+	var cmErrors []InfraIssue
+	for _, iss := range issues {
+		if iss.Code == "CONFIGMAP_PLAINTEXT_SECRET" {
+			cmErrors = append(cmErrors, iss)
 		}
 	}
-	errs := validateConfigMapSecrets("configmap.yaml", parsed)
-	if len(errs) == 0 {
+	if len(cmErrors) == 0 {
 		t.Errorf("expected secret detection error in ConfigMap data, got 0")
 	}
 }
 
 func TestDevOpsContainerProbes(t *testing.T) {
-	// Probe hitting an undeclared container port
+	tmpDir := t.TempDir()
 	badProbe := `apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -773,15 +775,15 @@ spec:
             path: /healthz
             port: 3000
 `
-	docs := splitYAMLDocuments(badProbe)
-	parsed := make([]K8sDoc, 0, len(docs))
-	for _, d := range docs {
-		if pd := parseK8sDoc(d); pd != nil {
-			parsed = append(parsed, *pd)
+	_ = os.WriteFile(filepath.Join(tmpDir, "probe.yaml"), []byte(badProbe), 0644)
+	issues := validateDevOpsGate(tmpDir, []string{"probe.yaml"})
+	var probeErrors []InfraIssue
+	for _, iss := range issues {
+		if iss.Code == "PROBE_PORT_MISMATCH" {
+			probeErrors = append(probeErrors, iss)
 		}
 	}
-	errs := validateContainerProbes("deploy.yaml", parsed)
-	if len(errs) == 0 {
+	if len(probeErrors) == 0 {
 		t.Errorf("expected readinessProbe port mismatch error for port 3000, got 0")
 	}
 }
@@ -791,15 +793,16 @@ func TestDevOpsDockerfileLint(t *testing.T) {
 
 	// 1. Dockerfile with :latest and no USER directive
 	badDocker := filepath.Join(tmpDir, "Dockerfile")
-	_ = os.WriteFile(badDocker, []byte("FROM golang:latest\nCOPY . .\nCMD [\"./app\"]\n"), 0644)
-	errs := lintDockerfile(badDocker, "Dockerfile")
+	badData := []byte("FROM golang:latest\nCOPY . .\nCMD [\"./app\"]\n")
+	_ = os.WriteFile(badDocker, badData, 0644)
+	errs := lintDockerfile(badData, "Dockerfile", tmpDir)
 	if len(errs) == 0 {
 		t.Errorf("expected lintDockerfile to flag ':latest' and missing USER non-root, got 0 errors")
 	}
 
 	// 2. Multi-stage Dockerfile with non-root USER and pinned tag
 	goodDocker := filepath.Join(tmpDir, "Dockerfile.good")
-	goodContent := `FROM golang:1.22.1-alpine AS builder
+	goodContent := []byte(`FROM golang:1.22.1-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -812,10 +815,10 @@ USER 10001
 WORKDIR /app
 COPY --from=builder /app/server /app/server
 ENTRYPOINT ["/app/server"]
-`
-	_ = os.WriteFile(goodDocker, []byte(goodContent), 0644)
+`)
+	_ = os.WriteFile(goodDocker, goodContent, 0644)
 	_ = os.WriteFile(filepath.Join(tmpDir, ".dockerignore"), []byte(".git\n*.env\n"), 0644)
-	goodErrs := lintDockerfile(goodDocker, "Dockerfile.good")
+	goodErrs := lintDockerfile(goodContent, "Dockerfile.good", tmpDir)
 	if len(goodErrs) != 0 {
 		t.Errorf("expected clean multi-stage Dockerfile to pass, got: %+v", goodErrs)
 	}
