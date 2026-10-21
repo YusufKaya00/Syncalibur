@@ -443,7 +443,7 @@ MODE="${SYNCALIBUR_MODE:-developer}"
 case "${MODE}" in
   instant-push | instant | stream | continuous | commit-generator | commit-gen)
     MODE="instant-push"
-    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-10}"
+    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-5}"
     TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-999}"
     AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-false}"
     AUTO_PR="${SYNCALIBUR_AUTO_PR:-false}"
