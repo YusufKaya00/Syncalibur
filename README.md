@@ -172,7 +172,7 @@ flowchart TD
 | `syncalibur commit [MSG]` | **Local Safe Commit:** Preflight checks & commit without network push (perfect for offline coding) |
 | `syncalibur check` / `preflight` | **Pre-Push Inspection:** Inspects working tree, tests Syntax Hold & Secret Shield, shows proposed AST commit message, and prints sync matrix |
 | `syncalibur tidy` | **History Hygiene (Smart Squash):** Squashes unpushed local micro-commits into a single clean AST-driven Conventional Commit with automatic rollback checkpoint (`refs/syncalibur/backup-HEAD-...`) |
-| `syncalibur undo` | **Time Machine Rollback:** Safely reverts working branch to the previous checkpoint via non-destructive soft reset (working tree edits are preserved) |
+| `syncalibur undo` / `recover` | **Time Machine Rollback:** Safely reverts working branch to the previous checkpoint via non-destructive soft reset (working tree edits are preserved) |
 | `syncalibur checkpoint [save]` | **Safety Checkpoints:** Inspects or creates safety rollback checkpoints under `refs/syncalibur/*` |
 | `syncalibur hook install` | **Universal Git Hook:** Installs `.git/hooks/pre-commit` (Secret Shield & Syntax Hold) and `.git/hooks/prepare-commit-msg` (AST suggestions) so standard `git commit` commands outside Syncalibur are guarded |
 | `syncalibur hook status` / `uninstall` | Check active Git hook status or uninstall Syncalibur Git hooks cleanly |
@@ -182,7 +182,7 @@ flowchart TD
 | Command | Description |
 | :--- | :--- |
 | `syncalibur status [--static]` | Launch the **Interactive Two-Pane Live Cockpit** in TTY (TrueColor sword emblem, live telemetry, scrollable log viewport, hotkeys `[m]` mode, `[p]` pause, `[s]` sync, `[b]` pull, `[t]` logo, `[d]` doctor, `[q]` quit; or `--static` for plain text snapshot) |
-| `syncalibur mode [name]` | Inspect or switch active operating mode (`commit-generator` \| `developer` \| `devops` \| `pr`) |
+| `syncalibur mode [name]` | Inspect or switch active operating mode (`instant-push` \| `developer` \| `devops` \| `pr`) |
 | `syncalibur install [PATH]` | Auto-detect repo, create missing remote repo if needed, link `~/.local/bin/syncalibur`, and start the OS service |
 | `syncalibur logs` | Render the emblem header and stream live color-coded log events (`tail -f`) |
 | `syncalibur sync` | Trigger an immediate one-shot bidirectional pull, semantic commit, and multi-remote push |
