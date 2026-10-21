@@ -182,7 +182,7 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "ui":
+	case "status", "ui":
 		scriptPath := ""
 		repoRoot := "."
 		if len(os.Args) >= 3 {
