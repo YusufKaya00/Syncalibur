@@ -165,12 +165,12 @@ Syncalibur provides an automated infrastructure policy engine for Kubernetes, He
 - **Raw Mode Terminal:** Non-blocking async keyboard reader (`keyCh := make(chan []byte, 32)`), alternate screen buffer (`\033[?1049h`), 1-second ticker refresh.
 - **Keybindings:**
   - `q` / `Ctrl+C` / `Esc`: Clean exit with terminal state restoration.
-  - `m`: Cycle operating mode (`commit-generator` ➔ `developer` ➔ `devops` ➔ `pr` ➔ `commit-generator`) and persist to `.syncalibur` or `syncalibur.env`.
+  - `m`: Cycle operating mode (`instant-push` ➔ `developer` ➔ `devops` ➔ `pr` ➔ `instant-push`) and persist to `.syncalibur` or `syncalibur.env`.
   - `p`: Toggle pause/resume (`syncalibur.pause`).
   - `s`: Trigger immediate sync cycle (`syncalibur.sync`).
   - `b`: Trigger bidirectional remote pull (`syncalibur pull`).
   - `u`: Trigger self-update check (`syncalibur.upd`).
-  - `z`: Safe rollback to previous checkpoint (`syncalibur undo`).
+  - `z`: Safe rollback to previous checkpoint (`syncalibur undo` / `syncalibur recover`).
   - `d`: Flash status for 12-point diagnostic check.
   - `t` / `e`: Toggle side-by-side Emblem Cockpit vs Compact Tail view.
   - `f`: Lock follow/tail mode.
