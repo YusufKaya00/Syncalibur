@@ -2741,7 +2741,7 @@ cmd_mode() {
     echo -e "  Parameters          : cooldown: ${BURST_COOLDOWN}s • tidy-threshold: ${TIDY_THRESHOLD} • auto-pr: ${AUTO_PR}"
     echo ""
     echo -e "  ${C_CYAN}${C_BOLD}1. instant-push${C_RESET} ${C_SLATE}(Continuous Stream Mode • Direct Auto-Push)${C_RESET}"
-    echo -e "     • 1 satır bile değişse kontrollerden geçer, 10s cooldown sonrası anında commit'lenir."
+    echo -e "     • 1 satır bile değişse kontrollerden geçer, 5s cooldown sonrası anında commit'lenir."
     echo -e "     • Bekletmeden ve birleştirmeden doğrudan 'main' branch'ine pushlar."
     echo -e "     • Kişisel projeler, k8sfundamentals, notlar ve bireysel çalışmalar için idealdir."
     echo ""
