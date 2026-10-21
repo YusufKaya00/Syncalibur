@@ -2839,15 +2839,30 @@ run_daemon() {
         local unpushed_cnt=0
         unpushed_cnt="$(unpushed_count "${remote}" "${branch}")"
 
-        # If multiple micro-commits accumulated during rapid burst editing, auto-tidy (squash) them!
-        if (( unpushed_cnt > 1 )) && [[ "${AUTO_TIDY}" == "true" ]]; then
-          log "◈ Auto-Tidying ${unpushed_cnt} rapid micro-commits into 1 clean conventional commit..."
-          cmd_tidy "${REPO_ROOT}" >> "${LOG_FILE}" 2>&1 || true
+        # Adaptive Burst Detection:
+        # If unpushed commits reach TIDY_THRESHOLD (default 3), treat as an active burst/sprint.
+        # If fewer than TIDY_THRESHOLD (e.g. 1 or 2 small single commits), keep them separate!
+        local was_burst=0
+        if (( unpushed_cnt >= TIDY_THRESHOLD )); then
+          was_burst=1
         fi
 
-        # If Auto-PR mode is enabled, open or update a Pull Request instead of pushing directly to main
+        if (( was_burst )) && [[ "${AUTO_TIDY}" == "true" ]]; then
+          log "◈ Adaptive Auto-Tidy: Squashing ${unpushed_cnt} burst micro-commits (threshold: ${TIDY_THRESHOLD}) into 1 clean conventional commit..."
+          cmd_tidy "${REPO_ROOT}" >> "${LOG_FILE}" 2>&1 || true
+          unpushed_cnt="$(unpushed_count "${remote}" "${branch}")"
+        fi
+
+        # Determine target: Pull Request vs Direct Remote Push
+        local should_open_pr=0
         if [[ "${AUTO_PR}" == "true" ]]; then
-          log "⇄ Auto-PR mode enabled; creating/updating Pull Request for '${branch}'..."
+          should_open_pr=1
+        elif [[ "${AUTO_PR}" == "burst" ]] && (( was_burst )); then
+          should_open_pr=1
+        fi
+
+        if (( should_open_pr )); then
+          log "⇄ Auto-PR triggered (${unpushed_cnt} commit(s)); opening/updating Pull Request for '${branch}'..."
           if cmd_pr "${branch}" >> "${LOG_FILE}" 2>&1; then
             push_pending=0
             last_commit_ts=0
