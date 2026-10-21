@@ -159,10 +159,11 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - **Debounce:** `wait_for_quiet` polls working tree until consecutive snapshots match over `DEBOUNCE_WAIT` (default 5s). Capped at `MAX_DEBOUNCE` (default 60s).
 
 #### Operating Modes & Adaptive History Hygiene (`SYNCALIBUR_MODE`)
-Syncalibur provides three specialized automation personas configured via `SYNCALIBUR_MODE` in `syncalibur.env` (or via `syncalibur mode <name>` / `[m]` hotkey):
+Syncalibur provides three specialized automation personas configured per-repository via `.syncalibur` or globally via `syncalibur.env` (or via `syncalibur mode <name>` / `[m]` hotkey):
 1. **`commit-generator` (Continuous Stream Mode):**
    - Immediate push on every save (even a 1-line edit) after passing Syntax Hold & Secret Shield.
-   - Burst cooldown is disabled (`BURST_COOLDOWN=0`), squashing is bypassed (`TIDY_THRESHOLD=999`, `AUTO_TIDY="false"`), and `AUTO_PR="false"`.
+   - Quiescence settle cooldown defaults to 10s (`BURST_COOLDOWN=10`), allowing rapid consecutive saves to settle cleanly without spamming micro-commits.
+   - Squashing is bypassed (`TIDY_THRESHOLD=999`, `AUTO_TIDY="false"`), and `AUTO_PR="false"`.
    - Directly pushes to `main` without delay. Ideal for personal study/notes repos (`k8sfundamentals`), learning journals, and solo sandbox projects.
 2. **`developer` (Adaptive Burst & Squash Mode) [Default]:**
    - 1-2 small commits: Pushed directly to `main` without squashing.
@@ -170,9 +171,15 @@ Syncalibur provides three specialized automation personas configured via `SYNCAL
    - If user has push permission: Pushes the consolidated commit directly to `main`.
    - If user lacks permission or branch is protected (`GH006`): Automatically branches to `sync/auto-*` and opens an auto-PR.
 3. **`pr` (Strict Pull Request Mode):**
-   - Never pushes directly to `main`. Commits are always pushed to an isolated sync branch and opened as a rich Pull Request.
-4. **Manual Flush Override:**
-   - Pressing `[s]` in `syncalibur status` or running `syncalibur sync` immediately flushes commits to remote.
+   - Never pushes directly to `main`. Commits are always pushed to an isolated sync branch (`sync/<user>/<branch>-<timestamp>`) and opened as a rich Pull Request with AI summary.
+4. **Configuration Precedence Cascade:**
+   `CLI Flags (--mode=...)` > `Environment (SYNCALIBUR_MODE)` > `Fleet Inline (repos.list [mode=...])` > `Repo-local (<repo>/.syncalibur)` > `Global User Config (syncalibur.env)` > `Default (developer)`.
+
+#### Offline Mode & Network Disconnection Shield
+- **Zero Data Loss Guarantee:** When disconnected from the internet or VPN drops, local file watching, AST syntax verification, Shannon entropy secret scanning, and atomic git commits continue operating at 100% capacity.
+- **Non-Blocking Fast Liveness Probe:** Uses `check_network_liveness` (calling Go engine's TCP dial or `/dev/tcp`) before executing `git fetch` or `git push`.
+- **Silent Local Queuing:** Network connection errors do NOT trigger disruptive diagnostic alert windows. Instead, `.git/syncalibur.offline` is flagged, commits accumulate safely on local HEAD, and the TUI Cockpit displays `🌐 OFFLINE (N queued)`.
+- **Automatic Reconnection Flush:** Once network connectivity restores, the daemon detects the connection, performs safe fetch & rebase (`safe_bidirectional_sync`), flushes queued commits via atomic push, removes the offline flag, and logs the restored state.
 
 #### Safe Bidirectional Synchronization
 - Runs `safe_bidirectional_sync` before local commit cycles and periodically (`SYNCALIBUR_PULL_INTERVAL=45`).
@@ -209,12 +216,24 @@ Syncalibur provides three specialized automation personas configured via `SYNCAL
 
 ## 4. Multi-Repository Fleet Mode (`repos.list`)
 
-Syncalibur can supervise an arbitrary fleet of repositories simultaneously.
+Syncalibur supervises an arbitrary fleet of repositories simultaneously, with each repository running in its own tailored operating mode.
 - **Config File:** `repos.list` (gitignored, template: `repos.list.example`).
+- **Extended Fleet Syntax:**
+  ```text
+  # Standard path (uses repo's .syncalibur or global default)
+  /home/ysf/Syncalibur
+
+  # Bracketed attributes
+  /home/ysf/k8sfundamentals [mode=commit-generator] [remote=origin]
+
+  # Inline key-value attributes
+  /home/ysf/Erasmus-Connect mode=pr remote=origin
+  ```
 - **Commands:**
   - `syncalibur fleet scan [dir]`: Recursively crawls directory to depth 3 and auto-enrolls all Git repositories.
-  - `syncalibur fleet status`: Concurrent Go probe displaying tabular status of all enrolled repositories.
-  - `syncalibur fleet start`: Starts background sync daemons for all repositories.
+  - `syncalibur fleet add <path> [--mode=commit-generator|developer|pr]`: Enrolls repository with specified mode.
+  - `syncalibur fleet status`: Concurrent Go probe displaying tabular status of all enrolled repositories, including active `MODE` (`⚡ commit-gen`, `🛠 developer`, `🔀 pr`), daemon PID, unpushed counts, and dirty file status.
+  - `syncalibur fleet start`: Starts background sync daemons for all repositories according to their configured per-repo modes.
   - `syncalibur fleet stop`: Terminates all fleet background daemons.
 
 ---
