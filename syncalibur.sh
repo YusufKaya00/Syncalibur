@@ -2902,14 +2902,17 @@ cmd_fleet() {
 
   case "${subcmd}" in
     add)
-      [[ -n "${arg}" ]] || { echo "✕ Usage: syncalibur fleet add <path> [--mode=commit-generator|developer|pr]"; return 1; }
+      [[ -n "${arg}" ]] || { echo "✕ Usage: syncalibur fleet add <path> [--mode=instant-push|developer|devops|pr]"; return 1; }
       local target target_mode="developer"
       target="$(resolve_path "$(normalize_path_input "${arg}")")"
       shift 2 2>/dev/null || true
       while [[ $# -gt 0 ]]; do
         case "$1" in
           --mode=*) target_mode="${1#*=}" ;;
-          commit-generator|developer|pr) target_mode="$1" ;;
+          instant-push|instant|stream|continuous|commit-generator|commit-gen) target_mode="instant-push" ;;
+          developer|pro|team) target_mode="developer" ;;
+          devops|infra|k8s|iac) target_mode="devops" ;;
+          pr|review) target_mode="pr" ;;
         esac
         shift
       done
