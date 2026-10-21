@@ -4913,7 +4913,11 @@ func runRelease(repoRoot string, mode string, dryRun bool) error {
 	remotesOut, _ := exec.Command("git", "-C", repoRoot, "remote").Output()
 	remotes := strings.Fields(string(remotesOut))
 	for _, r := range remotes {
-		_ = exec.Command("git", "-C", repoRoot, "push", r, "HEAD", "--tags").Run()
+		ctxPush, cancelPush := context.WithTimeout(context.Background(), 30*time.Second)
+		cmdPush := exec.CommandContext(ctxPush, "git", "-C", repoRoot, "push", "--recurse-submodules=on-demand", r, "HEAD", "--tags")
+		cmdPush.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		_ = cmdPush.Run()
+		cancelPush()
 	}
 
 	fmt.Printf("\n  %s%s%s RELEASE %s SUCCESSFUL!%s\n", cGreen, cBold, iconCheck, nextVersion, cReset)
