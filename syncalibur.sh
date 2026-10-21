@@ -21,7 +21,7 @@ set -uo pipefail
 # transient git/network errors rather than exiting unexpectedly.
 
 export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/c/Program Files/Go/bin:/c/Go/bin:${PATH}"
-SYNCALIBUR_PLATFORM_VERSION="v2.2.0"
+SYNCALIBUR_PLATFORM_VERSION="v2.3.0"
 
 # ==============================================================================
 # Cross-platform portability helpers (Linux, macOS Bash 3.2+, Windows Git Bash)
