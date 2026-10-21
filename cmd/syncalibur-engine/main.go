@@ -4773,7 +4773,11 @@ func printVersion() {
 }
 
 func runRelease(repoRoot string, mode string, dryRun bool) error {
-	_ = exec.Command("git", "-C", repoRoot, "fetch", "--tags").Run()
+	ctxFetch, cancelFetch := context.WithTimeout(context.Background(), 15*time.Second)
+	cmdFetch := exec.CommandContext(ctxFetch, "git", "-C", repoRoot, "fetch", "--tags")
+	cmdFetch.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	_ = cmdFetch.Run()
+	cancelFetch()
 
 	tagCmd := exec.Command("git", "-C", repoRoot, "describe", "--tags", "--abbrev=0")
 	tagOut, _ := tagCmd.Output()
