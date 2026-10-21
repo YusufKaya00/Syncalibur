@@ -155,9 +155,9 @@ flowchart TD
 
 | Command | Description |
 | :--- | :--- |
-| `syncalibur ui` | Launch the **Interactive Two-Pane Live TUI Cockpit** (Live Top Telemetry + Scrollable Bottom Viewport with `[↑/↓]`, `[j/k]`, `[PageUp/Down]`, `[f]` Follow, `[p]` Pause, `[s]` Sync, `[b]` Pull, `[d]` Doctor, `[q]` Quit) |
+| `syncalibur status [--static]` | Launch the **Interactive Two-Pane Live Cockpit** in TTY (TrueColor sword emblem, live telemetry, scrollable log viewport, hotkeys `[m]` mode, `[p]` pause, `[s]` sync, `[b]` pull, `[t]` logo, `[d]` doctor, `[q]` quit; or `--static` for plain text snapshot) |
+| `syncalibur mode [name]` | Inspect or switch active operating mode (`commit-generator` \| `developer` \| `pr`) |
 | `syncalibur install [PATH]` | Auto-detect repo, create missing remote repo if needed, link `~/.local/bin/syncalibur`, and start the OS service |
-| `syncalibur status` | Render the TrueColor emblem, 7-day commit sparkline, remote matrix, and recent events |
 | `syncalibur logs` | Render the emblem header and stream live color-coded log events (`tail -f`) |
 | `syncalibur sync` | Trigger an immediate one-shot bidirectional pull, semantic commit, and multi-remote push |
 | `syncalibur pull` | Trigger an immediate safe bidirectional pull (`git pull --rebase --autostash`) |
