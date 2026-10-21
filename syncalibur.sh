@@ -2390,6 +2390,60 @@ cmd_tidy() {
   echo -e "  ${C_SLATE}Hint: To undo this tidy operation anytime: git reset --hard ${backup_tag}${C_RESET}"
 }
 
+cmd_mode() {
+  local target_mode="${1:-}"
+  local cfg_file="${CONFIG_FILE:-${SCRIPT_DIR}/syncalibur.env}"
+
+  if [[ -z "${target_mode}" ]]; then
+    print_syncalibur_dashboard
+    echo -e "${C_GOLD}${C_BOLD}◈ Syncalibur Operating Modes:${C_RESET}"
+    echo -e "  Current Active Mode: ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [cooldown: ${BURST_COOLDOWN}s, tidy-threshold: ${TIDY_THRESHOLD}, auto-pr: ${AUTO_PR}]"
+    echo ""
+    echo -e "  ${C_CYAN}${C_BOLD}1. commit-generator${C_RESET} ${C_SLATE}(Continuous Stream Mode)${C_RESET}"
+    echo -e "     • 1 satır bile değişse kontrollerden geçer, anında commit'lenir."
+    echo -e "     • Bekletmeden ve birleştirmeden doğrudan 'main' branch'ine pushlar."
+    echo -e "     • Kişisel projeler, k8sfundamentals, notlar ve bireysel çalışmalar için idealdir."
+    echo ""
+    echo -e "  ${C_CYAN}${C_BOLD}2. developer${C_RESET} ${C_SLATE}(Adaptive Burst & Squash Mode) [Varsayılan]${C_RESET}"
+    echo -e "     • 1-2 küçük commit: Doğrudan main'e pushlanır (squash edilmez)."
+    echo -e "     • 3+ commit (burst sprint): Tek bir temiz Conventional Commit'te birleştirilir (squash)."
+    echo -e "     • Yetki yoksa / protected branch ise: Otomatik branch açıp Pull Request (PR) oluşturur."
+    echo -e "     • Yetki varsa: Birleştirilmiş temiz commit'i doğrudan main'e pushlar."
+    echo ""
+    echo -e "  ${C_CYAN}${C_BOLD}3. pr${C_RESET} ${C_SLATE}(Strict Pull Request Mode)${C_RESET}"
+    echo -e "     • Asla main'e doğrudan basmaz; her zaman branch açıp GitHub/GitLab üzerinden PR açar."
+    echo ""
+    echo -e "  ${C_SLATE}Mod Değiştirme:${C_RESET} ${C_GOLD}syncalibur mode <commit-generator | developer | pr>${C_RESET}"
+    return 0
+  fi
+
+  case "${target_mode}" in
+    commit-generator | stream | continuous) target_mode="commit-generator" ;;
+    developer | pro | team)                  target_mode="developer" ;;
+    pr | review)                             target_mode="pr" ;;
+    *)
+      echo -e "${C_RED}✕ Geçersiz mod: '${target_mode}'. Geçerli seçenekler: commit-generator | developer | pr${C_RESET}"
+      return 1
+      ;;
+  esac
+
+  if [[ -f "${cfg_file}" ]]; then
+    if grep -q "^SYNCALIBUR_MODE=" "${cfg_file}"; then
+      sed -i -E "s/^SYNCALIBUR_MODE=.*/SYNCALIBUR_MODE=\"${target_mode}\"/" "${cfg_file}"
+    else
+      echo "SYNCALIBUR_MODE=\"${target_mode}\"" >> "${cfg_file}"
+    fi
+    echo -e "${C_GREEN}✓ Syncalibur modu '${target_mode}' olarak ayarlandı (${cfg_file}).${C_RESET}"
+    if [[ -f "${PID_FILE}" ]] && kill -0 "$(cat "${PID_FILE}" 2>/dev/null)" 2>/dev/null; then
+      echo -e "  ${C_CYAN}↻ Arka plan servisi yeni modla yeniden başlatılıyor...${C_RESET}"
+      cmd_restart
+    fi
+  else
+    echo -e "${C_AMBER}▲ ${cfg_file} bulunamadı; ortam değişkeni olarak export edebilirsiniz:${C_RESET}"
+    echo "  export SYNCALIBUR_MODE=\"${target_mode}\""
+  fi
+}
+
 cmd_hook() {
   local action="${1:-status}"
   local current_repo
