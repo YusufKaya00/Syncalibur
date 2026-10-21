@@ -2611,7 +2611,9 @@ cmd_tidy() {
 }
 
 cmd_checkpoint() {
-  local current_repo="${1:-${REPO_ROOT}}"
+  local cur_git_root
+  cur_git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+  local current_repo="${cur_git_root:-${1:-${REPO_ROOT}}}"
   [[ -d "${current_repo}" ]] || current_repo="${PWD}"
   current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
   cd "${current_repo}" || return 1
@@ -2643,7 +2645,9 @@ cmd_checkpoint() {
 }
 
 cmd_undo() {
-  local current_repo="${1:-${REPO_ROOT}}"
+  local cur_git_root
+  cur_git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+  local current_repo="${cur_git_root:-${1:-${REPO_ROOT}}}"
   [[ -d "${current_repo}" ]] || current_repo="${PWD}"
   current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
   cd "${current_repo}" || return 1
