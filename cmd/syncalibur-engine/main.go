@@ -2710,6 +2710,101 @@ func formatLogLineForTUI(raw string, maxCols int, horizOffset int) string {
 	return renderLineANSI(formatted, maxCols, horizOffset)
 }
 
+func findConfigFile(scriptPath, repoRoot string) string {
+	if cfg := os.Getenv("SYNCALIBUR_CONFIG_FILE"); cfg != "" {
+		if _, err := os.Stat(cfg); err == nil {
+			return cfg
+		}
+	}
+	candidates := []string{
+		filepath.Join(filepath.Dir(scriptPath), "syncalibur.env"),
+		filepath.Join(repoRoot, "syncalibur.env"),
+	}
+	if exePath, err := os.Executable(); err == nil {
+		if realExe, err := filepath.EvalSymlinks(exePath); err == nil {
+			candidates = append(candidates, filepath.Join(filepath.Dir(filepath.Dir(realExe)), "syncalibur.env"))
+		}
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return ""
+}
+
+func getActiveMode(scriptPath, repoRoot string) string {
+	cfgPath := findConfigFile(scriptPath, repoRoot)
+	if cfgPath != "" {
+		data, err := os.ReadFile(cfgPath)
+		if err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
+					val := strings.Trim(strings.TrimPrefix(line, "SYNCALIBUR_MODE="), `"' `)
+					if val != "" {
+						return strings.ToLower(val)
+					}
+				}
+			}
+		}
+	}
+	if envMode := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); envMode != "" {
+		return strings.ToLower(envMode)
+	}
+	return "developer"
+}
+
+func getModeBadge(mode string) string {
+	switch strings.ToLower(mode) {
+	case "commit-generator", "stream", "continuous":
+		return cCyan + cBold + "⚡ Commit-Generator" + cReset
+	case "pr", "review":
+		return cAmber + cBold + "🔀 PR" + cReset
+	default:
+		return cGreen + cBold + "🛠 Developer" + cReset
+	}
+}
+
+func cycleActiveMode(scriptPath, repoRoot string) string {
+	current := getActiveMode(scriptPath, repoRoot)
+	var next string
+	switch current {
+	case "commit-generator", "stream", "continuous":
+		next = "developer"
+	case "developer", "pro", "team":
+		next = "pr"
+	default:
+		next = "commit-generator"
+	}
+
+	if scriptPath != "" {
+		_ = exec.Command("bash", scriptPath, "mode", next).Run()
+	} else {
+		cfgPath := findConfigFile(scriptPath, repoRoot)
+		if cfgPath != "" {
+			data, err := os.ReadFile(cfgPath)
+			if err == nil {
+				lines := strings.Split(string(data), "\n")
+				found := false
+				for i, line := range lines {
+					if strings.HasPrefix(strings.TrimSpace(line), "SYNCALIBUR_MODE=") {
+						lines[i] = fmt.Sprintf(`SYNCALIBUR_MODE="%s"`, next)
+						found = true
+						break
+					}
+				}
+				if !found {
+					lines = append(lines, fmt.Sprintf(`SYNCALIBUR_MODE="%s"`, next))
+				}
+				_ = os.WriteFile(cfgPath, []byte(strings.Join(lines, "\n")), 0644)
+			}
+		}
+	}
+	_ = os.Setenv("SYNCALIBUR_MODE", next)
+	return next
+}
+
 func runInteractiveTUI(scriptPath, repoRoot string) {
 	sttyOrigCmd := exec.Command("stty", "-g")
 	sttyOrigCmd.Stdin = os.Stdin
