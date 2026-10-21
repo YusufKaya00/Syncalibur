@@ -2940,7 +2940,7 @@ cmd_ui() {
 cmd_doctor() {
   print_syncalibur_dashboard
   printf '  %s╭────────────────────────────────────────────────────────────────────────────────────────╮%s\n' "${C_GOLD}" "${C_RESET}"
-  printf '  %s│%s  %s%s%-84s%s  %s│%s\n' "${C_GOLD}" "${C_RESET}" "${C_GOLD}" "${C_BOLD}" "✚  S Y N C A L I B U R   D O C T O R   —   1 1 - P O I N T   D I A G N O S T I C S" "${C_RESET}" "${C_GOLD}" "${C_RESET}"
+  printf '  %s│%s  %s%s%-84s%s  %s│%s\n' "${C_GOLD}" "${C_RESET}" "${C_GOLD}" "${C_BOLD}" "✚  S Y N C A L I B U R   D O C T O R   —   1 2 - P O I N T   D I A G N O S T I C S" "${C_RESET}" "${C_GOLD}" "${C_RESET}"
   printf '  %s╰────────────────────────────────────────────────────────────────────────────────────────╯%s\n\n' "${C_GOLD}" "${C_RESET}"
 
   local pass=0 warn=0 fail=0
