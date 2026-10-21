@@ -4242,7 +4242,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				rightLines[19] = fmt.Sprintf("│")
 			} else {
 				rightLines[16] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[m]%s Mode  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset)
-				rightLines[17] = fmt.Sprintf("│           %s[b]%s Pull  %s[t]%s Logo   %s[d]%s Doctor", cGold, cReset, cCyan, cReset, cGold, cReset)
+				rightLines[17] = fmt.Sprintf("│           %s[b]%s Pull  %s[z]%s Undo   %s[t]%s Logo   %s[d]%s Doctor", cGold, cReset, cGreen, cReset, cCyan, cReset, cGold, cReset)
 				rightLines[18] = fmt.Sprintf("│           %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail", cCyan, cReset, cCyan, cReset, cGreen, cReset)
 				rightLines[19] = fmt.Sprintf("│           %s[0]%s Reset Pan  %s[r]%s Redraw", cCyan, cReset, cSlate, cReset)
 			}
@@ -4281,8 +4281,8 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				lineFlash := fmt.Sprintf("│  %s", flashMsg)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
 			} else {
-				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[m]%s Mode  %s[s]%s Sync  %s[b]%s Pull  %s[t]%s Logo  %s[↑/↓]%s Scroll  %s[f]%s Tail",
-					cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset)
+				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[m]%s Mode  %s[s]%s Sync  %s[z]%s Undo  %s[b]%s Pull  %s[t]%s Logo  %s[f]%s Tail",
+					cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cGreen, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
 			}
 			fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
