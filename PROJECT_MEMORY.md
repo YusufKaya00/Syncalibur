@@ -190,7 +190,7 @@ Syncalibur provides an automated infrastructure policy engine for Kubernetes, He
 - **Debounce:** `wait_for_quiet` polls working tree until consecutive snapshots match over `DEBOUNCE_WAIT` (default 5s). Capped at `MAX_DEBOUNCE` (default 60s).
 
 #### Operating Modes & Adaptive History Hygiene (`SYNCALIBUR_MODE`)
-Syncalibur provides three specialized automation personas configured per-repository via `.syncalibur` or globally via `syncalibur.env` (or via `syncalibur mode <name>` / `[m]` hotkey):
+Syncalibur provides four specialized automation personas configured per-repository via `.syncalibur` or globally via `syncalibur.env` (or via `syncalibur mode <name>` / `[m]` hotkey):
 1. **`commit-generator` (Continuous Stream Mode):**
    - Immediate push on every save (even a 1-line edit) after passing Syntax Hold & Secret Shield.
    - Quiescence settle cooldown defaults to 10s (`BURST_COOLDOWN=10`), allowing rapid consecutive saves to settle cleanly without spamming micro-commits.
@@ -201,9 +201,15 @@ Syncalibur provides three specialized automation personas configured per-reposit
    - 3+ rapid commits (burst sprint): Enters `BURST_COOLDOWN=20s`. When coding pauses for 20s, auto-squashes (`cmd_tidy`) all unpushed commits into 1 clean Conventional Commit with a rollback backup ref (`refs/syncalibur/backup-HEAD-<timestamp>`).
    - If user has push permission: Pushes the consolidated commit directly to `main`.
    - If user lacks permission or branch is protected (`GH006`): Automatically branches to `sync/auto-*` and opens an auto-PR.
-3. **`pr` (Strict Pull Request Mode):**
+3. **`devops` (Kubernetes, Helm & Infrastructure Guard Mode):**
+   - Built specifically for cloud-native infrastructure, Kubernetes clusters, Helm charts, Dockerfiles, and Terraform repos.
+   - Quiescence settle cooldown is 30s (`BURST_COOLDOWN=30`).
+   - Deep Preflight Gate: Enforces Service port $\leftrightarrow$ targetPort cross-validation, ConfigMap secret protection, Dockerfile non-root execution, Terraform state/credential hygiene, and conflict marker detection.
+   - Multi-group smart staging automatically scopes commits using conventional tags: `infra(k8s):`, `helm:`, `docker:`, `tf:`, `gitops:`.
+   - Halts commit/push with exit code `4` (`DEV_OPS_HOLD`) if any infrastructure policy error is present.
+4. **`pr` (Strict Pull Request Mode):**
    - Never pushes directly to `main`. Commits are always pushed to an isolated sync branch (`sync/<user>/<branch>-<timestamp>`) and opened as a rich Pull Request with AI summary.
-4. **Configuration Precedence Cascade:**
+5. **Configuration Precedence Cascade:**
    `CLI Flags (--mode=...)` > `Environment (SYNCALIBUR_MODE)` > `Fleet Inline (repos.list [mode=...])` > `Repo-local (<repo>/.syncalibur)` > `Global User Config (syncalibur.env)` > `Default (developer)`.
 
 #### Offline Mode & Network Disconnection Shield
@@ -216,6 +222,14 @@ Syncalibur provides three specialized automation personas configured per-reposit
 - Runs `safe_bidirectional_sync` before local commit cycles and periodically (`SYNCALIBUR_PULL_INTERVAL=45`).
 - Executes `git pull --rebase --autostash`.
 - **Conflict Self-Healing:** If an auto-rebase encounters a conflict, Syncalibur immediately aborts (`git rebase --abort`) to prevent working tree corruption, records diagnostic metadata in `.git/syncalibur.failure`, and opens a diagnostic terminal alert window.
+
+#### Git Submodules & Lock Contention Resilience
+- **Recursive Submodule Push:** All `git push` operations include `--recurse-submodules=on-demand`, guaranteeing that submodules are pushed in dependency order before the parent repository.
+- **Submodule Directory Resolution (`isGitRepoDir` & `resolveGitDir`):** Recognizes `.git` files (gitdir pointers in submodules and worktrees) and locates `syncalibur.pid` and `syncalibur.log` accurately via `git rev-parse --absolute-git-dir`.
+- **Process-Aware Stale Lock Healing:** Inspects active processes via `fuser`, `lsof`, and `/proc/*/fd/*` rather than flaky process name regexes. Stale locks (>60s) without live open file descriptors are automatically pruned.
+- **Exponential Backoff:** If Git is transiently busy, Syncalibur retries operations with exponential backoff (1s, 2s, 4s, 8s, 16s) instead of aborting.
+- **Detached HEAD Guard (`assert_git_operable`):** Halts commit and push commands if HEAD is detached (`git symbolic-ref -q HEAD`), preventing orphaned commits and inadvertent overwrites.
+- **Non-Interactive Batch Mode:** Exports `GIT_TERMINAL_PROMPT=0` and non-interactive `GIT_SSH_COMMAND` (`-o BatchMode=yes -o ConnectTimeout=10`), guaranteeing background daemons never hang waiting for user keyboard input.
 
 #### Multi-Remote Routing & Zero-Touch Repository Provisioning
 - Queries push URLs across `remote.<name>.pushurl` and `remote.<name>.url` to target multi-remote configurations (e.g. GitHub + GitLab mirrors).
@@ -230,10 +244,10 @@ Syncalibur provides three specialized automation personas configured per-reposit
   ```
   The running daemon image is replaced in memory without modifying PID, keeping systemd/launchd supervisors intact.
 
-#### 11-Point Diagnostic Doctor (`cmd_doctor`)
+#### 12-Point Diagnostic Doctor (`cmd_doctor`)
 1. Go Native Engine compiled & executable.
 2. Filesystem event watcher active (`inotifywait` / `fswatch` / `polling`).
-3. Git repository state (unlocked, no stale `index.lock`).
+3. Git repository state (unlocked, no stale `index.lock`, process-aware lock detection).
 4. Daemon process status (PID + CPU%/RAM consumption).
 5. OS Auto-Start service registration (`systemd`, `launchd`, `vbs`, `cron`).
 6. Provider authentication (GitHub/GitLab CLI or token).
@@ -242,6 +256,7 @@ Syncalibur provides three specialized automation personas configured per-reposit
 9. Global CLI command symlinked in `$PATH`.
 10. Telegram Bot & Webhooks reachable.
 11. Preflight syntax & secret shield verification.
+12. DevOps & GitOps Guard (Kubernetes manifest validator, Dockerfile linter, Terraform hygiene, Git conflict markers).
 
 ---
 
