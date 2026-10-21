@@ -4486,12 +4486,20 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 					_ = exec.Command("bash", scriptPath, "pull").Run()
 					flashMsg = fmt.Sprintf("%s%s %sBIDIRECTIONAL PULL:%s Checked upstream & rebased cleanly.", cCyan, iconSync, cBold, cReset)
 					flashUntil = time.Now().Add(3 * time.Second)
+				case 'z', 'Z': // Undo to previous checkpoint
+					out, err := exec.Command("bash", scriptPath, "undo").CombinedOutput()
+					if err != nil {
+						flashMsg = fmt.Sprintf("%s%s %sUNDO:%s %s", cAmber, iconWarn, cBold, cReset, strings.TrimSpace(string(out)))
+					} else {
+						flashMsg = fmt.Sprintf("%s%s %sUNDO:%s Rolled back to previous checkpoint cleanly.", cGreen, iconCheck, cBold, cReset)
+					}
+					flashUntil = time.Now().Add(4 * time.Second)
 				case 'u', 'U': // Self-update
 					_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.upd"), []byte("1\n"), 0644)
 					flashMsg = fmt.Sprintf("%s%s %sSELF-UPDATE:%s Upstream self-update check triggered.", cGold, iconSync, cBold, cReset)
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 'd', 'D': // Doctor
-					flashMsg = fmt.Sprintf("%s%s %sDOCTOR:%s Running 11-point diagnostic check...", cGreen, iconDoctor, cBold, cReset)
+					flashMsg = fmt.Sprintf("%s%s %sDOCTOR:%s Running 12-point diagnostic check...", cGreen, iconDoctor, cBold, cReset)
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 't', 'T', 'e', 'E': // Toggle Emblem / Logo
 					showLogo = !showLogo
