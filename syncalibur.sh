@@ -2224,7 +2224,7 @@ push_changes() {
   targets_desc="$(describe_push_targets_inline "${remote}")"
   last_commit_msg="$(git log -1 --pretty=%s 2>/dev/null || echo "auto-sync")"
   log "↗ Pushing '${branch}' -> ${targets_desc}..."
-  output="$(run_with_timeout "${PUSH_TIMEOUT}" git push -u "${remote}" "${branch}" 2>&1)"
+  output="$(run_with_timeout "${PUSH_TIMEOUT}" git push --recurse-submodules=on-demand -u "${remote}" "${branch}" 2>&1)"
   rc=$?
   printf '%s\n' "${output}" >> "${LOG_FILE}"
   if (( rc == 0 )); then
@@ -2244,7 +2244,7 @@ push_changes() {
     pr_title="${last_commit_msg}"
     pr_body="$(render_auto_pr_body "${REPO_ROOT}" "${branch}" "${pr_branch}" "${pr_title}" "Protected Branch Auto-PR (\`GH006\`)")"
     log "⇄ Branch '${branch}' is protected; pushing to '${pr_branch}' and opening templated Pull Request..."
-    if run_with_timeout "${PUSH_TIMEOUT}" git push -u origin "HEAD:refs/heads/${pr_branch}" >> "${LOG_FILE}" 2>&1; then
+    if run_with_timeout "${PUSH_TIMEOUT}" git push --recurse-submodules=on-demand -u origin "HEAD:refs/heads/${pr_branch}" >> "${LOG_FILE}" 2>&1; then
       if command -v gh >/dev/null 2>&1; then
         gh pr create --base "${branch}" --head "${pr_branch}" --title "${pr_title}" --body "${pr_body}" >> "${LOG_FILE}" 2>&1 || true
       elif command -v glab >/dev/null 2>&1; then
@@ -2260,7 +2260,7 @@ push_changes() {
   # If push failed due to non-fast-forward and bidirectional sync is enabled, try safe rebase & retry push!
   if [[ "${BIDIRECTIONAL_SYNC}" == "true" ]] && grep -qiE 'fetch first|non-fast-forward' <<< "${output}"; then
     if safe_bidirectional_sync "${remote}" "${branch}" 1; then
-      output="$(run_with_timeout "${PUSH_TIMEOUT}" git push -u "${remote}" "${branch}" 2>&1)"
+      output="$(run_with_timeout "${PUSH_TIMEOUT}" git push --recurse-submodules=on-demand -u "${remote}" "${branch}" 2>&1)"
       rc=$?
       printf '%s\n' "${output}" >> "${LOG_FILE}"
       if (( rc == 0 )); then
@@ -2292,7 +2292,7 @@ push_changes() {
     done < <(get_push_urls "${remote}")
 
     if (( created_any )); then
-      output="$(run_with_timeout "${PUSH_TIMEOUT}" git push -u "${remote}" "${branch}" 2>&1)"
+      output="$(run_with_timeout "${PUSH_TIMEOUT}" git push --recurse-submodules=on-demand -u "${remote}" "${branch}" 2>&1)"
       rc=$?
       printf '%s\n' "${output}" >> "${LOG_FILE}"
       if (( rc == 0 )); then
