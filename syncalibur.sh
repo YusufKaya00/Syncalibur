@@ -437,7 +437,7 @@ PUSH_TIMEOUT="${SYNCALIBUR_PUSH_TIMEOUT:-${AUTO_SYNC_PUSH_TIMEOUT:-120}}"
 LOG_MAX_KB="${SYNCALIBUR_LOG_MAX_KB:-${AUTO_SYNC_LOG_MAX_KB:-1024}}"
 REMOTE_OVERRIDE="${SYNCALIBUR_REMOTE:-${AUTO_SYNC_REMOTE:-}}"
 
-# Operating Modes: "commit-generator" | "developer" | "pr" (default: "developer")
+# Operating Modes: "commit-generator" | "developer" | "devops" | "pr" (default: "developer")
 MODE="${SYNCALIBUR_MODE:-developer}"
 
 case "${MODE}" in
@@ -446,6 +446,13 @@ case "${MODE}" in
     TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-999}"
     AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-false}"
     AUTO_PR="${SYNCALIBUR_AUTO_PR:-false}"
+    ;;
+  devops | infra | k8s | iac)
+    MODE="devops"
+    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-30}"
+    TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-3}"
+    AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-true}"
+    AUTO_PR="${SYNCALIBUR_AUTO_PR:-burst}"
     ;;
   pr | review)
     BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-20}"
@@ -465,6 +472,10 @@ esac
 DEFAULT_SENSITIVE_PATTERNS='.env .env.* *.tfstate *.tfstate.* *.tfvars *.tfvars.json credentials.json client_secret*.json service-account*.json service_account*.json *serviceaccount*.json azureProfile.json *.pem *.key *.p12 *.pfx *.pkcs12 *.jks *.keystore id_rsa* id_ecdsa* id_ed25519* id_dsa* *.asc secring.gpg *.kdbx kubeconfig *.kubeconfig *.ovpn *.tblk auth.json .netrc .npmrc .pypirc *.htpasswd *.dump *.rdb *.bak *.backup'
 EFFECTIVE_SENSITIVE="${SYNCALIBUR_SENSITIVE_PATTERNS-${AUTO_SYNC_SENSITIVE_PATTERNS-${DEFAULT_SENSITIVE_PATTERNS}}}"
 read -r -a SENSITIVE_PATTERNS <<< "${EFFECTIVE_SENSITIVE}"
+
+DEFAULT_BINARY_PATTERNS='*.iso *.img *.vmdk *.qcow2 *.tar *.gz *.tgz *.bz2 *.xz *.zip *.7z *.rar *.jar *.war *.ear *.exe *.dll *.so *.dylib *.bin *.o *.a *.pyc *.pyo *.class *.parquet *.avro *.db *.sqlite *.sqlite3'
+EFFECTIVE_BINARY="${SYNCALIBUR_BINARY_PATTERNS-${DEFAULT_BINARY_PATTERNS}}"
+read -r -a BINARY_PATTERNS <<< "${EFFECTIVE_BINARY}"
 
 for var in POLL_INTERVAL DEBOUNCE_WAIT MAX_DEBOUNCE MAX_FILE_SIZE_MB RETRY_BASE RETRY_MAX PUSH_TIMEOUT LOG_MAX_KB BURST_COOLDOWN TIDY_THRESHOLD; do
   if ! [[ "${!var}" =~ ^[0-9]+$ ]]; then
