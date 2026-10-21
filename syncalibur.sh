@@ -2554,6 +2554,7 @@ cmd_tidy() {
   [[ -d "${current_repo}" ]] || current_repo="${PWD}"
   current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
   cd "${current_repo}" || return 1
+  assert_git_operable "${current_repo}" || return 1
 
   local branch upstream unpushed_cnt rem
   branch="$(git branch --show-current 2>/dev/null || echo "main")"
@@ -2609,6 +2610,29 @@ cmd_tidy() {
   echo -e "  ${C_SLATE}Hint: To undo this tidy operation anytime: git reset --hard ${backup_tag}${C_RESET}"
 }
 
+cmd_pull() {
+  local current_repo="${1:-${REPO_ROOT}}"
+  [[ -d "${current_repo}" ]] || current_repo="${PWD}"
+  current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
+  cd "${current_repo}" || return 1
+  assert_git_operable "${current_repo}" || return 1
+
+  local rem branch
+  rem="$(get_remote)"
+  branch="$(get_branch || echo main)"
+  echo -e "${C_CYAN}◈ Syncalibur Safe Pull${C_RESET} [$(basename "${current_repo}") @ ${branch}]"
+  if safe_bidirectional_sync "${rem}" "${branch}" 1; then
+    if [[ -f "${current_repo}/.gitmodules" ]]; then
+      git submodule update --init --recursive 2>/dev/null || true
+    fi
+    echo -e "  ${C_GREEN}✓ Local branch '${branch}' up to date with '${rem}/${branch}'.${C_RESET}"
+    return 0
+  else
+    echo -e "  ${C_RED}✕ Safe pull failed.${C_RESET}"
+    return 1
+  fi
+}
+
 cmd_mode() {
   local target_mode=""
   local is_global=0
@@ -2650,11 +2674,17 @@ cmd_mode() {
     echo -e "     • Ortak repolarda / yetki yoksa / protected branch ise: Otomatik branch açıp PR üretir."
     echo -e "     • Yetki varsa: Birleştirilmiş temiz commit'i doğrudan main'e pushlar."
     echo ""
-    echo -e "  ${C_CYAN}${C_BOLD}3. pr${C_RESET} ${C_SLATE}(Strict Pull Request Mode)${C_RESET}"
+    echo -e "  ${C_CYAN}${C_BOLD}3. devops${C_RESET} ${C_SLATE}(Kubernetes, Helm & Infrastructure Guard Mode)${C_RESET}"
+    echo -e "     • Kubernetes manifest doğrulaması (Service port/targetPort eşleşmesi, ConfigMap secret sızıntısı)."
+    echo -e "     • Dockerfile ':latest' ve root USER denetimi; Terraform '.gitignore' ve credential kontrolü."
+    echo -e "     • Git çakışma belirteçleri (conflict markers) staged dosyalarda varsa commit engellenir."
+    echo -e "     • Conventional Commit infra() ve helm() etiketleriyle otomatik ayrıştırma."
+    echo ""
+    echo -e "  ${C_CYAN}${C_BOLD}4. pr${C_RESET} ${C_SLATE}(Strict Pull Request Mode)${C_RESET}"
     echo -e "     • Asla main'e doğrudan basmaz; her zaman branch açıp GitHub/GitLab üzerinden PR açar."
     echo ""
     echo -e "  ${C_SLATE}Mod Değiştirme:${C_RESET}"
-    echo -e "    Bu repo için     : ${C_GOLD}syncalibur mode <commit-generator | developer | pr>${C_RESET}"
+    echo -e "    Bu repo için     : ${C_GOLD}syncalibur mode <commit-generator | developer | devops | pr>${C_RESET}"
     echo -e "    Tüm repolar için  : ${C_GOLD}syncalibur mode <mode> --global${C_RESET}"
     return 0
   fi
@@ -2662,9 +2692,10 @@ cmd_mode() {
   case "${target_mode}" in
     commit-generator | stream | continuous) target_mode="commit-generator" ;;
     developer | pro | team)                  target_mode="developer" ;;
+    devops | infra | k8s | iac)              target_mode="devops" ;;
     pr | review)                             target_mode="pr" ;;
     *)
-      echo -e "${C_RED}✕ Geçersiz mod: '${target_mode}'. Geçerli seçenekler: commit-generator | developer | pr${C_RESET}"
+      echo -e "${C_RED}✕ Geçersiz mod: '${target_mode}'. Geçerli seçenekler: commit-generator | developer | devops | pr${C_RESET}"
       return 1
       ;;
   esac
