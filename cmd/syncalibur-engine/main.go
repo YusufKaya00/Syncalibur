@@ -24,6 +24,7 @@ import (
 	_ "image/png"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -148,6 +149,22 @@ func main() {
 			repo = os.Args[2]
 		}
 		fmt.Print(generateSparkline(repo))
+
+	case "probe-network":
+		rawURL := "github.com"
+		timeoutMs := 1000
+		if len(os.Args) >= 3 {
+			rawURL = os.Args[2]
+		}
+		if len(os.Args) >= 4 {
+			if t, err := strconv.Atoi(os.Args[3]); err == nil && t > 0 {
+				timeoutMs = t
+			}
+		}
+		if probeRemoteLiveness(rawURL, timeoutMs) {
+			os.Exit(0)
+		}
+		os.Exit(1)
 
 	case "fleet-scan":
 		root := "."
@@ -853,12 +870,18 @@ func calculateShannonEntropy(s string) float64 {
 }
 
 var knownSecretRegexes = []*regexp.Regexp{
-	regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`),                           // AWS Access Key ID
-	regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9_]{36,}\b`),                // GitHub Tokens
-	regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{32,}\b`),                      // OpenAI Key
-	regexp.MustCompile(`\bxox[baprs]-[A-Za-z0-9-]{10,}\b`),               // Slack Token
-	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),             // Private Key
-	regexp.MustCompile(`(?i)(?:api[_-]?key|secret|password|token)\s*[:=]\s*["']([A-Za-z0-9_\-+/=]{20,})["']`), // Generic Secret assignments
+	regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`),                                                            // AWS Access Key ID
+	regexp.MustCompile(`(?i)aws[_-]?secret[_-]?access[_-]?key\s*[:=]\s*["']?([A-Za-z0-9/+=]{40})["']?`), // AWS Secret Access Key
+	regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9_]{36,}\b`),                                                // GitHub Classic Tokens
+	regexp.MustCompile(`\bgithub_pat_[A-Za-z0-9_]{82}\b`),                                                // GitHub Fine-Grained PAT
+	regexp.MustCompile(`\bglpat-[A-Za-z0-9\-]{20,}\b`),                                                   // GitLab PAT
+	regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{32,}\b`),                                                      // OpenAI Key
+	regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{32,}\b`),                                                  // Anthropic Key
+	regexp.MustCompile(`\bxox[baprs]-[A-Za-z0-9-]{10,}\b`),                                               // Slack Token
+	regexp.MustCompile(`\b(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{24,}\b`),                                   // Stripe Keys
+	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),                                             // Private Key (RSA, EC, PKCS8)
+	regexp.MustCompile(`-----BEGIN OPENSSH PRIVATE KEY-----`),                                            // OpenSSH Private Key
+	regexp.MustCompile(`(?i)(?:api[_-]?key|secret|password|auth[_-]?token|bearer)\s*[:=]\s*["']([A-Za-z0-9_\-+/=]{20,})["']`), // Generic Secret assignments
 }
 
 func detectSecretsInFile(filePath string) (bool, string) {
@@ -2095,46 +2118,95 @@ func planSmartStaging(repoRoot string) []stagingGroup {
 // 4. 7-Day Commit Velocity Sparkline Generator
 // ==============================================================================
 
-func generateSparkline(repoRoot string) string {
+// CommitVelocity stores 7-day commit metrics and sparkline visualization.
+type CommitVelocity struct {
+	Counts    [7]int
+	Today     int
+	Total7d   int
+	Peak      int
+	AvgDaily  float64
+	Sparkline string
+}
+
+func getCommitVelocity(repoRoot string) CommitVelocity {
 	glyphs := [8]string{" ", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
 	now := time.Now()
-	counts := make([]int, 7)
-	maxC := 0
-	total7d := 0
+	loc := now.Location()
 
-	for i := 6; i >= 0; i-- {
-		dayStart := time.Date(now.Year(), now.Month(), now.Day()-i, 0, 0, 0, 0, now.Location())
-		dayEnd := dayStart.Add(24 * time.Hour)
-		out, err := exec.Command("git", "-C", repoRoot, "rev-list", "--count",
-			"--since="+dayStart.Format(time.RFC3339),
-			"--until="+dayEnd.Format(time.RFC3339),
-			"HEAD").Output()
-		if err == nil {
-			c, _ := strconv.Atoi(strings.TrimSpace(string(out)))
-			counts[6-i] = c
-			total7d += c
-			if c > maxC {
-				maxC = c
+	var result CommitVelocity
+
+	todayMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	windowStart := todayMidnight.AddDate(0, 0, -6)
+
+	dayMap := make(map[string]int, 7)
+	for d := 0; d < 7; d++ {
+		dayKey := windowStart.AddDate(0, 0, d).Format("2006-01-02")
+		dayMap[dayKey] = d
+	}
+
+	sinceParam := windowStart.AddDate(0, 0, -1).Format("2006-01-02")
+
+	out, err := exec.Command("git", "-C", repoRoot, "log",
+		"--since="+sinceParam,
+		"--format=%ct",
+		"HEAD").Output()
+
+	if err == nil && len(out) > 0 {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			epoch, parseErr := strconv.ParseInt(line, 10, 64)
+			if parseErr != nil {
+				continue
+			}
+			t := time.Unix(epoch, 0).In(loc)
+			key := t.Format("2006-01-02")
+			if idx, ok := dayMap[key]; ok {
+				result.Counts[idx]++
 			}
 		}
 	}
 
+	for _, c := range result.Counts {
+		result.Total7d += c
+		if c > result.Peak {
+			result.Peak = c
+		}
+	}
+	result.Today = result.Counts[6]
+	result.AvgDaily = float64(result.Total7d) / 7.0
+
 	var b strings.Builder
-	for _, c := range counts {
+	for _, c := range result.Counts {
 		if c == 0 {
 			b.WriteString(cSlate + "·" + cReset)
-		} else if maxC == 0 {
-			b.WriteString(cGreen + glyphs[0] + cReset)
+		} else if result.Peak <= 1 {
+			b.WriteString(cGreen + glyphs[1] + cReset)
 		} else {
-			idx := (c * 7) / maxC
+			scaleMax := result.Peak
+			if scaleMax < 4 {
+				scaleMax = 4
+			}
+			idx := (c * 7) / scaleMax
 			if idx > 7 {
 				idx = 7
 			}
 			b.WriteString(cGreen + glyphs[idx] + cReset)
 		}
 	}
-	fmt.Fprintf(&b, " %s(%d commits/7d • peak %d)%s", cSlate, total7d, maxC, cReset)
-	return b.String()
+
+	fmt.Fprintf(&b, " %s(%d commits/7d • %.1f/d • peak %d)%s",
+		cSlate, result.Total7d, result.AvgDaily, result.Peak, cReset)
+
+	result.Sparkline = b.String()
+	return result
+}
+
+func generateSparkline(repoRoot string) string {
+	return getCommitVelocity(repoRoot).Sparkline
 }
 
 // ==============================================================================
@@ -2176,9 +2248,171 @@ func scanGitRepos(root string, maxDepth int) []string {
 	return repos
 }
 
+type fleetRepoConfig struct {
+	Path     string
+	Mode     string
+	Remote   string
+	Interval string
+}
+
+func parseFleetEntry(line string) *fleetRepoConfig {
+	line = strings.TrimSpace(strings.Split(line, "#")[0])
+	if line == "" {
+		return nil
+	}
+
+	cfg := &fleetRepoConfig{Mode: "", Remote: "origin"}
+	parts := strings.Fields(line)
+	if len(parts) == 0 {
+		return nil
+	}
+
+	cfg.Path = parts[0]
+	if strings.HasPrefix(cfg.Path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			cfg.Path = filepath.Join(home, cfg.Path[2:])
+		}
+	}
+	if abs, err := filepath.Abs(cfg.Path); err == nil {
+		cfg.Path = abs
+	}
+
+	for _, p := range parts[1:] {
+		p = strings.Trim(p, "[]")
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) == 2 {
+			k := strings.ToLower(strings.TrimSpace(kv[0]))
+			v := strings.TrimSpace(kv[1])
+			switch k {
+			case "mode":
+				cfg.Mode = v
+			case "remote":
+				cfg.Remote = v
+			case "interval":
+				cfg.Interval = v
+			}
+		} else if len(kv) == 1 {
+			val := strings.ToLower(strings.TrimSpace(kv[0]))
+			if val == "commit-generator" || val == "developer" || val == "pr" {
+				cfg.Mode = val
+			}
+		}
+	}
+	return cfg
+}
+
+func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
+	if fleetLineMode != "" && fleetLineMode != "default" {
+		return fleetLineMode
+	}
+	for _, fname := range []string{".syncalibur", ".syncalibur.env", "syncalibur.env"} {
+		fpath := filepath.Join(repoPath, fname)
+		if data, err := os.ReadFile(fpath); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "MODE=") || strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
+					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
+					if val != "" {
+						return strings.ToLower(val)
+					}
+				}
+			}
+		}
+	}
+	if env := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); env != "" {
+		return strings.ToLower(env)
+	}
+	return "developer"
+}
+
+func visibleLen(s string) int {
+	var clean strings.Builder
+	inEsc := false
+	for _, r := range s {
+		if r == '\033' {
+			inEsc = true
+			continue
+		}
+		if inEsc {
+			if r == 'm' {
+				inEsc = false
+			}
+			continue
+		}
+		clean.WriteRune(r)
+	}
+	w := 0
+	for _, r := range clean.String() {
+		if r > 0x2000 {
+			w += 2
+		} else {
+			w += 1
+		}
+	}
+	return w
+}
+
+func padRightVisible(s string, width int) string {
+	vl := visibleLen(s)
+	if vl >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-vl)
+}
+
+func probeRemoteLiveness(rawURL string, timeoutMs int) bool {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return true
+	}
+	host, port := extractHostPort(rawURL)
+	if host == "" {
+		host = "github.com"
+		port = "22"
+	}
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 1000 * time.Millisecond
+	}
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), timeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+func extractHostPort(rawURL string) (string, string) {
+	if strings.Contains(rawURL, "@") && strings.Contains(rawURL, ":") && !strings.Contains(rawURL, "://") {
+		parts := strings.Split(rawURL, "@")
+		hostPart := strings.Split(parts[len(parts)-1], ":")[0]
+		return hostPart, "22"
+	}
+	if strings.Contains(rawURL, "://") {
+		if u, err := url.Parse(rawURL); err == nil && u.Host != "" {
+			host := u.Hostname()
+			port := u.Port()
+			if port == "" {
+				if u.Scheme == "ssh" || u.Scheme == "git" {
+					port = "22"
+				} else {
+					port = "443"
+				}
+			}
+			return host, port
+		}
+	}
+	if strings.Contains(rawURL, ":") {
+		parts := strings.Split(rawURL, ":")
+		return parts[0], parts[1]
+	}
+	return rawURL, "22"
+}
+
 type fleetRepoStatus struct {
 	Path     string
 	Name     string
+	Mode     string
 	Branch   string
 	State    string
 	Dirty    int
@@ -2193,47 +2427,40 @@ func printFleetStatusTable(fleetFile string) {
 		return
 	}
 
-	var paths []string
+	var configs []*fleetRepoConfig
 	seen := map[string]bool{}
 	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(strings.Split(line, "#")[0])
-		if line == "" {
+		cfg := parseFleetEntry(line)
+		if cfg == nil {
 			continue
 		}
-		if strings.HasPrefix(line, "~/") {
-			if home, err := os.UserHomeDir(); err == nil {
-				line = filepath.Join(home, line[2:])
-			}
-		}
-		if abs, err := filepath.Abs(line); err == nil {
-			if st, err := os.Stat(abs); err == nil && st.IsDir() && !seen[abs] {
-				seen[abs] = true
-				paths = append(paths, abs)
-			}
+		if st, err := os.Stat(cfg.Path); err == nil && st.IsDir() && !seen[cfg.Path] {
+			seen[cfg.Path] = true
+			configs = append(configs, cfg)
 		}
 	}
 
-	if len(paths) == 0 {
+	if len(configs) == 0 {
 		fmt.Printf("  %s%s No repositories enrolled in %s. Run: syncalibur fleet add <path>%s\n", cAmber, iconWarn, fleetFile, cReset)
 		return
 	}
 
-	results := make([]fleetRepoStatus, len(paths))
+	results := make([]fleetRepoStatus, len(configs))
 	var wg sync.WaitGroup
-	for i, p := range paths {
+	for i, cfg := range configs {
 		wg.Add(1)
-		go func(idx int, repoPath string) {
+		go func(idx int, c *fleetRepoConfig) {
 			defer wg.Done()
-			results[idx] = inspectRepoStatus(repoPath)
-		}(i, p)
+			results[idx] = inspectRepoStatus(c.Path, c.Mode)
+		}(i, cfg)
 	}
 	wg.Wait()
 
-	fmt.Printf("  %s╭────────────────────────────────────────────────────────────────────────────────────────╮%s\n", cGold, cReset)
-	fmt.Printf("  %s│%s  %s%s%-84s%s  %s│%s\n", cGold, cReset, cGold, cBold, fmt.Sprintf("%s  S Y N C A L I B U R   F L E E T   S T A T U S   (%d REPOSITORIES)", iconDiamond, len(results)), cReset, cGold, cReset)
-	fmt.Printf("  %s╰────────────────────────────────────────────────────────────────────────────────────────╯%s\n", cGold, cReset)
-	fmt.Printf("    %s%-20s %-14s %-12s %-22s %-20s%s\n", cBold, "REPOSITORY", "DAEMON", "BRANCH", "SYNC STATE", "PATH", cReset)
-	fmt.Printf("    %s──────────────────────────────────────────────────────────────────────────────────────%s\n", cSlate, cReset)
+	fmt.Printf("  %s╭───────────────────────────────────────────────────────────────────────────────────────────────────╮%s\n", cGold, cReset)
+	fmt.Printf("  %s│%s  %s%s%-95s%s  %s│%s\n", cGold, cReset, cGold, cBold, fmt.Sprintf("%s  S Y N C A L I B U R   F L E E T   S T A T U S   (%d REPOSITORIES)", iconDiamond, len(results)), cReset, cGold, cReset)
+	fmt.Printf("  %s╰───────────────────────────────────────────────────────────────────────────────────────────────────╯%s\n", cGold, cReset)
+	fmt.Printf("    %s%-18s %-15s %-13s %-11s %-20s %-20s%s\n", cBold, "REPOSITORY", "MODE", "DAEMON", "BRANCH", "SYNC STATE", "PATH", cReset)
+	fmt.Printf("    %s───────────────────────────────────────────────────────────────────────────────────────────────────%s\n", cSlate, cReset)
 
 	home, _ := os.UserHomeDir()
 	for _, r := range results {
@@ -2251,20 +2478,37 @@ func printFleetStatusTable(fleetFile string) {
 		if strings.HasPrefix(r.State, iconDot) {
 			stateColor = cGreen
 		}
-		fmt.Printf("    %s%-20s%s %s%-14s%s %s%-12s%s %s%-22s%s %s%s%s\n",
-			cWhite+cBold, truncateStr(r.Name, 19), cReset,
-			stateColor, truncateStr(r.State, 13), cReset,
-			cCyan, truncateStr(r.Branch, 11), cReset,
-			syncColor, truncateStr(rawSync, 21), cReset,
-			cSlate, shortPath, cReset)
+		modeLabel := "developer"
+		modeColor := cGreen
+		switch r.Mode {
+		case "commit-generator", "stream", "continuous":
+			modeLabel = "⚡ commit-gen"
+			modeColor = cCyan
+		case "pr", "review":
+			modeLabel = "🔀 pr"
+			modeColor = cAmber
+		default:
+			modeLabel = "🛠 developer"
+			modeColor = cGreen
+		}
+
+		cRepo := padRightVisible(cWhite+cBold+truncateStr(r.Name, 17)+cReset, 18)
+		cMode := padRightVisible(modeColor+modeLabel+cReset, 15)
+		cState := padRightVisible(stateColor+truncateStr(r.State, 12)+cReset, 13)
+		cBranch := padRightVisible(cCyan+truncateStr(r.Branch, 10)+cReset, 11)
+		cSync := padRightVisible(syncColor+truncateStr(rawSync, 19)+cReset, 20)
+		cPath := cSlate + shortPath + cReset
+
+		fmt.Printf("    %s %s %s %s %s %s\n", cRepo, cMode, cState, cBranch, cSync, cPath)
 	}
 	fmt.Println()
 }
 
-func inspectRepoStatus(repoPath string) fleetRepoStatus {
+func inspectRepoStatus(repoPath, inlineMode string) fleetRepoStatus {
 	st := fleetRepoStatus{
 		Path:   repoPath,
 		Name:   filepath.Base(repoPath),
+		Mode:   resolveEffectiveRepoMode(repoPath, inlineMode),
 		Branch: "main",
 		State:  iconCircle + " Idle",
 	}
@@ -2282,6 +2526,11 @@ func inspectRepoStatus(repoPath string) fleetRepoStatus {
 		lines := strings.Split(strings.TrimSpace(string(sOut)), "\n")
 		if len(lines) > 0 && lines[0] != "" {
 			st.Dirty = len(lines)
+		}
+	}
+	if uOut, err := exec.Command("git", "-C", repoPath, "rev-list", "--count", "@{u}..HEAD").Output(); err == nil {
+		if unp, err := strconv.Atoi(strings.TrimSpace(string(uOut))); err == nil {
+			st.Unpushed = unp
 		}
 	}
 	return st
@@ -2734,14 +2983,28 @@ func findConfigFile(scriptPath, repoRoot string) string {
 }
 
 func getActiveMode(scriptPath, repoRoot string) string {
+	for _, fname := range []string{".syncalibur", ".syncalibur.env", "syncalibur.env"} {
+		cfgPath := filepath.Join(repoRoot, fname)
+		if data, err := os.ReadFile(cfgPath); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "MODE=") || strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
+					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
+					if val != "" {
+						return strings.ToLower(val)
+					}
+				}
+			}
+		}
+	}
 	cfgPath := findConfigFile(scriptPath, repoRoot)
 	if cfgPath != "" {
 		data, err := os.ReadFile(cfgPath)
 		if err == nil {
 			for _, line := range strings.Split(string(data), "\n") {
 				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
-					val := strings.Trim(strings.TrimPrefix(line, "SYNCALIBUR_MODE="), `"' `)
+				if strings.HasPrefix(line, "SYNCALIBUR_MODE=") || strings.HasPrefix(line, "MODE=") {
+					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
 					if val != "" {
 						return strings.ToLower(val)
 					}
@@ -2778,28 +3041,39 @@ func cycleActiveMode(scriptPath, repoRoot string) string {
 		next = "commit-generator"
 	}
 
+	targetCfg := filepath.Join(repoRoot, ".syncalibur")
+	if _, err := os.Stat(filepath.Join(repoRoot, ".git")); err != nil {
+		targetCfg = findConfigFile(scriptPath, repoRoot)
+	}
+
+	if targetCfg != "" {
+		data, err := os.ReadFile(targetCfg)
+		if err == nil {
+			lines := strings.Split(string(data), "\n")
+			found := false
+			for i, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "MODE=") {
+					lines[i] = fmt.Sprintf(`MODE="%s"`, next)
+					found = true
+					break
+				} else if strings.HasPrefix(trimmed, "SYNCALIBUR_MODE=") {
+					lines[i] = fmt.Sprintf(`SYNCALIBUR_MODE="%s"`, next)
+					found = true
+					break
+				}
+			}
+			if !found {
+				lines = append(lines, fmt.Sprintf(`MODE="%s"`, next))
+			}
+			_ = os.WriteFile(targetCfg, []byte(strings.Join(lines, "\n")), 0644)
+		} else {
+			_ = os.WriteFile(targetCfg, []byte(fmt.Sprintf("# Syncalibur local configuration\nMODE=\"%s\"\n", next)), 0644)
+		}
+	}
+
 	if scriptPath != "" {
 		_ = exec.Command("bash", scriptPath, "mode", next).Run()
-	} else {
-		cfgPath := findConfigFile(scriptPath, repoRoot)
-		if cfgPath != "" {
-			data, err := os.ReadFile(cfgPath)
-			if err == nil {
-				lines := strings.Split(string(data), "\n")
-				found := false
-				for i, line := range lines {
-					if strings.HasPrefix(strings.TrimSpace(line), "SYNCALIBUR_MODE=") {
-						lines[i] = fmt.Sprintf(`SYNCALIBUR_MODE="%s"`, next)
-						found = true
-						break
-					}
-				}
-				if !found {
-					lines = append(lines, fmt.Sprintf(`SYNCALIBUR_MODE="%s"`, next))
-				}
-				_ = os.WriteFile(cfgPath, []byte(strings.Join(lines, "\n")), 0644)
-			}
-		}
 	}
 	_ = os.Setenv("SYNCALIBUR_MODE", next)
 	return next
@@ -2904,17 +3178,6 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			onlineStr = fmt.Sprintf("%s● ONLINE%s %s(PID %d)%s", cGreen, cReset, cSlate, daemonPid, cReset)
 		}
 
-		pauseState := cGreen + iconPlay + " ACTIVE" + cReset
-		if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.pause")); err == nil {
-			pauseState = cAmber + cBold + iconPause + " PAUSED" + cReset
-		}
-
-		commitsTodayOut, _ := exec.Command("git", "-C", repoRoot, "rev-list", "--count", "--since=midnight", "HEAD").Output()
-		commitsToday := strings.TrimSpace(string(commitsTodayOut))
-		if commitsToday == "" {
-			commitsToday = "0"
-		}
-
 		branchOut, _ := exec.Command("git", "-C", repoRoot, "symbolic-ref", "--short", "HEAD").Output()
 		branch := strings.TrimSpace(string(branchOut))
 		if branch == "" {
@@ -2927,7 +3190,18 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			unpushed = "0"
 		}
 
-		spark := generateSparkline(repoRoot)
+		if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.offline")); err == nil {
+			onlineStr += fmt.Sprintf(" • %s🌐 OFFLINE (%s queued)%s", cAmber, unpushed, cReset)
+		}
+
+		pauseState := cGreen + iconPlay + " ACTIVE" + cReset
+		if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.pause")); err == nil {
+			pauseState = cAmber + cBold + iconPause + " PAUSED" + cReset
+		}
+
+		velo := getCommitVelocity(repoRoot)
+		commitsToday := strconv.Itoa(velo.Today)
+		spark := velo.Sparkline
 		nowStr := time.Now().Format("15:04:05")
 
 		boxWidth := termCols - 6

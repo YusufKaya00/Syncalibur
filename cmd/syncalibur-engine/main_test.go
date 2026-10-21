@@ -542,3 +542,100 @@ func TestPlanSmartStaging(t *testing.T) {
 	}
 }
 
+func TestParseFleetEntry(t *testing.T) {
+	// 1. Simple path
+	e1 := parseFleetEntry("/home/user/project")
+	if e1 == nil || e1.Path != "/home/user/project" || e1.Mode != "" {
+		t.Errorf("expected path /home/user/project, got %+v", e1)
+	}
+
+	// 2. Bracketed attributes
+	e2 := parseFleetEntry("/home/user/repo [mode=commit-generator] [remote=upstream]")
+	if e2 == nil || e2.Mode != "commit-generator" || e2.Remote != "upstream" {
+		t.Errorf("expected mode=commit-generator, remote=upstream, got %+v", e2)
+	}
+
+	// 3. Inline key=value
+	e3 := parseFleetEntry("/home/user/app mode=pr remote=origin")
+	if e3 == nil || e3.Mode != "pr" || e3.Remote != "origin" {
+		t.Errorf("expected mode=pr, got %+v", e3)
+	}
+
+	// 4. Positional mode
+	e4 := parseFleetEntry("/home/user/test commit-generator")
+	if e4 == nil || e4.Mode != "commit-generator" {
+		t.Errorf("expected positional mode commit-generator, got %+v", e4)
+	}
+
+	// 5. Comment line
+	e5 := parseFleetEntry("# comment line")
+	if e5 != nil {
+		t.Errorf("expected nil for comment line, got %+v", e5)
+	}
+}
+
+func TestExtractHostPort(t *testing.T) {
+	cases := []struct {
+		url          string
+		expectedHost string
+		expectedPort string
+	}{
+		{"git@github.com:org/repo.git", "github.com", "22"},
+		{"git@gitlab.corp.internal:group/project.git", "gitlab.corp.internal", "22"},
+		{"https://github.com/org/repo.git", "github.com", "443"},
+		{"https://mygit.local:8443/repo.git", "mygit.local", "8443"},
+		{"ssh://git@custom.host:2222/repo.git", "custom.host", "2222"},
+	}
+
+	for _, c := range cases {
+		host, port := extractHostPort(c.url)
+		if host != c.expectedHost || port != c.expectedPort {
+			t.Errorf("extractHostPort(%s) = (%s, %s); want (%s, %s)", c.url, host, port, c.expectedHost, c.expectedPort)
+		}
+	}
+}
+
+func TestResolveEffectiveRepoMode(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Case 1: Default
+	m1 := resolveEffectiveRepoMode(tmpDir, "")
+	if m1 != "developer" {
+		t.Errorf("expected default developer, got %s", m1)
+	}
+
+	// Case 2: Fleet line mode takes precedence
+	m2 := resolveEffectiveRepoMode(tmpDir, "commit-generator")
+	if m2 != "commit-generator" {
+		t.Errorf("expected fleet mode commit-generator, got %s", m2)
+	}
+
+	// Case 3: Repo-local .syncalibur file
+	cfgPath := filepath.Join(tmpDir, ".syncalibur")
+	_ = os.WriteFile(cfgPath, []byte("MODE=\"pr\"\n"), 0644)
+	m3 := resolveEffectiveRepoMode(tmpDir, "")
+	if m3 != "pr" {
+		t.Errorf("expected repo .syncalibur mode pr, got %s", m3)
+	}
+}
+
+func TestGetCommitVelocity(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = exec.Command("git", "-C", tmpDir, "init").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.email", "test@test.com").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.name", "Test").Run()
+
+	f := filepath.Join(tmpDir, "test.txt")
+	_ = os.WriteFile(f, []byte("hello"), 0644)
+	_ = exec.Command("git", "-C", tmpDir, "add", ".").Run()
+	_ = exec.Command("git", "-C", tmpDir, "commit", "-m", "feat: first").Run()
+
+	velo := getCommitVelocity(tmpDir)
+	if velo.Today != 1 || velo.Total7d != 1 {
+		t.Errorf("expected Today=1, Total7d=1, got %+v", velo)
+	}
+	if !strings.Contains(velo.Sparkline, "1 commits/7d") {
+		t.Errorf("expected Sparkline to contain '1 commits/7d', got %s", velo.Sparkline)
+	}
+}
+

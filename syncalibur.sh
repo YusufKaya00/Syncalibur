@@ -192,17 +192,21 @@ CONFIG_KEYS=" SYNCALIBUR_REPO_PATH SYNCALIBUR_REPO_DIR SYNCALIBUR_AUTO_CREATE_RE
   AUTO_SYNC_RETRY_BASE AUTO_SYNC_RETRY_MAX AUTO_SYNC_PUSH_TIMEOUT AUTO_SYNC_LOG_MAX_KB "
 
 load_config() {
-  local file="$1" line key value n=0 is_set=0
+  local file="$1" allow_override="${2:-0}" line key value n=0 is_set=0
+  [[ -f "${file}" ]] || return 0
   while IFS= read -r line || [[ -n "${line}" ]]; do
     n=$(( n + 1 ))
     line="${line%$'\r'}"
     [[ "${line}" =~ ^[[:space:]]*(#|$) ]] && continue
-    if ! [[ "${line}" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Z_][A-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+    if ! [[ "${line}" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
       echo "▲  ${file}:${n}: ignoring malformed line: ${line}" >&2
       continue
     fi
     key="${BASH_REMATCH[2]}"
     value="${BASH_REMATCH[3]}"
+    if [[ "${key}" =~ ^(MODE|BURST_COOLDOWN|TIDY_THRESHOLD|AUTO_TIDY|AUTO_PR|PROTECT_SYNTAX|SECRET_SHIELD|REMOTE|BIDIRECTIONAL|POLL_INTERVAL)$ ]]; then
+      key="SYNCALIBUR_${key}"
+    fi
     if [[ "${CONFIG_KEYS}" != *[[:space:]]"${key}"[[:space:]]* ]]; then
       echo "▲  ${file}:${n}: unknown key '${key}' (ignored)" >&2
       continue
@@ -214,7 +218,7 @@ load_config() {
       value="${value%"${value##*[![:space:]]}"}"
     fi
     eval "[[ -n \"\${${key}+x}\" ]] && is_set=1 || is_set=0"
-    (( is_set )) && continue
+    (( is_set && ! allow_override )) && continue
     printf -v "${key}" '%s' "${value}"
   done < "${file}"
 }
@@ -364,6 +368,17 @@ fi
 REPO_ROOT="$(resolve_path "${REPO_ROOT}")"
 GIT_DIR="$(git -C "${REPO_ROOT}" rev-parse --absolute-git-dir)"
 
+# Per-Repository Configuration (.syncalibur or syncalibur.env inside repo root)
+for repo_cfg in "${REPO_ROOT}/.syncalibur" "${REPO_ROOT}/.syncalibur.env" "${REPO_ROOT}/syncalibur.env"; do
+  if [[ -f "${repo_cfg}" ]]; then
+    repo_cfg_resolved="$(resolve_path "${repo_cfg}")"
+    if [[ -z "${CONFIG_FILE}" || "${repo_cfg_resolved}" != "${CONFIG_FILE}" ]]; then
+      load_config "${repo_cfg}" 1
+      break
+    fi
+  fi
+done
+
 SCOPE="$(git -C "${WATCH_PATH}" rev-parse --show-prefix 2>/dev/null || true)"
 SCOPE="${SCOPE%/}"
 SCOPE="${SCOPE:-.}"
@@ -373,6 +388,7 @@ LOCK_FILE="${GIT_DIR}/syncalibur.lock"
 LOG_FILE="${GIT_DIR}/syncalibur.log"
 AUTH_CACHE_FILE="${GIT_DIR}/syncalibur.auth"
 FAIL_REPORT_FILE="${GIT_DIR}/syncalibur.failure"
+OFFLINE_FLAG_FILE="${GIT_DIR}/syncalibur.offline"
 ALERT_STATE_FILE="${GIT_DIR}/syncalibur.alert_ts"
 PAUSE_FILE="${GIT_DIR}/syncalibur.pause"
 SYNC_TRIGGER_FILE="${GIT_DIR}/syncalibur.sync"
@@ -424,7 +440,7 @@ MODE="${SYNCALIBUR_MODE:-developer}"
 
 case "${MODE}" in
   commit-generator | stream | continuous)
-    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-0}"
+    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-10}"
     TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-999}"
     AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-false}"
     AUTO_PR="${SYNCALIBUR_AUTO_PR:-false}"
@@ -444,7 +460,7 @@ case "${MODE}" in
     ;;
 esac
 
-DEFAULT_SENSITIVE_PATTERNS='*.tfstate *.tfstate.* *.tfvars .env .env.* *.pem *.key *.p12 *.pfx id_rsa* id_ecdsa* id_ed25519* kubeconfig *.kubeconfig credentials.json'
+DEFAULT_SENSITIVE_PATTERNS='.env .env.* *.tfstate *.tfstate.* *.tfvars *.tfvars.json credentials.json client_secret*.json service-account*.json service_account*.json *serviceaccount*.json azureProfile.json *.pem *.key *.p12 *.pfx *.pkcs12 *.jks *.keystore id_rsa* id_ecdsa* id_ed25519* id_dsa* *.asc secring.gpg *.kdbx kubeconfig *.kubeconfig *.ovpn *.tblk auth.json .netrc .npmrc .pypirc *.htpasswd *.dump *.rdb *.bak *.backup'
 EFFECTIVE_SENSITIVE="${SYNCALIBUR_SENSITIVE_PATTERNS-${AUTO_SYNC_SENSITIVE_PATTERNS-${DEFAULT_SENSITIVE_PATTERNS}}}"
 read -r -a SENSITIVE_PATTERNS <<< "${EFFECTIVE_SENSITIVE}"
 
@@ -1376,6 +1392,32 @@ cmd_alert() {
 
 LAST_BI_SYNC_TS=0
 
+check_network_liveness() {
+  local remote="${1:-$(get_remote)}"
+  local url
+  url="$(git remote get-url "${remote}" 2>/dev/null || echo "")"
+  [[ -z "${url}" ]] && return 0 # Local repo, no network required
+
+  # 1. Native Go engine fast TCP dial probe (non-blocking, timeout <= 1000ms)
+  if ensure_go_engine; then
+    if "${GO_ENGINE_BIN}" probe-network "${url}" 1000 >/dev/null 2>&1; then
+      return 0
+    fi
+    return 1
+  fi
+
+  # 2. Bash /dev/tcp subshell probe fallback
+  local host="github.com" port="22"
+  if [[ "${url}" =~ @([^:]+): ]]; then
+    host="${BASH_REMATCH[1]}"
+    port="22"
+  elif [[ "${url}" =~ https://([^/:]+) ]]; then
+    host="${BASH_REMATCH[1]}"
+    port="443"
+  fi
+  timeout 1 bash -c "cat < /dev/null > /dev/tcp/${host}/${port}" 2>/dev/null
+}
+
 safe_bidirectional_sync() {
   [[ "${BIDIRECTIONAL_SYNC}" == "true" ]] || return 0
   local remote="$1" branch="$2" force_now="${3:-0}"
@@ -1395,6 +1437,9 @@ safe_bidirectional_sync() {
     fetch_remote="${remote}"
   fi
   git remote get-url "${fetch_remote}" >/dev/null 2>&1 || return 0
+
+  # Network Offline Shield: probe before blocking fetch
+  check_network_liveness "${fetch_remote}" || return 0
 
   run_with_timeout 25 git fetch -q "${fetch_remote}" "${branch}" 2>/dev/null || return 0
   local upstream="refs/remotes/${fetch_remote}/${branch}"
@@ -1845,13 +1890,13 @@ block_reason() {
     return 0
   fi
   case "${name}" in
-    *.example | *.sample | *.template | *.dist) ;;
+    *.example | *.sample | *.template | *.dist | *.default | *.skel) ;;
     *)
       if (( ${#SENSITIVE_PATTERNS[@]} > 0 )); then
         for pattern in "${SENSITIVE_PATTERNS[@]}"; do
           [[ -z "${pattern}" ]] && continue
           # shellcheck disable=SC2053
-          if [[ "${name}" == ${pattern} ]]; then
+          if [[ "${name}" == ${pattern} || "${path}" == ${pattern} || "${path}" == *"${pattern}"* ]]; then
             echo "looks sensitive (matches '${pattern}')"
             return 0
           fi
@@ -2035,6 +2080,15 @@ push_changes() {
     remote="$(get_remote)"
   fi
 
+  # Check network connectivity before push attempt (Offline Shield)
+  if ! check_network_liveness "${remote}"; then
+    touch "${OFFLINE_FLAG_FILE}" 2>/dev/null || true
+    local unp_cnt=0
+    unp_cnt="$(unpushed_count "${remote}" "${branch}")"
+    log "☁ Offline Shield: Connection to '${remote}' unavailable. ${unp_cnt} commit(s) queued locally (will auto-flush on reconnect)."
+    return 1
+  fi
+
   targets_desc="$(describe_push_targets_inline "${remote}")"
   last_commit_msg="$(git log -1 --pretty=%s 2>/dev/null || echo "auto-sync")"
   log "↗ Pushing '${branch}' -> ${targets_desc}..."
@@ -2042,6 +2096,10 @@ push_changes() {
   rc=$?
   printf '%s\n' "${output}" >> "${LOG_FILE}"
   if (( rc == 0 )); then
+    if [[ -f "${OFFLINE_FLAG_FILE}" ]]; then
+      rm -f "${OFFLINE_FLAG_FILE}" 2>/dev/null || true
+      log "🌐 Network connectivity restored. Successfully flushed queued commits (${targets_desc})."
+    fi
     clear_sync_failure
     log "✓ Push succeeded (${targets_desc})."
     send_webhook_notification "success" "✓ Syncalibur Push Succeeded ($(basename "${REPO_ROOT}"))" "${last_commit_msg}" "Target: ${targets_desc} (${branch})"
@@ -2074,6 +2132,10 @@ push_changes() {
       rc=$?
       printf '%s\n' "${output}" >> "${LOG_FILE}"
       if (( rc == 0 )); then
+        if [[ -f "${OFFLINE_FLAG_FILE}" ]]; then
+          rm -f "${OFFLINE_FLAG_FILE}" 2>/dev/null || true
+          log "🌐 Network connectivity restored. Successfully flushed queued commits (${targets_desc})."
+        fi
         clear_sync_failure
         log "✓ Push succeeded after automatic rebase (${targets_desc})."
         send_webhook_notification "success" "✓ Syncalibur Push Succeeded ($(basename "${REPO_ROOT}"))" "${last_commit_msg}" "Rebased & pushed to ${targets_desc} (${branch})"
@@ -2102,6 +2164,10 @@ push_changes() {
       rc=$?
       printf '%s\n' "${output}" >> "${LOG_FILE}"
       if (( rc == 0 )); then
+        if [[ -f "${OFFLINE_FLAG_FILE}" ]]; then
+          rm -f "${OFFLINE_FLAG_FILE}" 2>/dev/null || true
+          log "🌐 Network connectivity restored. Successfully flushed queued commits (${targets_desc})."
+        fi
         clear_sync_failure
         log "✓ Push succeeded after auto-creating remote repository (${targets_desc})."
         send_webhook_notification "success" "✓ Syncalibur Created Remote & Pushed ($(basename "${REPO_ROOT}"))" "${last_commit_msg}" "Target: ${targets_desc} (${branch})"
@@ -2116,6 +2182,15 @@ push_changes() {
   else
     err_summary="$(push_error_summary "${output}")"
     log "▲  Push failed: ${err_summary}"
+  fi
+
+  # Offline Network Disconnection Check: do not spam alert popup windows if offline
+  if grep -qiE 'Could not resolve host|Connection refused|Operation timed out|Failed to connect|Network is unreachable|Connection reset by peer|Connection timed out|fatal: unable to access|ssh: connect to host' <<< "${output}"; then
+    touch "${OFFLINE_FLAG_FILE}" 2>/dev/null || true
+    local unp_cnt=0
+    unp_cnt="$(unpushed_count "${remote}" "${branch}")"
+    log "☁ Offline Shield: Network disconnection detected (${err_summary}). ${unp_cnt} commit(s) safely queued locally."
+    return 1
   fi
 
   trigger_failure_alert "GIT PUSH (${remote}/${branch})" "${err_summary}" "${output}" "${remote}" "${branch}"
@@ -2392,29 +2467,52 @@ cmd_tidy() {
 }
 
 cmd_mode() {
-  local target_mode="${1:-}"
-  local cfg_file="${CONFIG_FILE:-${SCRIPT_DIR}/syncalibur.env}"
+  local target_mode=""
+  local is_global=0
+  local current_repo
+  current_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+
+  for arg in "$@"; do
+    if [[ "${arg}" == "--global" || "${arg}" == "-g" ]]; then
+      is_global=1
+    elif [[ -z "${target_mode}" && "${arg}" != -* ]]; then
+      target_mode="${arg}"
+    fi
+  done
+
+  # Determine current active mode and provenance for this repository
+  local current_source="global syncalibur.env"
+  if [[ -f "${current_repo}/.syncalibur" ]] && grep -qiE '^(MODE|SYNCALIBUR_MODE)=' "${current_repo}/.syncalibur"; then
+    current_source="${current_repo}/.syncalibur"
+  elif [[ -f "${current_repo}/syncalibur.env" ]] && grep -qiE '^(MODE|SYNCALIBUR_MODE)=' "${current_repo}/syncalibur.env"; then
+    current_source="${current_repo}/syncalibur.env"
+  elif [[ -f "${FLEET_LIST_FILE}" ]] && grep -E "^[[:space:]]*${current_repo}([[:space:]]|$)" "${FLEET_LIST_FILE}" 2>/dev/null | grep -qiE 'mode='; then
+    current_source="repos.list (fleet)"
+  fi
 
   if [[ -z "${target_mode}" ]]; then
     print_syncalibur_dashboard
     echo -e "${C_GOLD}${C_BOLD}◈ Syncalibur Operating Modes:${C_RESET}"
-    echo -e "  Current Active Mode: ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [cooldown: ${BURST_COOLDOWN}s, tidy-threshold: ${TIDY_THRESHOLD}, auto-pr: ${AUTO_PR}]"
+    echo -e "  Current Active Mode : ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [source: ${current_source}]"
+    echo -e "  Parameters          : cooldown: ${BURST_COOLDOWN}s • tidy-threshold: ${TIDY_THRESHOLD} • auto-pr: ${AUTO_PR}"
     echo ""
     echo -e "  ${C_CYAN}${C_BOLD}1. commit-generator${C_RESET} ${C_SLATE}(Continuous Stream Mode)${C_RESET}"
-    echo -e "     • 1 satır bile değişse kontrollerden geçer, anında commit'lenir."
+    echo -e "     • 1 satır bile değişse kontrollerden geçer, 10s cooldown sonrası anında commit'lenir."
     echo -e "     • Bekletmeden ve birleştirmeden doğrudan 'main' branch'ine pushlar."
     echo -e "     • Kişisel projeler, k8sfundamentals, notlar ve bireysel çalışmalar için idealdir."
     echo ""
     echo -e "  ${C_CYAN}${C_BOLD}2. developer${C_RESET} ${C_SLATE}(Adaptive Burst & Squash Mode) [Varsayılan]${C_RESET}"
     echo -e "     • 1-2 küçük commit: Doğrudan main'e pushlanır (squash edilmez)."
     echo -e "     • 3+ commit (burst sprint): Tek bir temiz Conventional Commit'te birleştirilir (squash)."
-    echo -e "     • Yetki yoksa / protected branch ise: Otomatik branch açıp Pull Request (PR) oluşturur."
+    echo -e "     • Ortak repolarda / yetki yoksa / protected branch ise: Otomatik branch açıp PR üretir."
     echo -e "     • Yetki varsa: Birleştirilmiş temiz commit'i doğrudan main'e pushlar."
     echo ""
     echo -e "  ${C_CYAN}${C_BOLD}3. pr${C_RESET} ${C_SLATE}(Strict Pull Request Mode)${C_RESET}"
     echo -e "     • Asla main'e doğrudan basmaz; her zaman branch açıp GitHub/GitLab üzerinden PR açar."
     echo ""
-    echo -e "  ${C_SLATE}Mod Değiştirme:${C_RESET} ${C_GOLD}syncalibur mode <commit-generator | developer | pr>${C_RESET}"
+    echo -e "  ${C_SLATE}Mod Değiştirme:${C_RESET}"
+    echo -e "    Bu repo için     : ${C_GOLD}syncalibur mode <commit-generator | developer | pr>${C_RESET}"
+    echo -e "    Tüm repolar için  : ${C_GOLD}syncalibur mode <mode> --global${C_RESET}"
     return 0
   fi
 
@@ -2428,20 +2526,39 @@ cmd_mode() {
       ;;
   esac
 
-  if [[ -f "${cfg_file}" ]]; then
-    if grep -q "^SYNCALIBUR_MODE=" "${cfg_file}"; then
-      sed -i -E "s/^SYNCALIBUR_MODE=.*/SYNCALIBUR_MODE=\"${target_mode}\"/" "${cfg_file}"
-    else
-      echo "SYNCALIBUR_MODE=\"${target_mode}\"" >> "${cfg_file}"
-    fi
-    echo -e "${C_GREEN}✓ Syncalibur modu '${target_mode}' olarak ayarlandı (${cfg_file}).${C_RESET}"
-    if [[ -f "${PID_FILE}" ]] && kill -0 "$(cat "${PID_FILE}" 2>/dev/null)" 2>/dev/null; then
-      echo -e "  ${C_CYAN}↻ Arka plan servisi yeni modla yeniden başlatılıyor...${C_RESET}"
-      cmd_restart
+  if (( is_global )); then
+    local cfg_file="${CONFIG_FILE:-${SCRIPT_DIR}/syncalibur.env}"
+    if [[ -f "${cfg_file}" ]]; then
+      if grep -q "^SYNCALIBUR_MODE=" "${cfg_file}"; then
+        sed -i -E "s/^SYNCALIBUR_MODE=.*/SYNCALIBUR_MODE=\"${target_mode}\"/" "${cfg_file}"
+      else
+        echo "SYNCALIBUR_MODE=\"${target_mode}\"" >> "${cfg_file}"
+      fi
+      echo -e "${C_GREEN}✓ Syncalibur global varsayılan modu '${target_mode}' olarak ayarlandı (${cfg_file}).${C_RESET}"
     fi
   else
-    echo -e "${C_AMBER}▲ ${cfg_file} bulunamadı; ortam değişkeni olarak export edebilirsiniz:${C_RESET}"
-    echo "  export SYNCALIBUR_MODE=\"${target_mode}\""
+    local repo_cfg="${current_repo}/.syncalibur"
+    if [[ -f "${repo_cfg}" ]]; then
+      if grep -qiE '^(MODE|SYNCALIBUR_MODE)=' "${repo_cfg}"; then
+        sed -i -E "s/^(MODE|SYNCALIBUR_MODE)=.*/MODE=\"${target_mode}\"/" "${repo_cfg}"
+      else
+        echo "MODE=\"${target_mode}\"" >> "${repo_cfg}"
+      fi
+    else
+      cat > "${repo_cfg}" << EOF
+# Syncalibur per-repository configuration
+MODE="${target_mode}"
+EOF
+    fi
+    echo -e "${C_GREEN}✓ '${current_repo}' için Syncalibur modu '${target_mode}' olarak ayarlandı (.syncalibur).${C_RESET}"
+    if [[ -f "${FLEET_LIST_FILE}" ]] && grep -qE "^[[:space:]]*${current_repo}([[:space:]]|$)" "${FLEET_LIST_FILE}"; then
+      sed -i -E "s|^[[:space:]]*(${current_repo})([[:space:]].*)?$|\1 [mode=${target_mode}]|" "${FLEET_LIST_FILE}"
+    fi
+  fi
+
+  if [[ -f "${PID_FILE}" ]] && kill -0 "$(cat "${PID_FILE}" 2>/dev/null)" 2>/dev/null; then
+    echo -e "  ${C_CYAN}↻ Arka plan servisi yeni modla yeniden başlatılıyor...${C_RESET}"
+    cmd_restart
   fi
 }
 
@@ -2534,19 +2651,29 @@ cmd_fleet() {
 
   case "${subcmd}" in
     add)
-      [[ -n "${arg}" ]] || { echo "✕ Usage: syncalibur fleet add <path>"; return 1; }
-      local target
+      [[ -n "${arg}" ]] || { echo "✕ Usage: syncalibur fleet add <path> [--mode=commit-generator|developer|pr]"; return 1; }
+      local target target_mode="developer"
       target="$(resolve_path "$(normalize_path_input "${arg}")")"
+      shift 2 2>/dev/null || true
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --mode=*) target_mode="${1#*=}" ;;
+          commit-generator|developer|pr) target_mode="$1" ;;
+        esac
+        shift
+      done
       mkdir -p "${target}" 2>/dev/null || true
       if ! git -C "${target}" rev-parse --show-toplevel >/dev/null 2>&1; then
         git -C "${target}" init -b main >/dev/null 2>&1 || git -C "${target}" init >/dev/null 2>&1
       fi
       touch "${FLEET_LIST_FILE}"
-      if ! grep -Fxq "${target}" "${FLEET_LIST_FILE}" 2>/dev/null; then
-        printf '%s\n' "${target}" >> "${FLEET_LIST_FILE}"
-        echo "✓ Added '${target}' to Syncalibur Fleet (${FLEET_LIST_FILE})."
+      local entry="${target} [mode=${target_mode}]"
+      if ! grep -E "^[[:space:]]*${target}([[:space:]]|$)" "${FLEET_LIST_FILE}" 2>/dev/null; then
+        printf '%s\n' "${entry}" >> "${FLEET_LIST_FILE}"
+        echo "✓ Added '${target}' (${target_mode}) to Syncalibur Fleet (${FLEET_LIST_FILE})."
       else
-        echo "ℹ  '${target}' is already enrolled in Fleet."
+        sed -i -E "s|^[[:space:]]*${target}([[:space:]].*)?$|${entry}|" "${FLEET_LIST_FILE}"
+        echo "✓ Updated '${target}' in Fleet to mode '${target_mode}'."
       fi
       ;;
     remove | rm)
@@ -2554,7 +2681,7 @@ cmd_fleet() {
       local target tmp
       target="$(resolve_path "$(normalize_path_input "${arg}")")"
       tmp="$(mktemp)"
-      grep -Fxv "${target}" "${FLEET_LIST_FILE}" > "${tmp}" || true
+      grep -vE "^[[:space:]]*${target}([[:space:]]|$)" "${FLEET_LIST_FILE}" > "${tmp}" || true
       mv "${tmp}" "${FLEET_LIST_FILE}"
       echo "✓ Removed '${target}' from Syncalibur Fleet."
       ;;
@@ -2567,7 +2694,7 @@ cmd_fleet() {
       if ensure_go_engine; then
         while IFS= read -r repo; do
           [[ -z "${repo}" ]] && continue
-          if ! grep -Fxq "${repo}" "${FLEET_LIST_FILE}" 2>/dev/null; then
+          if ! grep -E "^[[:space:]]*${repo}([[:space:]]|$)" "${FLEET_LIST_FILE}" 2>/dev/null; then
             printf '%s\n' "${repo}" >> "${FLEET_LIST_FILE}"
             echo "  + Enrolled: ${repo}"
             count=$(( count + 1 ))
@@ -2576,7 +2703,7 @@ cmd_fleet() {
       else
         while IFS= read -r repo; do
           repo="$(dirname "${repo}")"
-          if ! grep -Fxq "${repo}" "${FLEET_LIST_FILE}" 2>/dev/null; then
+          if ! grep -E "^[[:space:]]*${repo}([[:space:]]|$)" "${FLEET_LIST_FILE}" 2>/dev/null; then
             printf '%s\n' "${repo}" >> "${FLEET_LIST_FILE}"
             echo "  + Enrolled: ${repo}"
             count=$(( count + 1 ))
@@ -2587,22 +2714,32 @@ cmd_fleet() {
       ;;
     start)
       [[ -f "${FLEET_LIST_FILE}" ]] || { echo "▲  No fleet list found. Run 'syncalibur fleet scan' or 'syncalibur fleet add <path>' first."; return 1; }
-      local line
+      local line repo_path rest repo_mode
       while IFS= read -r line; do
         line="${line%%#*}"
         line="${line%"${line##*[![:space:]]}"}"
-        [[ -z "${line}" || ! -d "${line}" ]] && continue
-        SYNCALIBUR_REPO_PATH="${line}" "${SCRIPT_PATH}" start
+        [[ -z "${line}" ]] && continue
+        read -r repo_path rest <<< "${line}"
+        [[ -z "${repo_path}" || ! -d "${repo_path}" ]] && continue
+        repo_mode="developer"
+        if [[ "${rest}" =~ mode=([a-zA-Z0-9_-]+) ]]; then
+          repo_mode="${BASH_REMATCH[1]}"
+        elif [[ "${rest}" =~ (commit-generator|developer|pr) ]]; then
+          repo_mode="${BASH_REMATCH[1]}"
+        fi
+        SYNCALIBUR_REPO_PATH="${repo_path}" SYNCALIBUR_MODE="${repo_mode}" "${SCRIPT_PATH}" start
       done < "${FLEET_LIST_FILE}"
       ;;
     stop)
       [[ -f "${FLEET_LIST_FILE}" ]] || return 0
-      local line
+      local line repo_path rest
       while IFS= read -r line; do
         line="${line%%#*}"
         line="${line%"${line##*[![:space:]]}"}"
-        [[ -z "${line}" || ! -d "${line}" ]] && continue
-        SYNCALIBUR_REPO_PATH="${line}" "${SCRIPT_PATH}" stop
+        [[ -z "${line}" ]] && continue
+        read -r repo_path rest <<< "${line}"
+        [[ -z "${repo_path}" || ! -d "${repo_path}" ]] && continue
+        SYNCALIBUR_REPO_PATH="${repo_path}" "${SCRIPT_PATH}" stop
       done < "${FLEET_LIST_FILE}"
       ;;
     status | list | *)
