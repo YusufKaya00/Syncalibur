@@ -2725,6 +2725,7 @@ run_daemon() {
 
   local remote branch busy head snap id_raw git_user git_email sys_ident ssh_cred gh_user gh_via gl_user gl_via
   local idle_snapshot="" last_hold_snapshot="" next_hold_retry=0 checked_head="" push_pending=0 next_retry=0 retry_delay="${RETRY_BASE}" force_sync=0
+  local last_commit_ts=0 last_burst_notice=0
 
   id_raw="$(detect_user_identity)"
   IFS='|' read -r git_user git_email sys_ident ssh_cred gh_user gh_via gl_user gl_via <<< "${id_raw}"
@@ -2741,7 +2742,7 @@ run_daemon() {
   if [[ "${SELF_AUTO_UPDATE}" == "true" && -n "${SELF_REPO_ROOT}" ]]; then
     log "⇄ Self-Update: Watching Syncalibur repo (${SELF_REPO_ROOT}) for local & upstream updates every ${SELF_CHECK_INTERVAL}s."
   fi
-  log "◆  Poll: ${POLL_INTERVAL}s | Debounce: ${DEBOUNCE_WAIT}s (max ${MAX_DEBOUNCE}s) | Max file size: ${MAX_FILE_SIZE_MB} MiB"
+  log "◆  Poll: ${POLL_INTERVAL}s | Debounce: ${DEBOUNCE_WAIT}s | Burst Cooldown: ${BURST_COOLDOWN}s (auto-tidy: ${AUTO_TIDY}, auto-pr: ${AUTO_PR})"
 
   while true; do
     trim_log
@@ -2795,6 +2796,7 @@ run_daemon() {
           idle_snapshot="$(snapshot)"
           last_hold_snapshot=""
           push_pending=1
+          last_commit_ts="$(date +%s)"
           if (( $(date +%s) >= next_retry )); then
             next_retry=0
             retry_delay="${RETRY_BASE}"
@@ -2817,15 +2819,51 @@ run_daemon() {
       fi
     fi
 
-    # --- 4) Push to remote, retrying with exponential backoff ----------------
+    # --- 4) Push to remote, batching rapid bursts and auto-squashing/auto-PR --
     if (( push_pending )) && (( $(date +%s) >= next_retry )); then
-      if push_changes "${remote}" "${branch}"; then
-        push_pending=0
-        retry_delay="${RETRY_BASE}"
+      local now_ts
+      now_ts="$(date +%s)"
+      local time_since_commit=$(( now_ts - last_commit_ts ))
+
+      if (( ! force_sync )) && (( BURST_COOLDOWN > 0 )) && (( last_commit_ts > 0 )) && (( time_since_commit < BURST_COOLDOWN )); then
+        local remaining=$(( BURST_COOLDOWN - time_since_commit ))
+        if (( now_ts - last_burst_notice >= 4 )); then
+          notice "⏳ Batching rapid edits (cooldown: ${remaining}s remaining before push)..."
+          last_burst_notice="${now_ts}"
+        fi
       else
-        next_retry=$(( $(date +%s) + retry_delay ))
-        log "↻ Retrying the push in ${retry_delay}s."
-        retry_delay=$(( retry_delay * 2 > RETRY_MAX ? RETRY_MAX : retry_delay * 2 ))
+        local unpushed_cnt=0
+        unpushed_cnt="$(unpushed_count "${remote}" "${branch}")"
+
+        # If multiple micro-commits accumulated during rapid burst editing, auto-tidy (squash) them!
+        if (( unpushed_cnt > 1 )) && [[ "${AUTO_TIDY}" == "true" ]]; then
+          log "◈ Auto-Tidying ${unpushed_cnt} rapid micro-commits into 1 clean conventional commit..."
+          cmd_tidy "${REPO_ROOT}" >> "${LOG_FILE}" 2>&1 || true
+        fi
+
+        # If Auto-PR mode is enabled, open or update a Pull Request instead of pushing directly to main
+        if [[ "${AUTO_PR}" == "true" ]]; then
+          log "⇄ Auto-PR mode enabled; creating/updating Pull Request for '${branch}'..."
+          if cmd_pr "${branch}" >> "${LOG_FILE}" 2>&1; then
+            push_pending=0
+            last_commit_ts=0
+            retry_delay="${RETRY_BASE}"
+          else
+            next_retry=$(( $(date +%s) + retry_delay ))
+            log "↻ Retrying Auto-PR in ${retry_delay}s."
+            retry_delay=$(( retry_delay * 2 > RETRY_MAX ? RETRY_MAX : retry_delay * 2 ))
+          fi
+        else
+          if push_changes "${remote}" "${branch}"; then
+            push_pending=0
+            last_commit_ts=0
+            retry_delay="${RETRY_BASE}"
+          else
+            next_retry=$(( $(date +%s) + retry_delay ))
+            log "↻ Retrying the push in ${retry_delay}s."
+            retry_delay=$(( retry_delay * 2 > RETRY_MAX ? RETRY_MAX : retry_delay * 2 ))
+          fi
+        fi
       fi
     fi
 
