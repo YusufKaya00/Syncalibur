@@ -18,9 +18,9 @@
 
 ---
 
-## Terminal Preview (`syncalibur status` & `syncalibur ui`)
+## Terminal Preview (`syncalibur status`)
 
-When you run `syncalibur status`, `syncalibur logs`, or `syncalibur ui`, the native Go engine renders [`assets/syncalibur-logo.png`](assets/syncalibur-logo.png) directly inside your terminal using **24-bit TrueColor ANSI escape sequences** alongside live repository telemetry, verified accounts, and a 7-day commit velocity sparkline:
+When you run `syncalibur status` (or `syncalibur logs`), the native Go engine renders [`assets/syncalibur-logo.png`](assets/syncalibur-logo.png) directly inside your terminal using **24-bit TrueColor ANSI escape sequences** alongside live repository telemetry, verified accounts, active operating mode, and a 7-day commit velocity sparkline:
 
 <div align="center">
   <img src="assets/syncalibur-terminal.png" alt="Syncalibur Terminal Preview" width="960" />
@@ -44,7 +44,7 @@ cd ~/Syncalibur
 ./syncalibur.sh install /path/to/your/repo
 ```
 
-Once installed, the global `syncalibur` command is automatically linked into `~/.local/bin/syncalibur` so you can run `syncalibur ui`, `syncalibur status`, `syncalibur fleet`, `syncalibur notify`, or `syncalibur doctor` from any directory.
+Once installed, the global `syncalibur` command is automatically linked into `~/.local/bin/syncalibur` so you can run `syncalibur status`, `syncalibur mode`, `syncalibur fleet`, `syncalibur notify`, or `syncalibur doctor` from any directory.
 
 ---
 
