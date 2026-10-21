@@ -959,4 +959,54 @@ func TestModeCycleAndBadge(t *testing.T) {
 	}
 }
 
+func TestCockpitAnimations(t *testing.T) {
+	// 1. EKG Wave
+	w1 := getEkgWave(0, 10)
+	if len([]rune(w1)) != 10 {
+		t.Errorf("expected ekg wave rune length 10, got %d (%s)", len([]rune(w1)), w1)
+	}
+	w2 := getEkgWave(5, 12)
+	if len([]rune(w2)) != 12 {
+		t.Errorf("expected ekg wave rune length 12, got %d (%s)", len([]rune(w2)), w2)
+	}
+	if getEkgWave(1, 0) != "" {
+		t.Errorf("expected empty string for 0 width, got %s", getEkgWave(1, 0))
+	}
+
+	// 2. Animated Mode Badge
+	modes := []string{"instant-push", "devops", "pr", "developer"}
+	for _, m := range modes {
+		b0 := getAnimatedModeBadge(m, 0)
+		b1 := getAnimatedModeBadge(m, 4)
+		if b0 == "" || b1 == "" {
+			t.Errorf("mode badge for %s must not be empty", m)
+		}
+	}
+
+	// 3. boostAnsiColors
+	testLine := "\033[38;2;100;100;100mX\033[0m"
+	boosted := boostAnsiColors(testLine, 1.5, 10, 20, 30)
+	if !strings.Contains(boosted, "\033[38;2;160;170;180m") {
+		t.Errorf("boostAnsiColors failed, got %s", boosted)
+	}
+
+	// 4. Logo Animation Rune Width Invariance
+	logo := defaultEmbeddedLogoLines
+	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	for frame := 0; frame < 30; frame++ {
+		anim := applyAnimatedLogo(logo, frame)
+		if len(anim) != 21 {
+			t.Fatalf("frame %d: expected 21 logo lines, got %d", frame, len(anim))
+		}
+		for r, line := range anim {
+			clean := re.ReplaceAllString(line, "")
+			runeCount := len([]rune(clean))
+			if runeCount != 44 {
+				t.Fatalf("frame %d row %d: expected exactly 44 visible runes, got %d (%s)", frame, r, runeCount, clean)
+			}
+		}
+	}
+}
+
+
 
