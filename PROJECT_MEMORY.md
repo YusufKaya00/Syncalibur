@@ -64,10 +64,11 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - `daemon-exec <scriptPath> [args...]`: Spawns and supervises bash background daemon. Forwards `SIGINT`, `SIGTERM`, `SIGHUP`. Injects `SYNCALIBUR_SUPERVISOR_PID` and re-executes so `top`, `ps`, and Activity Monitor display `syncalibur`.
 - `commit-msg [repoRoot]`: Inspects staged git diff, performs AST symbol lookup, and outputs Conventional Commit message (`<type>(<scope>): <subject> (+add/-del)`).
 - `smart-stage [repoRoot] [--json]`: Partitions multi-file working tree changes into atomic semantic groups (`GROUP|<scope>|<type>|<files>`).
-- `preflight [repoRoot] [--staged-only] [--json]`: Scans modified files for secrets (Shannon entropy) and syntax errors.
+- `preflight [repoRoot] [--staged-only] [--json]`: Scans modified files for secrets (Shannon entropy), syntax errors, and DevOps policies.
   - **Exit Code 0:** Clean (pass).
-  - **Exit Code 2:** Syntax Hold (code contains unclosed brackets/syntax errors; commit is held until fixed).
-  - **Exit Code 3:** Secret Shield (credential detected; specific files are quarantined from git add).
+  - **Exit Code 2:** Syntax Hold (code contains unclosed brackets/syntax errors or conflict markers; commit is held until fixed).
+  - **Exit Code 3:** Secret Shield (high-entropy credential detected; specific files are quarantined from git add).
+  - **Exit Code 4:** DevOps Policy Hold (Kubernetes port mismatch, ConfigMap secret, Dockerfile :latest / root USER, or Terraform hygiene failure; commit is held until fixed).
 - `status / ui [scriptPath] [repoRoot]`: Launches fullscreen interactive two-pane cockpit with live telemetry, active operating mode, and log viewport.
 - `render-logo <src.png> <dst.ansi>`: Downsamples PNG to 44x21 character TrueColor ANSI using 2x2 quadrant subpixel clustering.
 - `sparkline [repoRoot]`: Computes 7-day commit velocity bar chart (`  ▂▃▄▅▆▇█`).
