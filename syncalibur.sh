@@ -1997,6 +1997,25 @@ block_reason() {
       fi
       ;;
   esac
+
+  if (( ${#BINARY_PATTERNS[@]} > 0 )); then
+    for bin_pat in "${BINARY_PATTERNS[@]}"; do
+      [[ -z "${bin_pat}" ]] && continue
+      # shellcheck disable=SC2053
+      if [[ "${name}" == ${bin_pat} || "${path}" == ${bin_pat} || "${path}" == *"${bin_pat}"* ]]; then
+        echo "binary/archive file (matches '${bin_pat}')"
+        return 0
+      fi
+    done
+  fi
+
+  if [[ -f "${path}" && ! -L "${path}" ]]; then
+    if [[ "$(head -c 8000 "${path}" 2>/dev/null | tr -d '\0' | wc -c)" -ne "$(head -c 8000 "${path}" 2>/dev/null | wc -c)" ]]; then
+      echo "binary file (contains null bytes)"
+      return 0
+    fi
+  fi
+
   if (( MAX_FILE_BYTES > 0 )) && [[ -f "${path}" && ! -L "${path}" ]]; then
     size="$(file_size_bytes "${path}")"
     if (( size > MAX_FILE_BYTES )); then
@@ -2009,9 +2028,9 @@ block_reason() {
 
 commit_changes() {
   local path reason msg count line err_out
-  local -a excludes=() files=()
+  local -a excludes=() files=() quarantined_set=()
 
-  # 1. Pre-flight Syntax Gate & Shannon Entropy Secret Shield (Go Engine)
+  # 1. Pre-flight Syntax Gate, Secret Shield & DevOps Lint Gate (Go Engine)
   if ensure_go_engine; then
     local pf_out pf_code=0
     pf_out="$("${GO_ENGINE_BIN}" preflight "${REPO_ROOT}" --json 2>/dev/null || true)"
@@ -2021,12 +2040,18 @@ commit_changes() {
         while IFS= read -r q_file; do
           [[ -z "${q_file}" ]] && continue
           excludes+=(":(exclude,literal)${q_file}")
+          quarantined_set+=("${q_file}")
           log "⛨ [SECRET SHIELD] Quarantined '${q_file}' (high-entropy credential detected; excluded from commit)"
         done < <(jq -r '.quarantined_files[]?' <<< "${pf_out}")
       elif (( pf_code == 2 )); then
         local syn_err
         syn_err="$(jq -r '.details[0] // .syntax_errors[0] // "syntax error"' <<< "${pf_out}")"
         log "▲ [SYNTAX HOLD] Incomplete syntax in ${syn_err}; holding commit until write settles."
+        return 1
+      elif (( pf_code == 4 )); then
+        local devops_err
+        devops_err="$(jq -r '.details[0] // .devops_errors[0] // "infrastructure lint failure"' <<< "${pf_out}")"
+        log "☸ [DEVOPS HOLD] Infrastructure lint error: ${devops_err}; holding commit until manifest is valid."
         return 1
       fi
     elif ensure_go_engine; then
@@ -2039,6 +2064,11 @@ commit_changes() {
         return 1
       elif (( pf_rc == 3 )); then
         log "⛨ [SECRET SHIELD] Detected credential in working tree; holding commit."
+        return 1
+      elif (( pf_rc == 4 )); then
+        local first_err
+        first_err="$(head -n 2 <<< "${pf_raw}" | tr '\n' ' ')"
+        log "☸ [DEVOPS HOLD] ${first_err}; holding commit."
         return 1
       fi
     fi
@@ -2060,6 +2090,15 @@ commit_changes() {
 
       local g_valid_files=()
       for f in "${g_files[@]}"; do
+        local is_quarantined=0
+        for q in "${quarantined_set[@]}"; do
+          if [[ "${f}" == "${q}" ]]; then
+            is_quarantined=1
+            break
+          fi
+        done
+        (( is_quarantined )) && continue
+
         if ! reason="$(block_reason "${f}")"; then
           g_valid_files+=("${f}")
         else
