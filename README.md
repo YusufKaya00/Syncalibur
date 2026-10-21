@@ -72,23 +72,23 @@ Once installed, the global `syncalibur` command is automatically linked into `~/
   - Non-blocking lock detection with procfs (`/proc/*/fd/*`) verification that automatically heals stale Git locks (>60s) without risking live index corruption.
 - **Safe Bidirectional Sync (`--rebase --autostash`):** Periodically fetches from your primary remote (`origin`), detects when remote commits are ahead of local `HEAD`, and safely runs `git pull --rebase --autostash` when the working tree is clean. If a merge conflict is detected, Syncalibur **immediately aborts the rebase** (`git rebase --abort`), leaves your working tree untouched, and pops open a diagnostic terminal window.
 - **Protected Branch Auto-PR with Rich Template:** If a target branch (like `main`) is protected with required Pull Request reviews or force-push restrictions, Syncalibur automatically pushes a `sync/auto-*` branch and opens a Pull Request populated with a structured Markdown PR template (diff stats, component checkboxes, and verification checklist).
-- **Organic Commit Cadence & Contribution Consistency:** Naturally turns your real day-to-day coding progress into steady, well-scoped semantic commits pushed on time across GitHub and GitLab — keeping your contribution graph consistently active with genuine code changes (never fake or empty commits).
+- **Developer Flight Recorder & History Continuity:** Naturally captures your real day-to-day engineering progress into steady, well-scoped semantic checkpoints and conventional commits — preserving continuous history without risking broken builds or leaked secrets.
 - **Native Filesystem Event Watching (`inotifywait` / `fswatch`):** Zero-CPU event-driven watching when `inotifywait` (Linux) or `fswatch` (macOS) is installed, with automatic fallback to lightweight polling.
 - **Multi-Repository Fleet Supervisor (`repos.list`):** Watch 5, 10, or 50 repositories simultaneously! Run `syncalibur fleet scan ~/projects` to auto-discover all Git repositories using concurrent Go goroutines and supervise them in parallel.
 
 ### 2. Operating Modes & Adaptive History Hygiene
 Syncalibur provides four specialized automation personas designed for different development workflows, configurable **per-repository** (via `.syncalibur`) or globally:
-- **`commit-generator` (Continuous Stream Mode):** Every save (even a 1-line edit) passes Syntax Hold & Secret Shield, settles after a 10s cooldown quiescence, is staged into a pinpoint Conventional Commit, and pushed directly to `main`. Perfect for solo study/notes repos (`k8sfundamentals`), learning journals, and personal sandboxes.
+- **`instant-push` (Continuous Stream Mode):** Every save (even a 1-line edit) passes Syntax Hold & Secret Shield, settles after a 10s cooldown quiescence, is staged into an atomic Conventional Commit, and pushed directly to `main` without squashing. Perfect for solo study/notes repos (`k8sfundamentals`), learning journals, and personal sandboxes (backward-compatible alias: `commit-generator`).
 - **`developer` (Adaptive Burst & Squash Mode) [Default]:** Balances continuous local micro-commits with clean remote history. 1-2 small commits push directly; if you make 3+ rapid changes (active burst sprint), Syncalibur waits for a 20s cooldown quiescence, squashes them into 1 clean Conventional Commit, and pushes. If the remote branch is protected, it automatically opens a Pull Request instead.
 - **`devops` (DevOps & GitOps Guard Mode):** Engineered for Kubernetes manifests, Helm charts, Dockerfiles, and Terraform repos. Enforces a 30s cooldown quiescence, automatic squash hygiene (`tidy ≥3`), and executes the deep **DevOps & GitOps Guard** preflight gate (verifying K8s ports, probe ports, ConfigMap secrets, and Dockerfile tags).
 - **`pr` (Strict Pull Request Mode):** Never pushes directly to `main`; always creates an isolated sync branch (`sync/<user>/<branch>-<timestamp>`) and opens a Pull Request with a structured Markdown PR template.
 - **Per-Repository Tailoring:** Different repositories can run different modes! For example:
-  - `~/k8sfundamentals` in `commit-generator` mode
+  - `~/k8sfundamentals` in `instant-push` mode
   - `~/Syncalibur` in `developer` mode
   - `~/k8s-infra` in `devops` mode
   - `~/team-project` in `pr` mode
 - **Switch Modes Anytime:**
-  - For current repository: `syncalibur mode <commit-generator|developer|devops|pr>` (saves to `<repo>/.syncalibur`)
+  - For current repository: `syncalibur mode <instant-push|developer|devops|pr>` (saves to `<repo>/.syncalibur`)
   - Globally for all repositories: `syncalibur mode <mode> --global`
   - Interactive Cockpit: Press `[m]` in `syncalibur status`
 
@@ -104,7 +104,7 @@ Syncalibur provides four specialized automation personas designed for different 
   - **Top Pane (Live Telemetry Cockpit):** Displays real-time daemon state, active operating mode, today's commit count, 7-day velocity sparkline (` ▂█▅··▅▃`), Syntax & Secret Shield status, and hotkey cheatsheet (updated live every second).
   - **Bottom Pane (Scrollable Live Log Viewport):** Dynamically sized viewport that reads `syncalibur.log` with full keyboard scrolling (`↑/↓` or Vim `j/k`, `PageUp/PageDown`, `g` Top, `G` Bottom) and Follow mode toggle (`f`).
   - **Single-Keystroke Hotkeys:**
-    - `[m]` Toggle Operating Mode (`commit-generator` ➔ `developer` ➔ `devops` ➔ `pr`)
+    - `[m]` Toggle Operating Mode (`instant-push` ➔ `developer` ➔ `devops` ➔ `pr`)
     - `[p]` Pause / Resume Auto-Sync
     - `[s]` Force Immediate Commit & Push
     - `[b]` Force Bidirectional Pull (`--rebase`)
