@@ -2312,11 +2312,21 @@ cmd_tidy() {
   current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
   cd "${current_repo}" || return 1
 
-  local branch upstream unpushed_cnt
+  local branch upstream unpushed_cnt rem
   branch="$(git branch --show-current 2>/dev/null || echo "main")"
-  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/${branch}")"
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "")"
+  if [[ -z "${upstream}" ]] || ! git rev-parse --verify "${upstream}" >/dev/null 2>&1; then
+    rem="$(get_remote 2>/dev/null || echo "origin")"
+    if git rev-parse --verify "refs/remotes/${rem}/${branch}" >/dev/null 2>&1; then
+      upstream="refs/remotes/${rem}/${branch}"
+    elif git rev-parse --verify "refs/remotes/origin/${branch}" >/dev/null 2>&1; then
+      upstream="refs/remotes/origin/${branch}"
+    elif git rev-parse --verify "origin/${branch}" >/dev/null 2>&1; then
+      upstream="origin/${branch}"
+    fi
+  fi
 
-  if ! git rev-parse --verify "${upstream}" >/dev/null 2>&1; then
+  if [[ -z "${upstream}" ]] || ! git rev-parse --verify "${upstream}" >/dev/null 2>&1; then
     echo -e "${C_AMBER}▲ No upstream tracking branch found for '${branch}'; cannot safely determine unpushed boundary.${C_RESET}"
     return 1
   fi
