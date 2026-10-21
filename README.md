@@ -180,14 +180,14 @@ flowchart TD
 | Command | Description |
 | :--- | :--- |
 | `syncalibur status [--static]` | Launch the **Interactive Two-Pane Live Cockpit** in TTY (TrueColor sword emblem, live telemetry, scrollable log viewport, hotkeys `[m]` mode, `[p]` pause, `[s]` sync, `[b]` pull, `[t]` logo, `[d]` doctor, `[q]` quit; or `--static` for plain text snapshot) |
-| `syncalibur mode [name]` | Inspect or switch active operating mode (`commit-generator` \| `developer` \| `pr`) |
+| `syncalibur mode [name]` | Inspect or switch active operating mode (`commit-generator` \| `developer` \| `devops` \| `pr`) |
 | `syncalibur install [PATH]` | Auto-detect repo, create missing remote repo if needed, link `~/.local/bin/syncalibur`, and start the OS service |
 | `syncalibur logs` | Render the emblem header and stream live color-coded log events (`tail -f`) |
 | `syncalibur sync` | Trigger an immediate one-shot bidirectional pull, semantic commit, and multi-remote push |
 | `syncalibur pull` | Trigger an immediate safe bidirectional pull (`git pull --rebase --autostash`) |
 | `syncalibur pause` / `resume` | Temporarily pause or resume background auto-commits without uninstalling the service |
 | `syncalibur notify [MSG]` | Send an instant test notification to your configured **Telegram Bot** (`syncalibur telegram-test`) and Webhook |
-| `syncalibur doctor` | Run the 11-point diagnostic health check (Git, Go Engine, inotify, SSH, `gh`/`glab`, remotes, Syntax & Secret Shield) |
+| `syncalibur doctor` | Run the 12-point diagnostic health check (Git, Go Engine, inotify, SSH, `gh`/`glab`, remotes, Git locks, submodules, Syntax, Secret Shield, and DevOps & GitOps Guard) |
 | `syncalibur fleet status` | Display a concurrent status table of all repositories in `repos.list` |
 | `syncalibur fleet scan [DIR]` | Recursively scan a directory for Git repositories using Go goroutines and append them to `repos.list` |
 | `syncalibur fleet start` | Spawn background Syncalibur daemons for every active repository in `repos.list` |
