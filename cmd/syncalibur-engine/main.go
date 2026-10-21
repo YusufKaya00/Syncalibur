@@ -659,6 +659,7 @@ func generateCommitMessage(repoRoot string) string {
 	statBadge := fmt.Sprintf("(+%d/-%d)", totalAdd, totalDel)
 
 	allDocs, allTests, allCI, allStyle := true, true, true, true
+	allK8s, allHelm, allDocker, allTF, allGitOps := true, true, true, true, true
 	hasAdd, hasDel := false, false
 
 	for i, f := range files {
@@ -670,6 +671,7 @@ func generateCommitMessage(repoRoot string) string {
 			hasDel = true
 		}
 		lower := strings.ToLower(f)
+		base := strings.ToLower(filepath.Base(f))
 		if !(strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".rst") || strings.HasSuffix(lower, ".txt") || strings.HasPrefix(lower, "docs/") || lower == "license") {
 			allDocs = false
 		}
@@ -682,15 +684,46 @@ func generateCommitMessage(repoRoot string) string {
 		if !(strings.HasSuffix(lower, ".css") || strings.HasSuffix(lower, ".scss")) {
 			allStyle = false
 		}
+		if !(strings.HasPrefix(lower, "k8s/") || strings.HasPrefix(lower, "deploy/") || strings.HasPrefix(lower, "manifests/") || strings.HasPrefix(lower, "base/") || strings.HasPrefix(lower, "overlays/")) {
+			allK8s = false
+		}
+		if !(strings.HasPrefix(lower, "charts/") || base == "chart.yaml" || strings.HasPrefix(base, "values")) {
+			allHelm = false
+		}
+		if !(strings.HasPrefix(base, "dockerfile") || base == ".dockerignore" || base == "compose.yaml" || base == "docker-compose.yml") {
+			allDocker = false
+		}
+		if !(strings.HasSuffix(lower, ".tf") || strings.HasSuffix(lower, ".tfvars") || strings.HasPrefix(lower, "terraform/")) {
+			allTF = false
+		}
+		if !(strings.HasPrefix(lower, "argocd/") || strings.HasPrefix(lower, "flux-system/") || strings.HasPrefix(lower, "apps/")) {
+			allGitOps = false
+		}
 	}
 
 	cType := "chore"
+	infraScope := ""
 	if allDocs {
 		cType = "docs"
 	} else if allTests {
 		cType = "test"
 	} else if allStyle {
 		cType = "style"
+	} else if allK8s {
+		cType = "infra"
+		infraScope = "k8s"
+	} else if allHelm {
+		cType = "helm"
+		infraScope = "chart"
+	} else if allDocker {
+		cType = "docker"
+		infraScope = "build"
+	} else if allTF {
+		cType = "tf"
+		infraScope = "infra"
+	} else if allGitOps {
+		cType = "gitops"
+		infraScope = "deploy"
 	} else if allCI {
 		cType = "build"
 	} else if hasAdd || totalAdd > totalDel*2 {
@@ -706,23 +739,25 @@ func generateCommitMessage(repoRoot string) string {
 		}
 	}
 
-	cScope := ""
-	if len(files) == 1 {
-		base := filepath.Base(files[0])
-		ext := filepath.Ext(base)
-		cScope = strings.TrimSuffix(base, ext)
-	} else {
-		firstDir := filepath.Dir(files[0])
-		if firstDir != "." && firstDir != "" {
-			same := true
-			for _, f := range files[1:] {
-				if filepath.Dir(f) != firstDir {
-					same = false
-					break
+	cScope := infraScope
+	if cScope == "" {
+		if len(files) == 1 {
+			base := filepath.Base(files[0])
+			ext := filepath.Ext(base)
+			cScope = strings.TrimSuffix(base, ext)
+		} else {
+			firstDir := filepath.Dir(files[0])
+			if firstDir != "." && firstDir != "" {
+				same := true
+				for _, f := range files[1:] {
+					if filepath.Dir(f) != firstDir {
+						same = false
+						break
+					}
 				}
-			}
-			if same {
-				cScope = filepath.Base(firstDir)
+				if same {
+					cScope = filepath.Base(firstDir)
+				}
 			}
 		}
 	}
