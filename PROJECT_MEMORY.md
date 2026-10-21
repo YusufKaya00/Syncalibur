@@ -140,20 +140,21 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - **Snapshot Hashing:** Deterministic SHA-1 working tree digest computed via `file_signature` (size + epoch mtime) piped to `git hash-object --stdin`.
 - **Debounce:** `wait_for_quiet` polls working tree until consecutive snapshots match over `DEBOUNCE_WAIT` (default 5s). Capped at `MAX_DEBOUNCE` (default 60s).
 
-#### Burst Cadence, Cooldown & Auto-Tidy / Auto-PR Gate
-When rapid, successive edits occur (burst coding):
-1. **Local Safety First:** Edits are committed locally immediately upon debounce settle, guaranteeing zero code loss.
-2. **Burst Cooldown Window (`SYNCALIBUR_BURST_COOLDOWN=20`):** Instead of immediately bombarding remote `main` with every micro-commit, the daemon enters cooldown. If new edits occur within 20s, the cooldown resets and records:
-   `⏳ Batching rapid edits (cooldown: Xs remaining before push)...`
-3. **Auto-Tidy (Squash) on Quiescence (`SYNCALIBUR_AUTO_TIDY="true"`):**
-   - Once the burst window elapses without new edits, the daemon inspects `unpushed_count`.
-   - If `unpushed > 1`: Automatically invokes `cmd_tidy "${REPO_ROOT}"`.
-   - Creates an immutable safety rollback ref: `refs/syncalibur/backup-HEAD-<timestamp>`.
-   - Soft-resets against upstream, generates an AST-aware Conventional Commit title, appends the rollup body of squashed commits, and commits **1 clean milestone commit**.
-4. **Auto-PR Mode (`SYNCALIBUR_AUTO_PR="true"`):**
-   - If enabled, instead of pushing directly to `main`, pushes to `sync/pr-<timestamp>` and creates a Pull Request via `gh` or `glab`.
-5. **Manual Flush Override:**
-   - Pressing `[s]` in `syncalibur ui` or running `syncalibur sync` immediately bypasses the cooldown and flushes commits to remote.
+#### Operating Modes & Adaptive History Hygiene (`SYNCALIBUR_MODE`)
+Syncalibur provides three specialized automation personas configured via `SYNCALIBUR_MODE` in `syncalibur.env` (or via `syncalibur mode <name>` / `[m]` hotkey):
+1. **`commit-generator` (Continuous Stream Mode):**
+   - Immediate push on every save (even a 1-line edit) after passing Syntax Hold & Secret Shield.
+   - Burst cooldown is disabled (`BURST_COOLDOWN=0`), squashing is bypassed (`TIDY_THRESHOLD=999`, `AUTO_TIDY="false"`), and `AUTO_PR="false"`.
+   - Directly pushes to `main` without delay. Ideal for personal study/notes repos (`k8sfundamentals`), learning journals, and solo sandbox projects.
+2. **`developer` (Adaptive Burst & Squash Mode) [Default]:**
+   - 1-2 small commits: Pushed directly to `main` without squashing.
+   - 3+ rapid commits (burst sprint): Enters `BURST_COOLDOWN=20s`. When coding pauses for 20s, auto-squashes (`cmd_tidy`) all unpushed commits into 1 clean Conventional Commit with a rollback backup ref (`refs/syncalibur/backup-HEAD-<timestamp>`).
+   - If user has push permission: Pushes the consolidated commit directly to `main`.
+   - If user lacks permission or branch is protected (`GH006`): Automatically branches to `sync/auto-*` and opens an auto-PR.
+3. **`pr` (Strict Pull Request Mode):**
+   - Never pushes directly to `main`. Commits are always pushed to an isolated sync branch and opened as a rich Pull Request.
+4. **Manual Flush Override:**
+   - Pressing `[s]` in `syncalibur status` or running `syncalibur sync` immediately flushes commits to remote.
 
 #### Safe Bidirectional Synchronization
 - Runs `safe_bidirectional_sync` before local commit cycles and periodically (`SYNCALIBUR_PULL_INTERVAL=45`).
