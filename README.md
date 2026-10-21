@@ -61,6 +61,15 @@ Once installed, the global `syncalibur` command is automatically linked into `~/
 - **Zero-Friction Commit Protection (Syntax Hold & Secret Shield):**
   - **Syntax Hold:** Pre-flight gate that holds back commits if code has broken syntax (open braces, unclosed string/template literals, half-written statements) until you finish typing. Combines native compilers (`go/parser`, `py_compile`, `node --check`, `bash -n`, `tsc`, `javac`) with a native **Universal Lexical Balance Engine** supporting Go, Python, React (JSX/TSX), TypeScript, Node.js, Java, Bash, YAML, C/C++, Rust, and PHP.
   - **Secret Shield & Shannon Entropy Quarantine:** Detects credentials via signatures (AWS, GitHub PAT, OpenAI `sk-...`, Slack, Private Keys) and mathematical Shannon Entropy ($H \ge 4.4$ bit/char). Quarantines sensitive files into `git add` exclude patterns without blocking other safe files.
+  - **DevOps & GitOps Guard:** Specialized preflight inspection for Kubernetes, Helm, Dockerfile, Terraform, and Git merge hygiene:
+    - **Kubernetes Port Verification:** Cross-checks Service `targetPort` (both numeric and named ports) against Pod/Deployment `containerPort` to eliminate silent blackhole traffic drops.
+    - **ConfigMap Plaintext Secret Prevention:** Blocks raw tokens, private keys, and passwords from slipping into ConfigMaps or Terraform `.tf` files.
+    - **Container Health Probe Checks:** Validates `livenessProbe` and `readinessProbe` `httpGet.port` alignment with declared container ports.
+    - **Dockerfile Hygiene Linter:** Warns on unpinned base images (`:latest`) and missing tags.
+    - **Git Conflict Marker Blocker:** Rejects accidental commits containing unresolved merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+- **Resilient Git Submodules & Stale Lock Auto-Healing:**
+  - Automatic recursive submodule synchronization (`git push --recurse-submodules=on-demand`, `git submodule update --init --recursive`) and native support for Git worktrees and submodules where `.git` is a pointer file.
+  - Non-blocking lock detection with procfs (`/proc/*/fd/*`) verification that automatically heals stale Git locks (>60s) without risking live index corruption.
 - **Safe Bidirectional Sync (`--rebase --autostash`):** Periodically fetches from your primary remote (`origin`), detects when remote commits are ahead of local `HEAD`, and safely runs `git pull --rebase --autostash` when the working tree is clean. If a merge conflict is detected, Syncalibur **immediately aborts the rebase** (`git rebase --abort`), leaves your working tree untouched, and pops open a diagnostic terminal window.
 - **Protected Branch Auto-PR with Rich Template:** If a target branch (like `main`) is protected with required Pull Request reviews or force-push restrictions, Syncalibur automatically pushes a `sync/auto-*` branch and opens a Pull Request populated with a structured Markdown PR template (diff stats, component checkboxes, and verification checklist).
 - **Organic Commit Cadence & Contribution Consistency:** Naturally turns your real day-to-day coding progress into steady, well-scoped semantic commits pushed on time across GitHub and GitLab — keeping your contribution graph consistently active with genuine code changes (never fake or empty commits).
@@ -68,16 +77,18 @@ Once installed, the global `syncalibur` command is automatically linked into `~/
 - **Multi-Repository Fleet Supervisor (`repos.list`):** Watch 5, 10, or 50 repositories simultaneously! Run `syncalibur fleet scan ~/projects` to auto-discover all Git repositories using concurrent Go goroutines and supervise them in parallel.
 
 ### 2. Operating Modes & Adaptive History Hygiene
-Syncalibur provides three specialized automation personas designed for different development workflows, configurable **per-repository** (via `.syncalibur`) or globally:
+Syncalibur provides four specialized automation personas designed for different development workflows, configurable **per-repository** (via `.syncalibur`) or globally:
 - **`commit-generator` (Continuous Stream Mode):** Every save (even a 1-line edit) passes Syntax Hold & Secret Shield, settles after a 10s cooldown quiescence, is staged into a pinpoint Conventional Commit, and pushed directly to `main`. Perfect for solo study/notes repos (`k8sfundamentals`), learning journals, and personal sandboxes.
 - **`developer` (Adaptive Burst & Squash Mode) [Default]:** Balances continuous local micro-commits with clean remote history. 1-2 small commits push directly; if you make 3+ rapid changes (active burst sprint), Syncalibur waits for a 20s cooldown quiescence, squashes them into 1 clean Conventional Commit, and pushes. If the remote branch is protected, it automatically opens a Pull Request instead.
+- **`devops` (DevOps & GitOps Guard Mode):** Engineered for Kubernetes manifests, Helm charts, Dockerfiles, and Terraform repos. Enforces a 30s cooldown quiescence, automatic squash hygiene (`tidy ≥3`), and executes the deep **DevOps & GitOps Guard** preflight gate (verifying K8s ports, probe ports, ConfigMap secrets, and Dockerfile tags).
 - **`pr` (Strict Pull Request Mode):** Never pushes directly to `main`; always creates an isolated sync branch (`sync/<user>/<branch>-<timestamp>`) and opens a Pull Request with a structured Markdown PR template.
 - **Per-Repository Tailoring:** Different repositories can run different modes! For example:
   - `~/k8sfundamentals` in `commit-generator` mode
   - `~/Syncalibur` in `developer` mode
+  - `~/k8s-infra` in `devops` mode
   - `~/team-project` in `pr` mode
 - **Switch Modes Anytime:**
-  - For current repository: `syncalibur mode <commit-generator|developer|pr>` (saves to `<repo>/.syncalibur`)
+  - For current repository: `syncalibur mode <commit-generator|developer|devops|pr>` (saves to `<repo>/.syncalibur`)
   - Globally for all repositories: `syncalibur mode <mode> --global`
   - Interactive Cockpit: Press `[m]` in `syncalibur status`
 
@@ -93,18 +104,18 @@ Syncalibur provides three specialized automation personas designed for different
   - **Top Pane (Live Telemetry Cockpit):** Displays real-time daemon state, active operating mode, today's commit count, 7-day velocity sparkline (` ▂█▅··▅▃`), Syntax & Secret Shield status, and hotkey cheatsheet (updated live every second).
   - **Bottom Pane (Scrollable Live Log Viewport):** Dynamically sized viewport that reads `syncalibur.log` with full keyboard scrolling (`↑/↓` or Vim `j/k`, `PageUp/PageDown`, `g` Top, `G` Bottom) and Follow mode toggle (`f`).
   - **Single-Keystroke Hotkeys:**
-    - `[m]` Toggle Operating Mode (`commit-generator` ⇄ `developer` ⇄ `pr`)
+    - `[m]` Toggle Operating Mode (`commit-generator` ➔ `developer` ➔ `devops` ➔ `pr`)
     - `[p]` Pause / Resume Auto-Sync
     - `[s]` Force Immediate Commit & Push
     - `[b]` Force Bidirectional Pull (`--rebase`)
     - `[t]` Toggle TrueColor Sword Emblem View
     - `[f]` Toggle Live Log Follow Mode
     - `[↑/↓]` or `[j/k]` Scroll Log Viewport
-    - `[d]` Run 11-Point System Doctor
+    - `[d]` Run 12-Point System Doctor
     - `[q]` Quit Cockpit cleanly
 - **Lucide Minimalist Typography:** All terminal outputs, emblems, banners, and diagnostic tables use sleek, standardized Lucide minimalist glyphs (`✓`, `✕`, `▲`, `⛨`, `✦`, `↗`, `↙`, `●`, `○`, `⇄`, `✚`, `◆`) instead of distracting colored emojis.
 - **Telegram Bot & Multi-Channel Webhooks (`Telegram`, `Discord`, `Slack`, `Generic JSON`):** Configure `SYNCALIBUR_TELEGRAM_BOT_TOKEN` & `SYNCALIBUR_TELEGRAM_CHAT_ID` (or `SYNCALIBUR_WEBHOOK_URL`) in `syncalibur.env` to receive instant rich notifications on push failures, rebase conflicts, self-updates, or every sync, and test anytime with `syncalibur notify` (`syncalibur telegram-test`).
-- **11-Point `syncalibur doctor` Diagnostic Suite:** Verifies Git identity, Go engine binary health, filesystem watcher availability, SSH connectivity (`github.com` / `gitlab.com`), `gh` / `glab` CLI authentication, OS background service registration, remote push permissions, and Syntax & Secret Shield verification.
+- **12-Point `syncalibur doctor` Diagnostic Suite:** Verifies Git identity, Go engine binary health, filesystem watcher availability, Git locks & worktree health, submodule integrity, SSH connectivity (`github.com` / `gitlab.com`), `gh` / `glab` CLI authentication, OS background service registration, remote push permissions, Syntax & Secret Shield, and DevOps & GitOps Guard.
 
 ---
 
