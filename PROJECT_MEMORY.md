@@ -114,14 +114,44 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - **Dockerfile:** Validates instruction verbs (`FROM`, `RUN`, `CMD`, `COPY`, etc.) and continuation slashes (`\`).
 - **External CLI Fallbacks:** If installed, verifies with `python3 -m py_compile`, `node --check`, `bash -n`, `javac`, `ruby -c`, `php -l`.
 
+#### DevOps & GitOps Guard Subsystem (`cmd/syncalibur-engine`)
+Syncalibur provides an automated infrastructure policy engine for Kubernetes, Helm, Docker, and Terraform:
+1. **Kubernetes Port & Service Cross-Validation (`validateServicePortTargetPort`):**
+   - Correlates Kubernetes `Service` manifests with matching `Deployment`, `StatefulSet`, `DaemonSet`, and `Pod` resources by resolving `spec.selector` label sets against `spec.template.metadata.labels`.
+   - Validates that `service.spec.ports[].targetPort` (numeric or named) matches at least one declared `containerPort` in the matching workload.
+   - Prevents silent blackhole routing failures (where traffic to a Service is dropped with `Connection refused` because of a typo between port and targetPort).
+2. **ConfigMap Plaintext Credential Shield (`validateConfigMapSecrets`):**
+   - Analyzes keys and values within `ConfigMap` data blocks.
+   - Flags sensitive keys (`password`, `api_key`, `access_key`, `auth_token`, `secret`, `private_key`) containing high-entropy or raw credentials, prompting developers to migrate to Kubernetes `Secret`, `SealedSecret`, or external vault providers.
+3. **Container Health Probe Alignment (`validateContainerProbes`):**
+   - Validates that `livenessProbe` and `readinessProbe` HTTP/TCP target ports point to declared container ports, preventing deployment CrashLoopBackOff loops.
+4. **Image Tag Pinning (`validateImageTags`):**
+   - Flags unpinned container images or `:latest` tags, enforcing immutable tags or SHA256 digests.
+5. **Dockerfile Security & Best Practices (`lintDockerfile`):**
+   - Flags `FROM image:latest` mutable base images.
+   - Enforces non-root execution (`USER <non-root>`).
+   - Flags broad `COPY . .` commands when `.dockerignore` is missing (preventing accidental leakage of `.git`, secrets, and build caches into container layers).
+6. **Terraform Hygiene & State Secret Shield (`lintTerraformHygiene`):**
+   - Enforces `.gitignore` coverage for `.terraform/` provider caches and `*.tfstate*` remote state files.
+   - Flags plaintext credentials and secrets in `terraform.tfvars`.
+7. **Git Conflict Marker Gate (`detectConflictMarkers`):**
+   - Sniffs files for unresolved Git conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+8. **Null-Byte Binary Sniffer (`isBinaryFile`):**
+   - Sniffs the first 8000 bytes for null bytes (`0x00`) with a 10MB analysis ceiling, preventing accidental commits of compiled binaries or VM disk images.
+9. **Symlink Path-Traversal Boundary Guard (`isSafePath`):**
+   - Inspects `os.Lstat` and ensures symlinks never resolve outside the repository boundary.
+
 #### Smart Staging Planner (`planSmartStaging`)
 - Groups files by concern:
   1. `docs`: Markdown, text, licenses, `docs/` folder.
-  2. `ci`: Workflows (`.github/`), Dockerfiles, `package.json`, `go.mod`.
-  3. `style`: CSS, SCSS, stylesheets.
-  4. `code:<scope>`: Application code partitioned by module/directory.
-  5. `test`: Unit tests (`*_test.go`, `*.spec.ts`, `tests/`).
-- Allows Syncalibur to stage and commit each group independently as an atomic commit (`feat(scope): ...`, `docs: ...`, `ci: ...`).
+  2. `ci`: Workflows (`.github/`, `.gitlab/`), build files (`Makefile`, `package.json`, `go.mod`).
+  3. `k8s` / `helm`: Kubernetes manifests and Helm charts (`*.yaml`, `*.yml` in templates/ or k8s/).
+  4. `docker`: Dockerfiles, Containerfiles, `docker-compose.yml`.
+  5. `tf`: Terraform configuration (`*.tf`, `*.tfvars`).
+  6. `style`: CSS, SCSS, stylesheets.
+  7. `code:<scope>`: Application code partitioned by module/directory.
+  8. `test`: Unit tests (`*_test.go`, `*.spec.ts`, `tests/`).
+- Allows Syncalibur to stage and commit each group independently as an atomic commit (`feat(scope): ...`, `docs: ...`, `infra(k8s): ...`, `helm: ...`, `docker: ...`, `ci: ...`).
 
 #### High-Definition TrueColor ANSI Emblem & Interactive TUI
 - **Renderer:** Maps 2x2 subpixels to Unicode quadrant blocks (`▀`, `▌`, `▐`, `▄`, `▘`, `▝`, `▖`, `▗`, `▚`, `▞`, `▛`, `▜`, `▙`, `▟`, `█`).
@@ -129,7 +159,7 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - **Raw Mode Terminal:** Non-blocking async keyboard reader (`keyCh := make(chan []byte, 32)`), alternate screen buffer (`\033[?1049h`), 1-second ticker refresh.
 - **Keybindings:**
   - `q` / `Ctrl+C` / `Esc`: Clean exit with terminal state restoration.
-  - `m`: Cycle operating mode (`commit-generator` ⇄ `developer` ⇄ `pr`) and persist to `syncalibur.env`.
+  - `m`: Cycle operating mode (`commit-generator` ➔ `developer` ➔ `devops` ➔ `pr` ➔ `commit-generator`) and persist to `.syncalibur` or `syncalibur.env`.
   - `p`: Toggle pause/resume (`syncalibur.pause`).
   - `s`: Trigger immediate sync cycle (`syncalibur.sync`).
   - `b`: Trigger bidirectional remote pull (`syncalibur pull`).
