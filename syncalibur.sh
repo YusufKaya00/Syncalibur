@@ -2740,7 +2740,7 @@ cmd_mode() {
     echo -e "  Current Active Mode : ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [source: ${current_source}]"
     echo -e "  Parameters          : cooldown: ${BURST_COOLDOWN}s • tidy-threshold: ${TIDY_THRESHOLD} • auto-pr: ${AUTO_PR}"
     echo ""
-    echo -e "  ${C_CYAN}${C_BOLD}1. commit-generator${C_RESET} ${C_SLATE}(Continuous Stream Mode)${C_RESET}"
+    echo -e "  ${C_CYAN}${C_BOLD}1. instant-push${C_RESET} ${C_SLATE}(Continuous Stream Mode • Direct Auto-Push)${C_RESET}"
     echo -e "     • 1 satır bile değişse kontrollerden geçer, 10s cooldown sonrası anında commit'lenir."
     echo -e "     • Bekletmeden ve birleştirmeden doğrudan 'main' branch'ine pushlar."
     echo -e "     • Kişisel projeler, k8sfundamentals, notlar ve bireysel çalışmalar için idealdir."
@@ -2761,18 +2761,18 @@ cmd_mode() {
     echo -e "     • Asla main'e doğrudan basmaz; her zaman branch açıp GitHub/GitLab üzerinden PR açar."
     echo ""
     echo -e "  ${C_SLATE}Mod Değiştirme:${C_RESET}"
-    echo -e "    Bu repo için     : ${C_GOLD}syncalibur mode <commit-generator | developer | devops | pr>${C_RESET}"
+    echo -e "    Bu repo için     : ${C_GOLD}syncalibur mode <instant-push | developer | devops | pr>${C_RESET}"
     echo -e "    Tüm repolar için  : ${C_GOLD}syncalibur mode <mode> --global${C_RESET}"
     return 0
   fi
 
   case "${target_mode}" in
-    commit-generator | stream | continuous) target_mode="commit-generator" ;;
+    instant-push | instant | stream | continuous | commit-generator | commit-gen) target_mode="instant-push" ;;
     developer | pro | team)                  target_mode="developer" ;;
     devops | infra | k8s | iac)              target_mode="devops" ;;
     pr | review)                             target_mode="pr" ;;
     *)
-      echo -e "${C_RED}✕ Geçersiz mod: '${target_mode}'. Geçerli seçenekler: commit-generator | developer | devops | pr${C_RESET}"
+      echo -e "${C_RED}✕ Geçersiz mod: '${target_mode}'. Geçerli seçenekler: instant-push | developer | devops | pr${C_RESET}"
       return 1
       ;;
   esac
