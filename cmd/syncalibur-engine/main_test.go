@@ -68,6 +68,20 @@ func TestDetectSecretsInFile(t *testing.T) {
 	if hasSecret, reason := detectSecretsInFile(dataUriFile); hasSecret {
 		t.Errorf("expected data URI to be ignored, got false alarm: %s", reason)
 	}
+
+	// 7. File with 'test' in name that contains a secret must NOT be bypassed
+	testCredFile := filepath.Join(tmpDir, "latest_creds.py")
+	_ = os.WriteFile(testCredFile, []byte("AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"), 0644)
+	if hasSecret, _ := detectSecretsInFile(testCredFile); !hasSecret {
+		t.Errorf("expected latest_creds.py with secret to be detected, but it bypassed scanning!")
+	}
+
+	// 8. Test .env file must be quarantined even if named test
+	testEnvFile := filepath.Join(tmpDir, ".env.test")
+	_ = os.WriteFile(testEnvFile, []byte("DB_PASSWORD=supersecret\n"), 0644)
+	if hasSecret, _ := detectSecretsInFile(testEnvFile); !hasSecret {
+		t.Errorf("expected .env.test to match sensitive blacklist")
+	}
 }
 
 func TestValidateFileSyntax(t *testing.T) {
