@@ -2824,9 +2824,9 @@ run_daemon() {
     # --- 0) Watch & auto-update Syncalibur's own repository ------------------
     sync_and_update_self_repo
 
-    # Honor interactive pause toggle from `syncalibur ui` / `syncalibur pause`
+    # Honor interactive pause toggle from `syncalibur status` / `syncalibur pause`
     if [[ -f "${PAUSE_FILE}" ]]; then
-      notice "▲  Paused by user. Run 'syncalibur resume' or press [p] in 'syncalibur ui' to resume."
+      notice "▲  Paused by user. Run 'syncalibur resume' or press [p] in 'syncalibur status' to resume."
       nap "${POLL_INTERVAL}"
       continue
     fi
@@ -3017,7 +3017,7 @@ start_background_nohup() {
   if pid="$(daemon_pid)"; then
     echo "✓ Syncalibur started in the background (PID ${pid})."
     echo "• Follow logs : syncalibur logs"
-    echo "•  Live TUI    : syncalibur ui"
+    echo "•  Live Cockpit : syncalibur status"
     return 0
   fi
   echo "✕ Failed to start. Check '${LOG_FILE}' for details." >&2
