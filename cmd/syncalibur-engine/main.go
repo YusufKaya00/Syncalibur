@@ -3488,14 +3488,14 @@ func printFleetStatusTable(fleetFile string) {
 		}
 		modeLabel := "developer"
 		modeColor := cGreen
-		switch r.Mode {
-		case "commit-generator", "stream", "continuous":
-			modeLabel = "⚡ commit-gen"
+		switch canonicalizeMode(r.Mode) {
+		case "instant-push":
+			modeLabel = "⚡ instant-push"
 			modeColor = cCyan
-		case "devops", "infra", "k8s", "iac":
+		case "devops":
 			modeLabel = "☸ devops"
 			modeColor = cBlue
-		case "pr", "review":
+		case "pr":
 			modeLabel = "🔀 pr"
 			modeColor = cAmber
 		default:
