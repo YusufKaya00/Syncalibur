@@ -1983,15 +1983,724 @@ func validateDockerfileSyntax(data []byte, relPath string) (bool, string) {
 	return true, ""
 }
 
+// ==============================================================================
+// 3. Static DevOps & Infrastructure Manifest Validator (Pure Go Standard Library)
+// ==============================================================================
+
+type IntOrString struct {
+	IsString bool
+	IntVal   int
+	StrVal   string
+}
+
+func (ios IntOrString) String() string {
+	if ios.IsString {
+		return ios.StrVal
+	}
+	return strconv.Itoa(ios.IntVal)
+}
+
+func parseIntOrString(s string) IntOrString {
+	s = strings.TrimSpace(strings.Trim(s, `"'`))
+	if val, err := strconv.Atoi(s); err == nil {
+		return IntOrString{IsString: false, IntVal: val}
+	}
+	return IntOrString{IsString: true, StrVal: s}
+}
+
+type K8sPort struct {
+	Name          string
+	Port          int
+	TargetPort    IntOrString
+	ContainerPort int
+	Protocol      string
+	Line          int
+}
+
+type K8sProbe struct {
+	Type string // "livenessProbe", "readinessProbe", "startupProbe"
+	Port IntOrString
+	Line int
+}
+
+type K8sContainer struct {
+	Name   string
+	Image  string
+	Ports  []K8sPort
+	Probes []K8sProbe
+	Line   int
+}
+
+type K8sResource struct {
+	APIVersion      string
+	Kind            string
+	Name            string
+	Namespace       string
+	FilePath        string
+	LineStart       int
+	ServiceSelector map[string]string
+	ServicePorts    []K8sPort
+	TemplateLabels  map[string]string
+	Containers      []K8sContainer
+	Data            map[string]string
+	DataLines       map[string]int
+}
+
+type InfraIssue struct {
+	Severity string `json:"severity"` // "ERROR" or "WARNING"
+	Code     string `json:"code"`
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Resource string `json:"resource"`
+	Message  string `json:"message"`
+	FixHint  string `json:"fix_hint"`
+}
+
+func splitYAMLDocuments(data []byte) []string {
+	var docs []string
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var buf strings.Builder
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" || strings.HasPrefix(trimmed, "--- ") {
+			if buf.Len() > 0 {
+				docs = append(docs, buf.String())
+				buf.Reset()
+			}
+			continue
+		}
+		buf.WriteString(line)
+		buf.WriteString("\n")
+	}
+	if buf.Len() > 0 {
+		docs = append(docs, buf.String())
+	}
+	return docs
+}
+
+func parseK8sDoc(doc string, filePath string, baseLine int) *K8sResource {
+	lines := strings.Split(doc, "\n")
+	res := &K8sResource{
+		FilePath:        filePath,
+		LineStart:       baseLine,
+		ServiceSelector: make(map[string]string),
+		TemplateLabels:  make(map[string]string),
+		Data:            make(map[string]string),
+		DataLines:       make(map[string]int),
+	}
+
+	var sectionStack []string
+	var currentContainer *K8sContainer
+	var currentPort *K8sPort
+	var currentProbe *K8sProbe
+	var inDataBlock bool
+
+	for i, rawLine := range lines {
+		lineNum := baseLine + i
+		trimmed := strings.TrimSpace(rawLine)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		indent := len(rawLine) - len(strings.TrimLeft(rawLine, " "))
+
+		if strings.HasPrefix(trimmed, "apiVersion:") {
+			res.APIVersion = strings.TrimSpace(strings.TrimPrefix(trimmed, "apiVersion:"))
+			continue
+		}
+		if strings.HasPrefix(trimmed, "kind:") {
+			res.Kind = strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:"))
+			continue
+		}
+
+		parts := strings.SplitN(trimmed, ":", 2)
+		key := strings.TrimSpace(parts[0])
+		val := ""
+		if len(parts) == 2 {
+			val = strings.TrimSpace(parts[1])
+			val = strings.Trim(val, `"'`)
+		}
+
+		if (key == "name" || strings.HasPrefix(trimmed, "- name:")) && (indent == 2 || indent == 4) && res.Name == "" {
+			nameVal := val
+			if strings.HasPrefix(trimmed, "- name:") {
+				nameVal = strings.TrimSpace(strings.TrimPrefix(trimmed, "- name:"))
+				nameVal = strings.Trim(nameVal, `"'`)
+			}
+			res.Name = nameVal
+		}
+		if key == "namespace" && (indent == 2 || indent == 4) && res.Namespace == "" {
+			res.Namespace = val
+		}
+
+		// Service Selector
+		if key == "selector" && (res.Kind == "Service" || res.Kind == "") {
+			sectionStack = []string{"service_selector"}
+			continue
+		}
+		if len(sectionStack) > 0 && sectionStack[0] == "service_selector" {
+			if indent > 2 && len(parts) == 2 {
+				res.ServiceSelector[key] = val
+				continue
+			} else if indent <= 2 {
+				sectionStack = nil
+			}
+		}
+
+		// Workload template labels
+		if key == "labels" && indent >= 4 {
+			sectionStack = []string{"template_labels"}
+			continue
+		}
+		if len(sectionStack) > 0 && sectionStack[0] == "template_labels" {
+			if indent >= 6 && len(parts) == 2 {
+				res.TemplateLabels[key] = val
+				continue
+			} else if indent < 6 {
+				sectionStack = nil
+			}
+		}
+
+		// ConfigMap data block
+		if key == "data" && indent <= 2 && (res.Kind == "ConfigMap" || res.Kind == "") {
+			inDataBlock = true
+			continue
+		}
+		if inDataBlock {
+			if indent >= 2 && len(parts) == 2 {
+				res.Data[key] = val
+				res.DataLines[key] = lineNum
+				continue
+			} else if indent < 2 {
+				inDataBlock = false
+			}
+		}
+
+		// Service Ports
+		if (key == "ports" || trimmed == "ports:") && indent <= 4 && res.Kind == "Service" {
+			sectionStack = []string{"service_ports"}
+			continue
+		}
+		if len(sectionStack) > 0 && sectionStack[0] == "service_ports" {
+			if strings.HasPrefix(trimmed, "-") {
+				res.ServicePorts = append(res.ServicePorts, K8sPort{Line: lineNum, Protocol: "TCP"})
+				currentPort = &res.ServicePorts[len(res.ServicePorts)-1]
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
+				parts = strings.SplitN(trimmed, ":", 2)
+				key = strings.TrimSpace(parts[0])
+				if len(parts) == 2 {
+					val = strings.TrimSpace(strings.Trim(parts[1], `"'`))
+				}
+			}
+			if currentPort != nil {
+				if key == "port" {
+					currentPort.Port, _ = strconv.Atoi(val)
+				} else if key == "targetPort" {
+					currentPort.TargetPort = parseIntOrString(val)
+				} else if key == "name" {
+					currentPort.Name = val
+				} else if key == "protocol" {
+					currentPort.Protocol = val
+				}
+			}
+			if indent < 2 {
+				sectionStack = nil
+				currentPort = nil
+			}
+		}
+
+		// Containers in Workload
+		if (key == "containers" || trimmed == "containers:") && indent >= 4 {
+			sectionStack = []string{"containers"}
+			continue
+		}
+		if len(sectionStack) > 0 && sectionStack[0] == "containers" {
+			if strings.HasPrefix(trimmed, "- name:") || (strings.HasPrefix(trimmed, "-") && strings.Contains(trimmed, "image:")) {
+				res.Containers = append(res.Containers, K8sContainer{Line: lineNum})
+				currentContainer = &res.Containers[len(res.Containers)-1]
+				if strings.HasPrefix(trimmed, "- name:") {
+					currentContainer.Name = strings.TrimSpace(strings.Trim(strings.TrimPrefix(trimmed, "- name:"), `"'`))
+				}
+			}
+			if currentContainer != nil {
+				if key == "name" && currentContainer.Name == "" {
+					currentContainer.Name = val
+				} else if key == "image" {
+					currentContainer.Image = val
+				} else if strings.HasPrefix(trimmed, "- containerPort:") {
+					cpVal, _ := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(trimmed, "- containerPort:")))
+					currentContainer.Ports = append(currentContainer.Ports, K8sPort{ContainerPort: cpVal, Line: lineNum, Protocol: "TCP"})
+				} else if (key == "containerPort" || key == "- containerPort") && len(currentContainer.Ports) > 0 {
+					currentContainer.Ports[len(currentContainer.Ports)-1].ContainerPort, _ = strconv.Atoi(val)
+				} else if key == "name" && len(currentContainer.Ports) > 0 && indent >= 8 {
+					currentContainer.Ports[len(currentContainer.Ports)-1].Name = val
+				} else if key == "livenessProbe" || key == "readinessProbe" || key == "startupProbe" {
+					currentProbe = &K8sProbe{Type: key, Line: lineNum}
+					currentContainer.Probes = append(currentContainer.Probes, *currentProbe)
+				} else if key == "port" && currentProbe != nil && indent >= 8 {
+					currentProbe.Port = parseIntOrString(val)
+					if len(currentContainer.Probes) > 0 {
+						currentContainer.Probes[len(currentContainer.Probes)-1].Port = currentProbe.Port
+					}
+				}
+			}
+			if indent < 4 {
+				sectionStack = nil
+				currentContainer = nil
+			}
+		}
+	}
+
+	if res.Namespace == "" {
+		res.Namespace = "default"
+	}
+	return res
+}
+
+func labelsMatch(selector, labels map[string]string) bool {
+	if len(selector) == 0 || len(labels) == 0 {
+		return false
+	}
+	for k, v := range selector {
+		if labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func validateServicePortTargetPort(services []*K8sResource, workloads []*K8sResource) []InfraIssue {
+	var issues []InfraIssue
+	for _, svc := range services {
+		if svc.Kind != "Service" || len(svc.ServiceSelector) == 0 {
+			continue
+		}
+		var matchingWorkloads []*K8sResource
+		for _, w := range workloads {
+			if (w.Namespace == svc.Namespace || svc.Namespace == "default" || w.Namespace == "default") && labelsMatch(svc.ServiceSelector, w.TemplateLabels) {
+				matchingWorkloads = append(matchingWorkloads, w)
+			}
+		}
+		if len(matchingWorkloads) == 0 {
+			continue
+		}
+		for _, sPort := range svc.ServicePorts {
+			target := sPort.TargetPort
+			if !target.IsString && target.IntVal == 0 {
+				target = IntOrString{IsString: false, IntVal: sPort.Port}
+			}
+			foundMatch := false
+			var declared []string
+			for _, wl := range matchingWorkloads {
+				for _, c := range wl.Containers {
+					for _, cp := range c.Ports {
+						declared = append(declared, fmt.Sprintf("%d/%s (name: %s)", cp.ContainerPort, cp.Protocol, cp.Name))
+						if target.IsString {
+							if cp.Name == target.StrVal {
+								foundMatch = true
+								break
+							}
+						} else {
+							if cp.ContainerPort == target.IntVal {
+								foundMatch = true
+								break
+							}
+						}
+					}
+					if foundMatch {
+						break
+					}
+				}
+				if foundMatch {
+					break
+				}
+			}
+			if !foundMatch && len(declared) > 0 {
+				issues = append(issues, InfraIssue{
+					Severity: "ERROR",
+					Code:     "K8S_PORT_MISMATCH",
+					File:     svc.FilePath,
+					Line:     sPort.Line,
+					Resource: fmt.Sprintf("Service/%s", svc.Name),
+					Message:  fmt.Sprintf("Service targetPort %s does not match any containerPort in matching Workload (selectors: %v)", target.String(), svc.ServiceSelector),
+					FixHint:  fmt.Sprintf("Declared container ports: [%s]. Update Service targetPort or declare matching containerPort.", strings.Join(declared, ", ")),
+				})
+			}
+		}
+	}
+	return issues
+}
+
+var sensitiveKeyRegex = regexp.MustCompile(`(?i)(password|passwd|api[_-]?key|auth[_-]?token|secret[_-]?key|jwt|db_pass|private_key)`)
+var benignPlaceholderRegex = regexp.MustCompile(`(?i)^(<.+>|\$\{.+\}|\{\{.+}}|changeme|dummy|todo|example|null|none|placeholder)$`)
+
+func validateConfigMapSecrets(cms []*K8sResource) []InfraIssue {
+	var issues []InfraIssue
+	for _, cm := range cms {
+		if cm.Kind != "ConfigMap" {
+			continue
+		}
+		for key, val := range cm.Data {
+			val = strings.TrimSpace(val)
+			if sensitiveKeyRegex.MatchString(key) {
+				if val == "" || benignPlaceholderRegex.MatchString(val) {
+					continue
+				}
+				line := cm.DataLines[key]
+				entropy := calculateShannonEntropy(val)
+				if entropy >= 3.0 || len(val) >= 12 {
+					issues = append(issues, InfraIssue{
+						Severity: "ERROR",
+						Code:     "CONFIGMAP_PLAINTEXT_SECRET",
+						File:     cm.FilePath,
+						Line:     line,
+						Resource: fmt.Sprintf("ConfigMap/%s", cm.Name),
+						Message:  fmt.Sprintf("ConfigMap key '%s' contains hardcoded plaintext credential", key),
+						FixHint:  "Migrate this sensitive value to a Kubernetes Secret, SealedSecret, or ExternalSecret vault store.",
+					})
+				}
+			}
+		}
+	}
+	return issues
+}
+
+func validateImageTags(resources []*K8sResource) []InfraIssue {
+	var issues []InfraIssue
+	for _, res := range resources {
+		for _, c := range res.Containers {
+			image := strings.TrimSpace(c.Image)
+			if image == "" || strings.Contains(image, "@sha256:") {
+				continue
+			}
+			parts := strings.Split(image, "/")
+			lastPart := parts[len(parts)-1]
+			tagParts := strings.Split(lastPart, ":")
+			if len(tagParts) == 1 {
+				issues = append(issues, InfraIssue{
+					Severity: "WARNING",
+					Code:     "IMAGE_TAG_MISSING",
+					File:     res.FilePath,
+					Line:     c.Line,
+					Resource: fmt.Sprintf("%s/%s (container: %s)", res.Kind, res.Name, c.Name),
+					Message:  fmt.Sprintf("Container image '%s' is untagged (defaults to mutable ':latest')", image),
+					FixHint:  "Pin the image to an immutable release tag (e.g., 'myapp:1.4.2') or a SHA256 digest.",
+				})
+			} else if tagParts[1] == "latest" {
+				issues = append(issues, InfraIssue{
+					Severity: "WARNING",
+					Code:     "IMAGE_TAG_LATEST",
+					File:     res.FilePath,
+					Line:     c.Line,
+					Resource: fmt.Sprintf("%s/%s (container: %s)", res.Kind, res.Name, c.Name),
+					Message:  fmt.Sprintf("Container image '%s' uses mutable ':latest' tag", image),
+					FixHint:  "Avoid ':latest' in production manifests to guarantee deterministic deployments and rollbacks.",
+				})
+			}
+		}
+	}
+	return issues
+}
+
+func validateContainerProbes(resources []*K8sResource) []InfraIssue {
+	var issues []InfraIssue
+	for _, res := range resources {
+		for _, c := range res.Containers {
+			if len(c.Ports) == 0 {
+				continue
+			}
+			for _, probe := range c.Probes {
+				if !probe.Port.IsString && probe.Port.IntVal == 0 {
+					continue
+				}
+				matched := false
+				var declared []string
+				for _, cp := range c.Ports {
+					declared = append(declared, strconv.Itoa(cp.ContainerPort))
+					if probe.Port.IsString {
+						if cp.Name == probe.Port.StrVal {
+							matched = true
+							break
+						}
+					} else {
+						if cp.ContainerPort == probe.Port.IntVal {
+							matched = true
+							break
+						}
+					}
+				}
+				if !matched {
+					issues = append(issues, InfraIssue{
+						Severity: "ERROR",
+						Code:     "PROBE_PORT_MISMATCH",
+						File:     res.FilePath,
+						Line:     probe.Line,
+						Resource: fmt.Sprintf("%s/%s (container: %s)", res.Kind, res.Name, c.Name),
+						Message:  fmt.Sprintf("%s probe targets port %s which is not declared in container ports", probe.Type, probe.Port.String()),
+						FixHint:  fmt.Sprintf("Declared ports: [%s]. Align probe port with a declared containerPort.", strings.Join(declared, ", ")),
+					})
+				}
+			}
+		}
+	}
+	return issues
+}
+
+func lintDockerfile(data []byte, relPath, repoRoot string) []InfraIssue {
+	var issues []InfraIssue
+	lines := strings.Split(string(data), "\n")
+	hasUser := false
+	lastFromLine := 0
+	lastBaseImage := ""
+	lastBaseTag := ""
+	hasCopyBroad := false
+	copyBroadLine := 0
+
+	for lineNum, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
+		}
+		verb := strings.ToUpper(fields[0])
+		if verb == "FROM" && len(fields) >= 2 {
+			hasUser = false
+			lastFromLine = lineNum + 1
+			base := fields[1]
+			parts := strings.Split(base, "/")
+			lastPart := parts[len(parts)-1]
+			tagParts := strings.Split(lastPart, ":")
+			lastBaseImage = tagParts[0]
+			if len(tagParts) > 1 {
+				lastBaseTag = tagParts[1]
+			} else {
+				lastBaseTag = ""
+			}
+			if lastBaseImage != "scratch" && (lastBaseTag == "" || lastBaseTag == "latest") {
+				issues = append(issues, InfraIssue{
+					Severity: "WARNING",
+					Code:     "DOCKER_UNPINNED_BASE",
+					File:     relPath,
+					Line:     lineNum + 1,
+					Resource: "Dockerfile",
+					Message:  fmt.Sprintf("Base image '%s' is untagged or uses mutable ':latest'", base),
+					FixHint:  "Pin the base image to an explicit version (e.g., 'alpine:3.19.1' or SHA256 digest).",
+				})
+			}
+		} else if verb == "USER" && len(fields) >= 2 {
+			u := strings.ToLower(fields[1])
+			if u != "root" && u != "0" {
+				hasUser = true
+			}
+		} else if (verb == "COPY" || verb == "ADD") && len(fields) >= 3 {
+			if fields[1] == "." || fields[1] == "./" {
+				hasCopyBroad = true
+				copyBroadLine = lineNum + 1
+			}
+		}
+	}
+
+	if lastFromLine > 0 && !hasUser && lastBaseImage != "scratch" {
+		issues = append(issues, InfraIssue{
+			Severity: "WARNING",
+			Code:     "DOCKER_ROOT_USER",
+			File:     relPath,
+			Line:     lastFromLine,
+			Resource: "Dockerfile",
+			Message:  "Container executes as default root user without non-root USER instruction",
+			FixHint:  "Declare a non-root user (e.g., 'USER 10001:10001' or 'USER appuser') before CMD/ENTRYPOINT.",
+		})
+	}
+
+	if hasCopyBroad {
+		dockerignoreDir := filepath.Join(repoRoot, filepath.Dir(relPath), ".dockerignore")
+		dockerignoreRoot := filepath.Join(repoRoot, ".dockerignore")
+		_, err1 := os.Stat(dockerignoreDir)
+		_, err2 := os.Stat(dockerignoreRoot)
+		if err1 != nil && err2 != nil {
+			issues = append(issues, InfraIssue{
+				Severity: "WARNING",
+				Code:     "DOCKER_MISSING_DOCKERIGNORE",
+				File:     relPath,
+				Line:     copyBroadLine,
+				Resource: "Dockerfile",
+				Message:  "Broad 'COPY . .' used without a .dockerignore file",
+				FixHint:  "Create a .dockerignore file to prevent leaking .git, secrets, or temporary files into the container image.",
+			})
+		}
+	}
+	return issues
+}
+
+func lintTerraformHygiene(repoRoot string, files []string) []InfraIssue {
+	var issues []InfraIssue
+	hasTF := false
+	for _, f := range files {
+		ext := strings.ToLower(filepath.Ext(f))
+		if ext == ".tf" || ext == ".tfvars" || strings.HasPrefix(f, "terraform/") {
+			hasTF = true
+			break
+		}
+	}
+	if !hasTF {
+		return issues
+	}
+
+	// 1. Check .gitignore for .terraform/ and *.tfstate*
+	giPath := filepath.Join(repoRoot, ".gitignore")
+	giData, err := os.ReadFile(giPath)
+	if err != nil {
+		issues = append(issues, InfraIssue{
+			Severity: "ERROR",
+			Code:     "TF_GITIGNORE_MISSING",
+			File:     ".gitignore",
+			Line:     1,
+			Resource: "Terraform",
+			Message:  ".gitignore is missing in repository containing Terraform files",
+			FixHint:  "Create .gitignore containing '.terraform/' and '*.tfstate*'.",
+		})
+	} else {
+		giStr := string(giData)
+		if !strings.Contains(giStr, ".terraform") || !strings.Contains(giStr, "tfstate") {
+			issues = append(issues, InfraIssue{
+				Severity: "ERROR",
+				Code:     "TF_GITIGNORE_MISSING",
+				File:     ".gitignore",
+				Line:     1,
+				Resource: "Terraform",
+				Message:  ".gitignore is missing '.terraform/' or '*.tfstate*' rules",
+				FixHint:  "Add '.terraform/' and '*.tfstate*' to .gitignore to prevent committing large provider caches or raw state secrets.",
+			})
+		}
+	}
+
+	// 2. Check for plaintext credentials in .tfvars
+	for _, rel := range files {
+		ext := strings.ToLower(filepath.Ext(rel))
+		base := strings.ToLower(filepath.Base(rel))
+		if ext == ".tfvars" || strings.Contains(base, "tfvars") {
+			if strings.HasSuffix(base, ".example") || strings.HasSuffix(base, ".sample") {
+				continue
+			}
+			absPath := filepath.Join(repoRoot, rel)
+			data, err := os.ReadFile(absPath)
+			if err != nil {
+				continue
+			}
+			for lineNum, line := range strings.Split(string(data), "\n") {
+				trimmed := strings.TrimSpace(line)
+				if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//") {
+					continue
+				}
+				if strings.Contains(trimmed, "=") {
+					parts := strings.SplitN(trimmed, "=", 2)
+					k := strings.ToLower(strings.TrimSpace(parts[0]))
+					v := strings.TrimSpace(strings.Trim(parts[1], `"'`))
+					if sensitiveKeyRegex.MatchString(k) && len(v) >= 8 && !benignPlaceholderRegex.MatchString(v) {
+						issues = append(issues, InfraIssue{
+							Severity: "ERROR",
+							Code:     "TF_PLAINTEXT_SECRET",
+							File:     rel,
+							Line:     lineNum + 1,
+							Resource: "Terraform Variables",
+							Message:  fmt.Sprintf("Variable '%s' contains hardcoded sensitive plaintext value in %s", parts[0], rel),
+							FixHint:  "Use environment variables (TF_VAR_*) or cloud secret managers instead of committing plaintext .tfvars values.",
+						})
+					}
+				}
+			}
+		}
+	}
+	return issues
+}
+
+func validateDevOpsGate(repoRoot string, files []string) []InfraIssue {
+	var allIssues []InfraIssue
+	var k8sManifests []*K8sResource
+
+	for _, rel := range files {
+		ext := strings.ToLower(filepath.Ext(rel))
+		base := strings.ToLower(filepath.Base(rel))
+		absPath := filepath.Join(repoRoot, rel)
+
+		// 1. Kubernetes YAML manifests
+		if ext == ".yaml" || ext == ".yml" {
+			data, err := os.ReadFile(absPath)
+			if err == nil {
+				dataStr := string(data)
+				if strings.Contains(dataStr, "apiVersion:") && strings.Contains(dataStr, "kind:") {
+					docs := splitYAMLDocuments(data)
+					currentLine := 1
+					for _, doc := range docs {
+						lineCount := len(strings.Split(doc, "\n"))
+						res := parseK8sDoc(doc, rel, currentLine)
+						if res != nil && res.Kind != "" {
+							k8sManifests = append(k8sManifests, res)
+						}
+						currentLine += lineCount + 1
+					}
+				}
+			}
+		}
+
+		// 2. Dockerfile linting
+		if base == "dockerfile" || strings.HasPrefix(base, "dockerfile.") || base == "containerfile" {
+			data, err := os.ReadFile(absPath)
+			if err == nil {
+				issues := lintDockerfile(data, rel, repoRoot)
+				allIssues = append(allIssues, issues...)
+			}
+		}
+	}
+
+	// Cross-resource Kubernetes validation
+	if len(k8sManifests) > 0 {
+		var services []*K8sResource
+		var workloads []*K8sResource
+		var configMaps []*K8sResource
+
+		for _, r := range k8sManifests {
+			if r.Kind == "Service" {
+				services = append(services, r)
+			} else if r.Kind == "Deployment" || r.Kind == "StatefulSet" || r.Kind == "DaemonSet" || r.Kind == "Pod" {
+				workloads = append(workloads, r)
+			} else if r.Kind == "ConfigMap" {
+				configMaps = append(configMaps, r)
+			}
+		}
+
+		allIssues = append(allIssues, validateServicePortTargetPort(services, workloads)...)
+		allIssues = append(allIssues, validateConfigMapSecrets(configMaps)...)
+		allIssues = append(allIssues, validateImageTags(k8sManifests)...)
+		allIssues = append(allIssues, validateContainerProbes(k8sManifests)...)
+	}
+
+	// 3. Terraform hygiene
+	allIssues = append(allIssues, lintTerraformHygiene(repoRoot, files)...)
+
+	return allIssues
+}
+
 type preflightJSONResult struct {
-	Passed      bool     `json:"passed"`
-	ExitCode    int      `json:"exit_code"`
-	SyntaxErrors []string `json:"syntax_errors"`
-	Quarantined []string `json:"quarantined_files"`
-	Details     []string `json:"details"`
+	Passed       bool         `json:"passed"`
+	ExitCode     int          `json:"exit_code"`
+	Mode         string       `json:"mode,omitempty"`
+	SyntaxErrors []string     `json:"syntax_errors"`
+	Quarantined  []string     `json:"quarantined_files"`
+	DevOpsIssues []InfraIssue `json:"devops_issues,omitempty"`
+	Details      []string     `json:"details"`
 }
 
 func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
+	mode := resolveEffectiveRepoMode(repoRoot, "")
+	if env := os.Getenv("SYNCALIBUR_MODE"); env != "" {
+		mode = strings.ToLower(env)
+	}
+
 	var files []string
 	gitArgs := []string{"-C", repoRoot, "-c", "core.quotePath=false", "diff"}
 	if stagedOnly {
@@ -2025,21 +2734,47 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 	var details []string
 
 	for _, rel := range files {
+		// 0. Path Traversal & Symlink Safety
+		if safe, reason := isSafePath(repoRoot, rel); !safe {
+			quarantinedFiles = append(quarantinedFiles, rel)
+			details = append(details, fmt.Sprintf("%s: %s", rel, reason))
+			continue
+		}
+
 		absPath := filepath.Join(repoRoot, rel)
 		if st, err := os.Stat(absPath); err != nil || st.IsDir() {
 			continue
 		}
 
-		// 1. Secret & High-Entropy Check
+		// 1. Conflict Marker Gate
+		if hasMarker, markerMsg := detectConflictMarkers(absPath); hasMarker {
+			syntaxErrors = append(syntaxErrors, rel)
+			details = append(details, markerMsg)
+		}
+
+		// 2. Secret & Sensitive Pattern Check
 		if hasSecret, reason := detectSecretsInFile(absPath); hasSecret {
 			quarantinedFiles = append(quarantinedFiles, rel)
 			details = append(details, reason)
 		}
 
-		// 2. Syntax Validation Check
+		// 3. Syntax Validation Check
 		if valid, errReason := validateFileSyntax(repoRoot, rel); !valid {
 			syntaxErrors = append(syntaxErrors, rel)
 			details = append(details, errReason)
+		}
+	}
+
+	// 4. DevOps Policy Gate (for devops mode or general devops files)
+	var devopsIssues []InfraIssue
+	hasDevOpsError := false
+	if mode == "devops" || mode == "infra" || mode == "k8s" {
+		devopsIssues = validateDevOpsGate(repoRoot, files)
+		for _, iss := range devopsIssues {
+			if iss.Severity == "ERROR" {
+				hasDevOpsError = true
+			}
+			details = append(details, fmt.Sprintf("[%s] %s (%s:%d): %s", iss.Severity, iss.Resource, iss.File, iss.Line, iss.Message))
 		}
 	}
 
@@ -2047,22 +2782,26 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 	if len(quarantinedFiles) > 0 {
 		exitCode = 3 // Secret detected
 	} else if len(syntaxErrors) > 0 {
-		exitCode = 2 // Syntax error
+		exitCode = 2 // Syntax error or conflict marker
+	} else if hasDevOpsError {
+		exitCode = 4 // DevOps Policy hold
 	}
 
 	if jsonOutput {
 		res := preflightJSONResult{
 			Passed:       exitCode == 0,
 			ExitCode:     exitCode,
+			Mode:         mode,
 			SyntaxErrors: syntaxErrors,
 			Quarantined:  quarantinedFiles,
+			DevOpsIssues: devopsIssues,
 			Details:      details,
 		}
 		b, _ := json.MarshalIndent(res, "", "  ")
 		return exitCode, string(b)
 	}
 
-	if exitCode == 0 {
+	if exitCode == 0 && len(devopsIssues) == 0 {
 		return 0, fmt.Sprintf("%s%s %sPre-flight verification passed (all files clean)%s", cGreen, iconCheck, cWhite, cReset)
 	}
 
@@ -2073,6 +2812,45 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 			sb.WriteString(fmt.Sprintf("  %s%s%s %s\n", cRed, iconCross, cReset, q))
 		}
 	}
+	if len(syntaxErrors) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(fmt.Sprintf("%s%s %sSYNTAX / CONFLICT ERRORS DETECTED (%d)%s\n", cAmber, iconWarn, cBold, len(syntaxErrors), cReset))
+		for _, s := range syntaxErrors {
+			sb.WriteString(fmt.Sprintf("  %s%s%s %s\n", cAmber, iconCross, cReset, s))
+		}
+	}
+	if len(devopsIssues) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		headerColor := cCyan
+		if hasDevOpsError {
+			headerColor = cRed
+		}
+		sb.WriteString(fmt.Sprintf("%s%s %sDEVOPS & INFRASTRUCTURE GATE ISSUES (%d)%s\n", headerColor, iconWheel, cBold, len(devopsIssues), cReset))
+		for _, iss := range devopsIssues {
+			sym := iconWarn
+			col := cAmber
+			if iss.Severity == "ERROR" {
+				sym = iconCross
+				col = cRed
+			}
+			sb.WriteString(fmt.Sprintf("  %s%s %s[%s] %s%s (%s:%d)\n", col, sym, cBold, iss.Code, iss.Resource, cReset, iss.File, iss.Line))
+			sb.WriteString(fmt.Sprintf("    %s%s %s%s\n", cSlate, iconChevron, iss.Message, cReset))
+			if iss.FixHint != "" {
+				sb.WriteString(fmt.Sprintf("    %s↳ Fix: %s%s\n", cGreen, iss.FixHint, cReset))
+			}
+		}
+	}
+	for _, d := range details {
+		if !strings.HasPrefix(d, "[") {
+			sb.WriteString(fmt.Sprintf("    %s%s %s%s\n", cSlate, iconChevron, d, cReset))
+		}
+	}
+	return exitCode, sb.String()
+}
 	if len(syntaxErrors) > 0 {
 		if sb.Len() > 0 {
 			sb.WriteString("\n")
