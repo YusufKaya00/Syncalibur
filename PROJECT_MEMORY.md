@@ -110,6 +110,7 @@ The compiled binary resides in `bin/syncalibur` (symlinked as `bin/syncalibur-en
 - **Raw Mode Terminal:** Non-blocking async keyboard reader (`keyCh := make(chan []byte, 32)`), alternate screen buffer (`\033[?1049h`), 1-second ticker refresh.
 - **Keybindings:**
   - `q` / `Ctrl+C` / `Esc`: Clean exit with terminal state restoration.
+  - `m`: Cycle operating mode (`commit-generator` ⇄ `developer` ⇄ `pr`) and persist to `syncalibur.env`.
   - `p`: Toggle pause/resume (`syncalibur.pause`).
   - `s`: Trigger immediate sync cycle (`syncalibur.sync`).
   - `b`: Trigger bidirectional remote pull (`syncalibur pull`).
