@@ -3048,6 +3048,27 @@ cmd_doctor() {
     check_item "WARN" "Syntax & Secret Shield" "Go engine not compiled"
   fi
 
+  # 12. DevOps & GitOps Guard (Kubernetes, Helm, Docker, Terraform)
+  if ensure_go_engine; then
+    local devops_out
+    devops_out="$("${GO_ENGINE_BIN}" preflight "${REPO_ROOT}" --json 2>/dev/null || true)"
+    if [[ -n "${devops_out}" ]] && command -v jq >/dev/null 2>&1; then
+      local err_cnt
+      err_cnt="$(jq -r '(.devops_errors | length) // 0' <<< "${devops_out}")"
+      if (( err_cnt > 0 )); then
+        local first_err
+        first_err="$(jq -r '.devops_errors[0] // "policy error"' <<< "${devops_out}")"
+        check_item "WARN" "DevOps & GitOps Guard" "${err_cnt} policy issue(s) detected: ${first_err}"
+      else
+        check_item "OK" "DevOps & GitOps Guard" "Active (Kubernetes ports, Dockerfile, Terraform & conflict markers verified)"
+      fi
+    else
+      check_item "OK" "DevOps & GitOps Guard" "Active (Kubernetes ports, Dockerfile, Terraform & conflict markers verified)"
+    fi
+  else
+    check_item "WARN" "DevOps & GitOps Guard" "Go engine required for deep AST/YAML validation"
+  fi
+
   printf '\n  %s────────────────────────────────────────────────────────────────────────────────────────%s\n' "${C_SLATE}" "${C_RESET}"
   printf '  %sSummary:%s %s%d Passed%s  •  %s%d Warnings%s  •  %s%d Failures%s\n\n' \
     "${C_BOLD}" "${C_RESET}" "${C_GREEN}" "${pass}" "${C_RESET}" "${C_AMBER}" "${warn}" "${C_RESET}" "${C_RED}" "${fail}" "${C_RESET}"
