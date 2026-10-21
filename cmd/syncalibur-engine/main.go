@@ -56,13 +56,14 @@ const (
 	cSlate = "\033[38;2;148;163;184m"
 	cWhite = "\033[38;2;241;245;249m"
 	cDark  = "\033[38;2;71;85;105m"
+	cBlue  = "\033[38;2;59;130;246m"
 	cBgBar = "\033[48;2;30;41;59m"
 )
 
 // Syncalibur Official Release & Semantic Version
 const (
-	SyncaliburVersion   = "v2.2.0"
-	SyncaliburMilestone = "Excalibur Evolution"
+	SyncaliburVersion   = "v2.3.0"
+	SyncaliburMilestone = "DevOps Intelligence & GitOps Guard"
 )
 
 // Lucide / Minimalist Typography Icons
@@ -83,6 +84,8 @@ const (
 	iconDoctor  = "✚"
 	iconPause   = "▲"
 	iconPlay    = "▶"
+	iconWheel   = "☸"
+	iconHelm    = "⎈"
 )
 
 var quads = [16]string{
