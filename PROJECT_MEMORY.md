@@ -1,7 +1,7 @@
 # Syncalibur — Comprehensive Project Memory & Living System Blueprint
 
 > **Status:** Active Platform Specification & Living Memory Ledger  
-> **Platform Version:** `v2.3.0` (Milestone: *"DevOps Intelligence & GitOps Guard"*)  
+> **Platform Version:** `v2.4.0` (Milestone: *"Developer Flight Recorder & Instant Push Autopilot"*)  
 > **Architecture:** Hybrid Native Go Core (`cmd/syncalibur-engine`) + Fault-Tolerant Bash Supervisor (`syncalibur.sh`)  
 > **Living Memory Rule:** *Every functional modification, architecture change, or configuration addition MUST update this document.*
 
@@ -9,14 +9,20 @@
 
 ## 1. Executive Summary & Mission Statement
 
-**Syncalibur** is an autonomous, production-grade Git synchronization platform and developer code guard. It operates as both a zero-friction background daemon and an ergonomic, one-shot CLI tool (`syncalibur push`, `syncalibur commit`, `syncalibur status`, `syncalibur mode`, `syncalibur tidy`, `syncalibur doctor`).
+**Syncalibur** is an autonomous, production-grade Git synchronization platform, developer code guard, and **Developer Flight Recorder**. It operates as both a zero-friction background daemon and an ergonomic, one-shot CLI tool (`syncalibur push`, `syncalibur commit`, `syncalibur undo`/`recover`, `syncalibur status`, `syncalibur mode`, `syncalibur tidy`, `syncalibur doctor`).
  
 ### Core Design Philosophy
-1. **Zero Data Loss Guarantee:** File changes are snapshotted and committed locally immediately upon debounce quiescence. Even if the system loses power or network drops, uncommitted edits are never lost.
+1. **Zero Data Loss Guarantee & Flight Recorder:** File changes are snapshotted and committed locally immediately upon debounce quiescence. Even if the workstation loses power or the network drops, uncommitted edits are never lost.
 2. **Clean Conventional Commit History:** Unlike crude auto-commit scripts that flood Git history with dozens of spam commits (`auto: update file.js`), Syncalibur enforces semantic Conventional Commits (`feat(scope): ... (+X/-Y)`), Smart Staging (partitioning multi-concern edits), and Burst Cadence Auto-Tidy (squashing micro-commits into one clean milestone commit before pushing).
-3. **Zero External Dependencies:** Built with pure Go standard library (`go/parser`, `go/ast`, `image`, `syscall`, `net/http`) and native POSIX/Bash commands. Compiles in $<1.5\text{s}$ into a standalone stripped binary (`bin/syncalibur`).
-4. **Fail-Safe Secret & Syntax Shield:** High-entropy credentials, private keys, and broken syntax are quarantined before hitting the Git index or remote servers.
-5. **True Cross-Platform Operation:** Linux (`systemd`, `inotify`, `ioctl`), macOS (`launchd`, `fswatch`, `ioctl`), and Windows (`windows-startup`, PowerShell RawUI, Win32 `OpenProcess`).
+3. **Four Tailored Operating Modes:**
+   - **`instant-push`** (Continuous Stream Mode • 10s Debounce • No Squash): Every save passes checks, settles after 10s, is committed and pushed directly to `main` without squashing. Backward-compatible aliases: `commit-generator`, `commit-gen`, `stream`, `continuous`.
+   - **`developer`** (Adaptive Burst & Squash Mode) [Default]: 1-2 small commits push directly; 3+ commits squash into 1 clean Conventional Commit upon 20s cooldown quiescence; opens auto-PR if branch is protected.
+   - **`devops`** (DevOps & GitOps Guard Mode): Manifest validation (K8s ports, probes, ConfigMap secrets, Dockerfile tags) with 30s cooldown and automatic squash.
+   - **`pr`** (Strict Pull Request Mode): Always pushes to an isolated branch and opens a Pull Request with an auto-populated template.
+4. **Self-Sync Autopilot:** The background daemon watches Syncalibur's own repository (`/home/ysf/Syncalibur`), automatically commits and pushes improvements, pulls upstream releases, rebuilds the Go engine, and hot-reloads in place.
+5. **Zero External Dependencies:** Built with pure Go standard library (`go/parser`, `go/ast`, `image`, `syscall`, `net/http`) and native POSIX/Bash commands. Compiles in $<1.5\text{s}$ into a standalone stripped binary (`bin/syncalibur`).
+6. **Fail-Safe Secret & Syntax Shield:** High-entropy credentials, private keys, and broken syntax are quarantined before hitting the Git index or remote servers.
+7. **True Cross-Platform Operation:** Linux (`systemd`, `inotify`, `ioctl`), macOS (`launchd`, `fswatch`, `ioctl`), and Windows (`windows-startup`, PowerShell RawUI, Win32 `OpenProcess`).
 
 ---
 
