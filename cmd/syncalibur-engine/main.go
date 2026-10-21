@@ -3457,6 +3457,9 @@ func printFleetStatusTable(fleetFile string) {
 		case "commit-generator", "stream", "continuous":
 			modeLabel = "⚡ commit-gen"
 			modeColor = cCyan
+		case "devops", "infra", "k8s", "iac":
+			modeLabel = "☸ devops"
+			modeColor = cBlue
 		case "pr", "review":
 			modeLabel = "🔀 pr"
 			modeColor = cAmber
@@ -3488,7 +3491,8 @@ func inspectRepoStatus(repoPath, inlineMode string) fleetRepoStatus {
 	if bOut, err := exec.Command("git", "-C", repoPath, "symbolic-ref", "--quiet", "--short", "HEAD").Output(); err == nil {
 		st.Branch = strings.TrimSpace(string(bOut))
 	}
-	pidFile := filepath.Join(repoPath, ".git", "syncalibur.pid")
+	gitDir := resolveGitDir(repoPath)
+	pidFile := filepath.Join(gitDir, "syncalibur.pid")
 	if pBytes, err := os.ReadFile(pidFile); err == nil {
 		pidStr := strings.TrimSpace(string(pBytes))
 		if pid, err := strconv.Atoi(pidStr); err == nil && processAlive(pid) {
