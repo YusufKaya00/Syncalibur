@@ -2607,7 +2607,79 @@ cmd_tidy() {
   # 5. Commit with clean title and rollup body
   git commit -m "${macro_msg}" -m "${rollup_body}"
   echo -e "  ${C_GREEN}✓ Squashed ${unpushed_cnt} commits -> ${macro_msg}${C_RESET}"
-  echo -e "  ${C_SLATE}Hint: To undo this tidy operation anytime: git reset --hard ${backup_tag}${C_RESET}"
+  echo -e "  ${C_SLATE}Hint: To undo this tidy operation anytime: run 'syncalibur undo' (or git reset --hard ${backup_tag})${C_RESET}"
+}
+
+cmd_checkpoint() {
+  local current_repo="${1:-${REPO_ROOT}}"
+  [[ -d "${current_repo}" ]] || current_repo="${PWD}"
+  current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
+  cd "${current_repo}" || return 1
+  assert_git_operable "${current_repo}" || return 1
+
+  local subcmd="${2:-list}"
+  if [[ "${1:-}" == "save" || "${1:-}" == "create" || "${subcmd}" == "save" || "${subcmd}" == "create" ]]; then
+    local tag_name="refs/syncalibur/checkpoint-$(date +%s)"
+    git update-ref "${tag_name}" HEAD
+    echo -e "${C_GREEN}✓ Safety checkpoint created:${C_RESET} ${tag_name} [$(git log -1 --pretty=format:'%h - %s' HEAD)]"
+    return 0
+  fi
+
+  echo -e "${C_CYAN}◈ Syncalibur Safety Checkpoints (Time Machine)${C_RESET} [$(basename "${current_repo}")]"
+  local refs
+  refs="$(git for-each-ref --sort=-creatordate --format='%(refname) %(creatordate:relative) (commit: %(objectname:short))' 'refs/syncalibur/*' 2>/dev/null)"
+  if [[ -z "${refs}" ]]; then
+    echo -e "  ${C_SLATE}• No checkpoints recorded yet in this repository.${C_RESET}"
+    echo -e "  ${C_SLATE}  Checkpoints are automatically created before 'syncalibur tidy' or via 'syncalibur checkpoint save'.${C_RESET}"
+    return 0
+  fi
+  local idx=1
+  while IFS= read -r line; do
+    echo -e "  ${C_WHITE}[${idx}]${C_RESET} ${line}"
+    idx=$(( idx + 1 ))
+    (( idx > 10 )) && break
+  done <<< "${refs}"
+  echo -e "  ${C_SLATE}Hint: Run 'syncalibur undo' to safely revert to the most recent checkpoint.${C_RESET}"
+}
+
+cmd_undo() {
+  local current_repo="${1:-${REPO_ROOT}}"
+  [[ -d "${current_repo}" ]] || current_repo="${PWD}"
+  current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
+  cd "${current_repo}" || return 1
+  assert_git_operable "${current_repo}" || return 1
+
+  local latest_ref
+  latest_ref="$(git for-each-ref --sort=-creatordate --format='%(refname)' 'refs/syncalibur/*' 2>/dev/null | head -n 1)"
+  if [[ -z "${latest_ref}" ]]; then
+    echo -e "${C_AMBER}▲ No Syncalibur checkpoint found in this repository.${C_RESET}"
+    echo -e "  ${C_SLATE}Checkpoints are created automatically by 'syncalibur tidy' or via 'syncalibur checkpoint save'.${C_RESET}"
+    return 1
+  fi
+
+  local target_sha
+  target_sha="$(git rev-parse --short "${latest_ref}" 2>/dev/null)"
+  local current_sha
+  current_sha="$(git rev-parse --short HEAD 2>/dev/null)"
+
+  if [[ "${target_sha}" == "${current_sha}" ]]; then
+    echo -e "${C_AMBER}▲ Repository HEAD is already at the latest checkpoint (${target_sha}).${C_RESET}"
+    return 0
+  fi
+
+  echo -e "${C_CYAN}◈ Syncalibur Time Machine Undo${C_RESET} [Reverting to ${latest_ref} (${target_sha})]"
+
+  local redo_ref="refs/syncalibur/checkpoint-pre-undo-$(date +%s)"
+  git update-ref "${redo_ref}" HEAD
+
+  if git reset --soft "${latest_ref}"; then
+    echo -e "  ${C_GREEN}✓ Rolled back to checkpoint ${target_sha}! (working tree preserved via soft reset)${C_RESET}"
+    echo -e "  ${C_SLATE}Redo reference saved at: ${redo_ref}${C_RESET}"
+    return 0
+  else
+    echo -e "  ${C_RED}✕ Soft reset to ${latest_ref} failed.${C_RESET}"
+    return 1
+  fi
 }
 
 cmd_pull() {
