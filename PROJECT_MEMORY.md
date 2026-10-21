@@ -9,8 +9,8 @@
 
 ## 1. Executive Summary & Mission Statement
 
-**Syncalibur** is an autonomous, production-grade Git synchronization platform and developer code guard. It operates as both a zero-friction background daemon and an ergonomic, one-shot CLI tool (`syncalibur push`, `syncalibur commit`, `syncalibur ui`, `syncalibur tidy`, `syncalibur doctor`).
-
+**Syncalibur** is an autonomous, production-grade Git synchronization platform and developer code guard. It operates as both a zero-friction background daemon and an ergonomic, one-shot CLI tool (`syncalibur push`, `syncalibur commit`, `syncalibur status`, `syncalibur mode`, `syncalibur tidy`, `syncalibur doctor`).
+ 
 ### Core Design Philosophy
 1. **Zero Data Loss Guarantee:** File changes are snapshotted and committed locally immediately upon debounce quiescence. Even if the system loses power or network drops, uncommitted edits are never lost.
 2. **Clean Conventional Commit History:** Unlike crude auto-commit scripts that flood Git history with dozens of spam commits (`auto: update file.js`), Syncalibur enforces semantic Conventional Commits (`feat(scope): ... (+X/-Y)`), Smart Staging (partitioning multi-concern edits), and Burst Cadence Auto-Tidy (squashing micro-commits into one clean milestone commit before pushing).
@@ -27,7 +27,7 @@ Syncalibur employs a **symbiotic dual-engine architecture**:
 ```
  ┌────────────────────────────────────────────────────────────────────────┐
  │                        USER INTERFACES & CLI                           │
- │   syncalibur push | commit | tidy | pr | ui | doctor | status | fleet  │
+ │  syncalibur push | commit | tidy | mode | pr | status | doctor | fleet │
  └───────────────────────────────────┬────────────────────────────────────┘
                                      │
          ┌───────────────────────────┴───────────────────────────┐
