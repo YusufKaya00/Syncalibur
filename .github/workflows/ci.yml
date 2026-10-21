@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
+          cache: false
 
       - name: Verify Bash Syntax (syncalibur.sh & install.sh)
         run: |
@@ -32,9 +33,13 @@ jobs:
         run: |
           shellcheck -S error syncalibur.sh install.sh
 
-      - name: Go Vet & Build Native Engine
+      - name: Go Vet & Unit Tests
         run: |
-          go vet ./cmd/syncalibur-engine
+          go vet ./cmd/syncalibur-engine/...
+          go test -v -count=1 ./cmd/syncalibur-engine/...
+
+      - name: Build Native Engine
+        run: |
           mkdir -p bin
           go build -trimpath -ldflags="-s -w" -o bin/syncalibur-engine ./cmd/syncalibur-engine
 
