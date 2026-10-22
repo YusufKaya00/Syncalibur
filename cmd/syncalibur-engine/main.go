@@ -3356,7 +3356,7 @@ func parseFleetEntry(line string) *fleetRepoConfig {
 		} else if len(kv) == 1 {
 			val := strings.ToLower(strings.TrimSpace(kv[0]))
 			cMode := canonicalizeMode(val)
-			if cMode == "instant-push" || cMode == "developer" || cMode == "devops" || cMode == "pr" {
+			if cMode == "autopilot" || cMode == "manual" {
 				cfg.Mode = cMode
 			}
 		}
