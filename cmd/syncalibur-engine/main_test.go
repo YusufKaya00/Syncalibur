@@ -573,30 +573,30 @@ func TestParseFleetEntry(t *testing.T) {
 
 	// 2. Bracketed attributes with canonicalized mode
 	e2 := parseFleetEntry("/home/user/repo [mode=commit-generator] [remote=upstream]")
-	if e2 == nil || e2.Mode != "instant-push" || e2.Remote != "upstream" {
-		t.Errorf("expected mode=instant-push, remote=upstream, got %+v", e2)
+	if e2 == nil || e2.Mode != "autopilot" || e2.Remote != "upstream" {
+		t.Errorf("expected mode=autopilot, remote=upstream, got %+v", e2)
 	}
 
-	e2b := parseFleetEntry("/home/user/repo [mode=instant-push] [remote=upstream]")
-	if e2b == nil || e2b.Mode != "instant-push" || e2b.Remote != "upstream" {
-		t.Errorf("expected mode=instant-push, remote=upstream, got %+v", e2b)
+	e2b := parseFleetEntry("/home/user/repo [mode=autopilot] [remote=upstream]")
+	if e2b == nil || e2b.Mode != "autopilot" || e2b.Remote != "upstream" {
+		t.Errorf("expected mode=autopilot, remote=upstream, got %+v", e2b)
 	}
 
 	// 3. Inline key=value
-	e3 := parseFleetEntry("/home/user/app mode=pr remote=origin")
-	if e3 == nil || e3.Mode != "pr" || e3.Remote != "origin" {
-		t.Errorf("expected mode=pr, got %+v", e3)
+	e3 := parseFleetEntry("/home/user/app mode=manual remote=origin")
+	if e3 == nil || e3.Mode != "manual" || e3.Remote != "origin" {
+		t.Errorf("expected mode=manual, got %+v", e3)
 	}
 
 	// 4. Positional mode
-	e4 := parseFleetEntry("/home/user/test instant-push")
-	if e4 == nil || e4.Mode != "instant-push" {
-		t.Errorf("expected positional mode instant-push, got %+v", e4)
+	e4 := parseFleetEntry("/home/user/test autopilot")
+	if e4 == nil || e4.Mode != "autopilot" {
+		t.Errorf("expected positional mode autopilot, got %+v", e4)
 	}
 
-	e4b := parseFleetEntry("/home/user/test commit-generator")
-	if e4b == nil || e4b.Mode != "instant-push" {
-		t.Errorf("expected positional mode commit-generator alias to map to instant-push, got %+v", e4b)
+	e4b := parseFleetEntry("/home/user/test manual")
+	if e4b == nil || e4b.Mode != "manual" {
+		t.Errorf("expected positional mode manual, got %+v", e4b)
 	}
 
 	// 5. Comment line
@@ -632,27 +632,27 @@ func TestResolveEffectiveRepoMode(t *testing.T) {
 
 	// Case 1: Default
 	m1 := resolveEffectiveRepoMode(tmpDir, "")
-	if m1 != "developer" {
-		t.Errorf("expected default developer, got %s", m1)
+	if m1 != "autopilot" {
+		t.Errorf("expected default autopilot, got %s", m1)
 	}
 
 	// Case 2: Fleet line mode takes precedence and canonicalizes aliases
 	m2 := resolveEffectiveRepoMode(tmpDir, "commit-generator")
-	if m2 != "instant-push" {
-		t.Errorf("expected fleet mode commit-generator to resolve to instant-push, got %s", m2)
+	if m2 != "autopilot" {
+		t.Errorf("expected fleet mode commit-generator to resolve to autopilot, got %s", m2)
 	}
 
-	m2b := resolveEffectiveRepoMode(tmpDir, "instant-push")
-	if m2b != "instant-push" {
-		t.Errorf("expected fleet mode instant-push, got %s", m2b)
+	m2b := resolveEffectiveRepoMode(tmpDir, "manual")
+	if m2b != "manual" {
+		t.Errorf("expected fleet mode manual, got %s", m2b)
 	}
 
 	// Case 3: Repo-local .syncalibur file
 	cfgPath := filepath.Join(tmpDir, ".syncalibur")
-	_ = os.WriteFile(cfgPath, []byte("MODE=\"pr\"\n"), 0644)
+	_ = os.WriteFile(cfgPath, []byte("MODE=\"manual\"\n"), 0644)
 	m3 := resolveEffectiveRepoMode(tmpDir, "")
-	if m3 != "pr" {
-		t.Errorf("expected repo .syncalibur mode pr, got %s", m3)
+	if m3 != "manual" {
+		t.Errorf("expected repo .syncalibur mode manual, got %s", m3)
 	}
 }
 
