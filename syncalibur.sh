@@ -151,8 +151,23 @@ if [[ "${OS_KERNEL}" =~ ^(MINGW|MSYS|CYGWIN) ]]; then
   GO_ENGINE_BIN="${GO_ENGINE_BIN}.exe"
   GO_ENGINE_COMPAT_BIN="${GO_ENGINE_COMPAT_BIN}.exe"
 fi
-FLEET_LIST_FILE="${SYNCALIBUR_FLEET_LIST:-${SCRIPT_DIR}/repos.list}"
 SELF_REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || echo "")"
+
+resolve_syncalibur_platform_version() {
+  local dyn_tag=""
+  local search_dirs=("${SELF_REPO_ROOT:-}" "${SCRIPT_DIR:-}" "/home/ysf/Syncalibur" ".")
+  for d in "${search_dirs[@]}"; do
+    if [[ -n "${d}" && -d "${d}/.git" ]]; then
+      dyn_tag="$(git -C "${d}" tag -l "v*" --sort=-v:refname 2>/dev/null | head -n1)"
+      if [[ -n "${dyn_tag}" ]]; then
+        printf '%s\n' "${dyn_tag}"
+        return 0
+      fi
+    fi
+  done
+  printf '%s\n' "${SYNCALIBUR_PLATFORM_VERSION:-v2.27.0}"
+}
+SYNCALIBUR_PLATFORM_VERSION="$(resolve_syncalibur_platform_version)"
 
 # Ensure the native Go binary (`bin/syncalibur`, which registers as `syncalibur` in top/htop/ps/Task Manager) is compiled and up to date
 ensure_go_engine() {
