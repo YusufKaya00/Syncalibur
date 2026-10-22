@@ -3737,12 +3737,43 @@ cmd_restart() {
 }
 
 cmd_status() {
-  local mode="${1:-}"
-  if [[ -t 0 && -t 1 ]] && [[ "${mode}" != "--static" ]] && ensure_go_engine; then
-    "${GO_ENGINE_BIN}" status "${SCRIPT_PATH}" "${REPO_ROOT}"
+  local is_static=false
+  local target_arg=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --static)
+        is_static=true
+        shift
+        ;;
+      *)
+        if [[ -z "${target_arg}" ]]; then
+          target_arg="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  local target_repo=""
+  if [[ -n "${target_arg}" && -d "${target_arg}" ]]; then
+    target_repo="$(git -C "${target_arg}" rev-parse --show-toplevel 2>/dev/null || echo "${target_arg}")"
+  elif cur_repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    target_repo="${cur_repo}"
+  else
+    target_repo="${REPO_ROOT}"
+  fi
+  target_repo="$(resolve_path "${target_repo}")"
+
+  if [[ -t 0 && -t 1 ]] && [[ "${is_static}" != "true" ]] && ensure_go_engine; then
+    "${GO_ENGINE_BIN}" status "${SCRIPT_PATH}" "${target_repo}"
     return $?
   fi
 
+  local prev_repo="${REPO_ROOT}"
+  local prev_watch="${WATCH_PATH}"
+  REPO_ROOT="${target_repo}"
+  WATCH_PATH="${target_repo}"
   cd "${REPO_ROOT}" || return 1
   print_syncalibur_dashboard
 
@@ -3769,7 +3800,6 @@ cmd_status() {
   fi
 
   local tail_lines=10
-  [[ "${mode}" == "--compact-ui" ]] && tail_lines=5
   if [[ -f "${LOG_FILE}" ]]; then
     printf '  %s%sRecent Activity%s\n' "${C_GOLD}" "${C_BOLD}" "${C_RESET}"
     printf '  %s────────────────────────────────────────────────────────────────────────────────────────%s\n' "${C_SLATE}" "${C_RESET}"
@@ -3780,6 +3810,10 @@ cmd_status() {
     done < <(tail -n "${tail_lines}" "${LOG_FILE}")
     printf '\n'
   fi
+
+  REPO_ROOT="${prev_repo}"
+  WATCH_PATH="${prev_watch}"
+  return 0
 }
 
 cmd_logs() {
@@ -3869,9 +3903,9 @@ case "${1:-}" in
   start)      cmd_start ;;
   stop)       cmd_stop ;;
   restart)    cmd_restart ;;
-  status)     cmd_status "${2:-}" ;;
+  status)     shift; cmd_status "$@" ;;
   logs | log) cmd_logs ;;
-  ui)         cmd_ui ;;
+  ui)         shift; cmd_status "$@" ;;
   fleet)      cmd_fleet "${2:-status}" "${3:-}" ;;
   doctor)     cmd_doctor ;;
   notify | telegram-test | webhook-test)
