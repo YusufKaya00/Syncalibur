@@ -174,8 +174,8 @@ Developer Ergonomics & Flight Recorder:
 
 Autonomous Daemon & Fleet Control:
   syncalibur install [path]         Configure OS auto-start, compile Go engine, link global CLI & start now
-  syncalibur status [--static]      Launch interactive cockpit in TTY (or static dashboard with --static)
-  syncalibur ui                     Launch interactive TrueColor cockpit & live log viewer
+  syncalibur status [path] [--static] Launch interactive cockpit (or static dashboard; auto-detects current repo)
+  syncalibur ui [path]              Launch interactive TrueColor cockpit & live log viewer
   syncalibur mode [name]            Inspect or toggle operating architecture: autopilot | manual
   syncalibur logs                   Stream live colorized telemetry
   syncalibur fleet <subcmd>         Manage multi-repo fleet: status | add <path> | remove <path> | scan | start | stop
