@@ -14,6 +14,7 @@ jobs:
   verify:
     name: Verify Go Engine & Shell Scripts
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -45,8 +46,10 @@ jobs:
 
       - name: Smoke Test Engine Subcommands & Security Hygiene
         run: |
+          ./bin/syncalibur-engine version
           ./bin/syncalibur-engine render-logo assets/syncalibur-logo.png /tmp/logo.ansi > /dev/null
           ./bin/syncalibur-engine sparkline . > /dev/null
+          ./bin/syncalibur-engine preflight .
           if git ls-files --error-unmatch syncalibur.env >/dev/null 2>&1; then
             echo "ERROR: Personal syncalibur.env must never be tracked in Git!"
             exit 1
