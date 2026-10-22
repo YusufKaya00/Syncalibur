@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.18.0] - 2026-10-22
+
+### 🚀 Features
+- update syncalibur.env.example (+15/-14) ([`06c44cd`](https://github.com/YusufKaya00/Syncalibur/commit/06c44cd))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
