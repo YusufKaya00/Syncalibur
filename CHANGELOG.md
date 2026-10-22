@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.7.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update runInteractiveTUI() (+2/-2) ([`3b47863`](https://github.com/YusufKaya00/Syncalibur/commit/3b47863))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
