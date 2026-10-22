@@ -1,7 +1,7 @@
 # Syncalibur — Comprehensive Project Memory & Living System Blueprint
 
 > **Status:** Active Platform Specification & Living Memory Ledger  
-> **Platform Version:** `v2.6.0` (Milestone: *"Zero-Data-Loss Flight Recorder & Autopilot"*)  
+> **Platform Version:** `v2.18.4` (Milestone: *"Zero-Data-Loss Flight Recorder & Autopilot"*)  
 > **Architecture:** Hybrid Native Go Core (`cmd/syncalibur-engine`) + Fault-Tolerant Bash Supervisor (`syncalibur.sh`)  
 > **Living Memory Rule:** *Every functional modification, architecture change, or configuration addition MUST update this document.*
 
