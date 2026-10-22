@@ -4312,27 +4312,10 @@ func getEkgWave(frame int, width int) string {
 }
 
 func getAnimatedModeBadge(mode string, frame int) string {
-	switch canonicalizeMode(mode) {
-	case "instant-push":
-		bolts := []string{"⚡", "🗲", "⚡", "⚡"}
-		bolt := bolts[(frame/2)%len(bolts)]
-		if (frame/4)%2 == 0 {
-			return fmt.Sprintf("%s%s%s Instant-Push%s", cCyan, cBold, bolt, cReset)
-		}
-		return fmt.Sprintf("%s%s%s Instant-Push%s", cGold, cBold, bolt, cReset)
-	case "devops":
-		helmColors := []string{cBlue, cCyan}
-		col := helmColors[(frame/3)%len(helmColors)]
-		return fmt.Sprintf("%s%s☸ DevOps%s", col, cBold, cReset)
-	case "pr":
-		arrows := []string{"🔀", "⇄", "🔀"}
-		arr := arrows[(frame/3)%len(arrows)]
-		return fmt.Sprintf("%s%s%s PR-Autopilot%s", cAmber, cBold, arr, cReset)
-	default:
-		devTools := []string{"🛠", "⚙", "🛠"}
-		tool := devTools[(frame/4)%len(devTools)]
-		return fmt.Sprintf("%s%s%s Developer%s", cGreen, cBold, tool, cReset)
+	if canonicalizeMode(mode) == "manual" {
+		return fmt.Sprintf("%s%s⏸ Manual%s", cGold, cBold, cReset)
 	}
+	return fmt.Sprintf("%s%s⚡ Autopilot%s", cCyan, cBold, cReset)
 }
 
 func runInteractiveTUI(scriptPath, repoRoot string) {
