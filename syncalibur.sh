@@ -2759,45 +2759,28 @@ cmd_mode() {
 
   if [[ -z "${target_mode}" ]]; then
     print_syncalibur_dashboard
-    echo -e "${C_GOLD}${C_BOLD}◈ Syncalibur Operating Modes:${C_RESET}"
-    echo -e "  Current Active Mode : ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [source: ${current_source}]"
-    echo -e "  Parameters          : cooldown: ${BURST_COOLDOWN}s • tidy-threshold: ${TIDY_THRESHOLD} • auto-pr: ${AUTO_PR}"
+    echo -e "${C_GOLD}${C_BOLD}◈ Syncalibur Operating Architecture:${C_RESET}"
+    echo -e "  Current Operating Mode : ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [source: ${current_source}]"
+    echo -e "  Debounce Settle Time   : ${BURST_COOLDOWN}s • zero-data-loss sentinel active"
     echo ""
-    echo -e "  ${C_CYAN}${C_BOLD}1. instant-push${C_RESET} ${C_SLATE}(Continuous Stream Mode • Direct Auto-Push)${C_RESET}"
-    echo -e "     • 1 satır bile değişse kontrollerden geçer, 5s cooldown sonrası anında commit'lenir."
-    echo -e "     • Bekletmeden ve birleştirmeden doğrudan 'main' branch'ine pushlar."
-    echo -e "     • Kişisel projeler, k8sfundamentals, notlar ve bireysel çalışmalar için idealdir."
+    echo -e "  ${C_CYAN}${C_BOLD}1. ⚡ autopilot${C_RESET} ${C_SLATE}(Continuous Stream & Workstation Flight Recorder) [Varsayılan]${C_RESET}"
+    echo -e "     • 5s sessizlikte AST commit atar, Shannon Secret Shield korur, doğrudan remote'lara pushlar."
+    echo -e "     • Time Machine: Her adımda yerel kurtarma halkası oluşturur ('syncalibur undo')."
+    echo -e "     • Asla arka planda habersiz PR açmaz; bildirim kirliliği ve korku yaratmaz."
     echo ""
-    echo -e "  ${C_CYAN}${C_BOLD}2. developer${C_RESET} ${C_SLATE}(Adaptive Burst & Squash Mode) [Varsayılan]${C_RESET}"
-    echo -e "     • 1-2 küçük commit: Doğrudan main'e pushlanır (squash edilmez)."
-    echo -e "     • 3+ commit (burst sprint): Tek bir temiz Conventional Commit'te birleştirilir (squash)."
-    echo -e "     • Ortak repolarda / yetki yoksa / protected branch ise: Otomatik branch açıp PR üretir."
-    echo -e "     • Yetki varsa: Birleştirilmiş temiz commit'i doğrudan main'e pushlar."
+    echo -e "  ${C_GOLD}${C_BOLD}2. ⏸ manual${C_RESET} ${C_SLATE}(On-Demand Quicksave Only)${C_RESET}"
+    echo -e "     • Arka plan commit atmaz. Yalnızca 'syncalibur save [mesaj]' veya TUI'den [s] tetiklendiğinde senkronize eder."
     echo ""
-    echo -e "  ${C_CYAN}${C_BOLD}3. devops${C_RESET} ${C_SLATE}(Kubernetes, Helm & Infrastructure Guard Mode)${C_RESET}"
-    echo -e "     • Kubernetes manifest doğrulaması (Service port/targetPort eşleşmesi, ConfigMap secret sızıntısı)."
-    echo -e "     • Dockerfile ':latest' ve root USER denetimi; Terraform '.gitignore' ve credential kontrolü."
-    echo -e "     • Git çakışma belirteçleri (conflict markers) staged dosyalarda varsa commit engellenir."
-    echo -e "     • Conventional Commit infra() ve helm() etiketleriyle otomatik ayrıştırma."
-    echo ""
-    echo -e "  ${C_CYAN}${C_BOLD}4. pr${C_RESET} ${C_SLATE}(Strict Pull Request Mode)${C_RESET}"
-    echo -e "     • Asla main'e doğrudan basmaz; her zaman branch açıp GitHub/GitLab üzerinden PR açar."
-    echo ""
-    echo -e "  ${C_SLATE}Mod Değiştirme:${C_RESET}"
-    echo -e "    Bu repo için     : ${C_GOLD}syncalibur mode <instant-push | developer | devops | pr>${C_RESET}"
-    echo -e "    Tüm repolar için  : ${C_GOLD}syncalibur mode <mode> --global${C_RESET}"
+    echo -e "  ${C_SLATE}Hızlı Komutlar:${C_RESET}"
+    echo -e "    Anlık Hızlı Kayıt     : ${C_GOLD}syncalibur save [mesaj]${C_RESET}"
+    echo -e "    Time Machine Geri Al  : ${C_GOLD}syncalibur undo [adım]${C_RESET}"
+    echo -e "    Modu Değiştir         : ${C_GOLD}syncalibur mode <autopilot | manual>${C_RESET}"
     return 0
   fi
 
   case "${target_mode}" in
-    instant-push | instant | stream | continuous | commit-generator | commit-gen) target_mode="instant-push" ;;
-    developer | pro | team)                  target_mode="developer" ;;
-    devops | infra | k8s | iac)              target_mode="devops" ;;
-    pr | review)                             target_mode="pr" ;;
-    *)
-      echo -e "${C_RED}✕ Geçersiz mod: '${target_mode}'. Geçerli seçenekler: instant-push | developer | devops | pr${C_RESET}"
-      return 1
-      ;;
+    manual | idle | sentinel) target_mode="manual" ;;
+    *) target_mode="autopilot" ;;
   esac
 
   if (( is_global )); then
