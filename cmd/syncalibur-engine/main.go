@@ -255,6 +255,49 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "doctor":
+		scriptPath := "syncalibur.sh"
+		if p, err := exec.LookPath("syncalibur.sh"); err == nil {
+			scriptPath = p
+		} else if exe, err := os.Executable(); err == nil {
+			cand := filepath.Join(filepath.Dir(exe), "..", "syncalibur.sh")
+			if _, err := os.Stat(cand); err == nil {
+				scriptPath = cand
+			}
+		}
+		cmd := exec.Command("bash", scriptPath, "doctor")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				os.Exit(exitErr.ExitCode())
+			}
+			os.Exit(1)
+		}
+
+	case "mode":
+		scriptPath := "syncalibur.sh"
+		if p, err := exec.LookPath("syncalibur.sh"); err == nil {
+			scriptPath = p
+		} else if exe, err := os.Executable(); err == nil {
+			cand := filepath.Join(filepath.Dir(exe), "..", "syncalibur.sh")
+			if _, err := os.Stat(cand); err == nil {
+				scriptPath = cand
+			}
+		}
+		cmdArgs := append([]string{scriptPath, "mode"}, os.Args[2:]...)
+		cmd := exec.Command("bash", cmdArgs...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				os.Exit(exitErr.ExitCode())
+			}
+			os.Exit(1)
+		}
+
 	case "help", "--help", "-h":
 		fmt.Println("Syncalibur - Autonomous Git Auto-Sync Platform & Live Engine")
 		fmt.Println("Usage: syncalibur <command> [args...]")
