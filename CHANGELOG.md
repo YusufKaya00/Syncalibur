@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.8.1] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main_test**: update TestModeCycleAndBadge (+14/-26) ([`9e3088d`](https://github.com/YusufKaya00/Syncalibur/commit/9e3088d))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
