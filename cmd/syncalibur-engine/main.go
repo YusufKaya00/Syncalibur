@@ -5215,16 +5215,33 @@ func getLatestSemVerTag(repoRoot string) string {
 	return ""
 }
 
+func getEngineVersion(scriptPath string) string {
+	candidateDirs := []string{}
+	if scriptPath != "" {
+		candidateDirs = append(candidateDirs, filepath.Dir(scriptPath))
+	}
+	if exe, err := os.Executable(); err == nil {
+		if realExe, err := filepath.EvalSymlinks(exe); err == nil {
+			candidateDirs = append(candidateDirs, filepath.Dir(filepath.Dir(realExe)))
+		}
+	}
+	candidateDirs = append(candidateDirs, "/home/ysf/Syncalibur", ".")
+
+	for _, dir := range candidateDirs {
+		if t := getLatestSemVerTag(dir); t != "" {
+			return t
+		}
+	}
+	return SyncaliburVersion
+}
+
 func printVersion() {
 	hash := "dev"
 	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err == nil {
 		hash = strings.TrimSpace(string(out))
 	}
-	ver := SyncaliburVersion
-	if t := getLatestSemVerTag("."); t != "" {
-		ver = t
-	}
+	ver := getEngineVersion(".")
 	fmt.Printf("%s%sSyncalibur %s%s (%s/%s)\n", cBold, cCyan, ver, cReset, runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("%sMilestone    :%s %s%s%s\n", cGold, cReset, cWhite, SyncaliburMilestone, cReset)
 	fmt.Printf("%sGit Commit   :%s %s\n", cGold, cReset, hash)
