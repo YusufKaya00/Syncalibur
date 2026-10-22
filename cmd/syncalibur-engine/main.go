@@ -5067,6 +5067,24 @@ func loadLogoLines(logoPath string) []string {
 	return defaultEmbeddedLogoLines
 }
 
+func getLatestSemVerTag(repoRoot string) string {
+	cmd := exec.Command("git", "-C", repoRoot, "tag", "-l", "v*", "--sort=-v:refname")
+	if out, err := cmd.Output(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		for _, l := range lines {
+			l = strings.TrimSpace(l)
+			if l != "" && strings.HasPrefix(l, "v") {
+				return l
+			}
+		}
+	}
+	tagCmd := exec.Command("git", "-C", repoRoot, "describe", "--tags", "--abbrev=0")
+	if tagOut, err := tagCmd.Output(); err == nil {
+		return strings.TrimSpace(string(tagOut))
+	}
+	return ""
+}
+
 func printVersion() {
 	hash := "dev"
 	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
@@ -5074,11 +5092,8 @@ func printVersion() {
 		hash = strings.TrimSpace(string(out))
 	}
 	ver := SyncaliburVersion
-	if tagOut, err := exec.Command("git", "describe", "--tags", "--abbrev=0").Output(); err == nil {
-		t := strings.TrimSpace(string(tagOut))
-		if t != "" {
-			ver = t
-		}
+	if t := getLatestSemVerTag("."); t != "" {
+		ver = t
 	}
 	fmt.Printf("%s%sSyncalibur %s%s (%s/%s)\n", cBold, cCyan, ver, cReset, runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("%sMilestone    :%s %s%s%s\n", cGold, cReset, cWhite, SyncaliburMilestone, cReset)
@@ -5088,14 +5103,12 @@ func printVersion() {
 
 func runRelease(repoRoot string, mode string, dryRun bool) error {
 	ctxFetch, cancelFetch := context.WithTimeout(context.Background(), 15*time.Second)
-	cmdFetch := exec.CommandContext(ctxFetch, "git", "-C", repoRoot, "fetch", "--tags")
+	cmdFetch := exec.CommandContext(ctxFetch, "git", "-C", repoRoot, "fetch", "--tags", "--force")
 	cmdFetch.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	_ = cmdFetch.Run()
 	cancelFetch()
 
-	tagCmd := exec.Command("git", "-C", repoRoot, "describe", "--tags", "--abbrev=0")
-	tagOut, _ := tagCmd.Output()
-	lastTag := strings.TrimSpace(string(tagOut))
+	lastTag := getLatestSemVerTag(repoRoot)
 
 	logArgs := []string{"-C", repoRoot, "log", "--pretty=format:%H%x09%an%x09%ad%x09%s", "--date=short"}
 	if lastTag != "" {
