@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.5.4] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **pr-governance**: update pr-governance.yml (+1/-0) ([`0740571`](https://github.com/YusufKaya00/Syncalibur/commit/0740571))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
