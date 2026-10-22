@@ -3551,21 +3551,11 @@ func printFleetStatusTable(fleetFile string) {
 		if strings.HasPrefix(r.State, iconDot) {
 			stateColor = cGreen
 		}
-		modeLabel := "developer"
-		modeColor := cGreen
-		switch canonicalizeMode(r.Mode) {
-		case "instant-push":
-			modeLabel = "⚡ instant-push"
-			modeColor = cCyan
-		case "devops":
-			modeLabel = "☸ devops"
-			modeColor = cBlue
-		case "pr":
-			modeLabel = "🔀 pr"
-			modeColor = cAmber
-		default:
-			modeLabel = "🛠 developer"
-			modeColor = cGreen
+		modeLabel := "⚡ autopilot"
+		modeColor := cCyan
+		if canonicalizeMode(r.Mode) == "manual" {
+			modeLabel = "⏸ manual"
+			modeColor = cGold
 		}
 
 		cRepo := padRightVisible(cWhite+cBold+truncateStr(r.Name, 17)+cReset, 18)
