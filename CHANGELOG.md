@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.18.3] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **PROJECT_MEMORY**: update PROJECT_MEMORY.md (+11/-13) ([`097391a`](https://github.com/YusufKaya00/Syncalibur/commit/097391a))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
