@@ -301,9 +301,9 @@ Syncalibur supervises an arbitrary fleet of repositories simultaneously, with ea
   5. Smoke tests (`render-logo`, `sparkline`).
   6. Git index hygiene assertion (verifies `syncalibur.env` and `repos.list` are never tracked).
 
-### 5.2 Automated SemVer & Release Pipeline (`.github/workflows/release.yml`)
-- Triggers on `push` to `main` (ignoring changes to `CHANGELOG.md`).
-- Infinite Loop Guard: `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"`.
+### 5.2 Controlled SemVer & Release Pipeline (`.github/workflows/release.yml`)
+- Triggers on manual **`workflow_dispatch`** with parameter inputs (`bump`: auto/patch/minor/major, `dry_run`: boolean).
+- Prevents runaway tag inflation on routine documentation and chore commits.
 - **Mechanics:**
   1. Evaluates all commits since last Git tag.
   2. Bumps SemVer:
