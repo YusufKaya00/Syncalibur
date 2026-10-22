@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.5.2] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main_test**: update TestIsTypeScriptSyntaxError (+43/-0) ([`30cddde`](https://github.com/YusufKaya00/Syncalibur/commit/30cddde))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
