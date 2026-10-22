@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.18.1] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- update repos.list.example (+6/-7) ([`8f99608`](https://github.com/YusufKaya00/Syncalibur/commit/8f99608))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
