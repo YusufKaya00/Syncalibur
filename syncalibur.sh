@@ -2186,6 +2186,7 @@ commit_changes() {
   if err_out="$(git commit -m "${msg}" 2>&1)"; then
     printf '%s\n' "${err_out}" >> "${LOG_FILE}"
     log "✓ Committed ${count} file(s): ${msg}"
+    record_timeline_checkpoint
     return 0
   fi
   printf '%s\n' "${err_out}" >> "${LOG_FILE}"
