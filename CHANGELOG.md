@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.15.1] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **syncalibur**: update syncalibur.sh (+15/-32) ([`1b42a7a`](https://github.com/YusufKaya00/Syncalibur/commit/1b42a7a))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features

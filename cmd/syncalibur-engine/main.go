@@ -62,7 +62,7 @@ const (
 
 // Syncalibur Official Release & Semantic Version
 const (
-	SyncaliburVersion   = "v2.6.0"
+	SyncaliburVersion   = "v2.15.1"
 	SyncaliburMilestone = "Zero-Data-Loss Flight Recorder & Autopilot"
 )
 
