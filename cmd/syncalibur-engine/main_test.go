@@ -1016,5 +1016,48 @@ func TestCockpitAnimations(t *testing.T) {
 	}
 }
 
+func TestIsTypeScriptSyntaxError(t *testing.T) {
+	syntaxErrors := []string{
+		"Component.tsx(1,40): error TS1005: ';' expected.",
+		"Component.tsx(1,15): error TS1109: Expression expected.",
+		"Component.tsx(5,1): error TS1128: Declaration or statement expected.",
+	}
+	for _, se := range syntaxErrors {
+		if !isTypeScriptSyntaxError(se) {
+			t.Errorf("expected '%s' to be recognized as TS syntax error", se)
+		}
+	}
+
+	semanticErrors := []string{
+		"Component.tsx(1,38): error TS7026: JSX element implicitly has type 'any' because no interface 'JSX.IntrinsicElements' exists.",
+		"Component.tsx(1,20): error TS2304: Cannot find name 'document'.",
+		"Component.tsx(1,20): error TS2307: Cannot find module 'react' or its corresponding type declarations.",
+		"Component.tsx(1,20): error TS2584: Cannot find name 'console'. Do you need to change your target library?",
+		"Component.tsx(1,20): error TS2318: Cannot find global type 'Boolean'.",
+	}
+	for _, se := range semanticErrors {
+		if isTypeScriptSyntaxError(se) {
+			t.Errorf("expected semantic error '%s' to NOT be flagged as syntax error", se)
+		}
+	}
+}
+
+func TestGetLatestSemVerTag(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = exec.Command("git", "-C", tmpDir, "init").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.email", "test@test.com").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.name", "Test").Run()
+	_ = os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Test"), 0644)
+	_ = exec.Command("git", "-C", tmpDir, "add", ".").Run()
+	_ = exec.Command("git", "-C", tmpDir, "commit", "-m", "chore: init").Run()
+	_ = exec.Command("git", "-C", tmpDir, "tag", "v2.0.0").Run()
+	_ = exec.Command("git", "-C", tmpDir, "tag", "v2.3.0").Run()
+	_ = exec.Command("git", "-C", tmpDir, "tag", "v2.1.0").Run()
+
+	latest := getLatestSemVerTag(tmpDir)
+	if latest != "v2.3.0" {
+		t.Errorf("expected latest tag 'v2.3.0', got '%s'", latest)
+	}
+}
 
 
