@@ -159,6 +159,31 @@ Autonomous Daemon & Fleet Control:
 
 ---
 
+## 🛡️ Team Repositories & CI/CD Protection (Autopilot vs Manual)
+
+A common concern with Git auto-sync tools is: *"Will this spam my team's CI/CD pipelines and burn our GitHub Actions quota?"*
+
+Syncalibur eliminates this problem by allowing you to choose the exact automation persona **per-repository**:
+
+| Repository Type | Typical Projects | Recommended Setting | Behavior |
+| :--- | :--- | :--- | :--- |
+| **Personal / Sandbox** | `k8sfundamentals`, notes, study labs | `syncalibur mode autopilot` | 5s cognitive settle debounce, continuous zero-data-loss streaming to remote. |
+| **Team / Heavy CI Repos** | Corporate microservices, shared branches | `syncalibur mode manual` | Background auto-push is **disabled**. Daemon remains idle until you explicitly run `syncalibur save [msg]` or trigger sync via TUI `[s]`. |
+| **Hook-Only Protection** | Any repository | `syncalibur hook install` | **Zero background daemon.** Protects standard `git commit` commands with sub-15ms compiled Shannon Secret Shield and syntax validation. |
+
+To configure a repository for on-demand manual saves:
+```bash
+cd /path/to/team-project
+syncalibur mode manual
+```
+Or configure your multi-repo fleet list (`repos.list`):
+```text
+/home/user/k8sfundamentals [mode=autopilot]
+/home/user/corporate-api   [mode=manual]
+```
+
+---
+
 ## ⚙ Configuration (`syncalibur.env`)
 
 Configure Syncalibur globally or per-repository (via `.syncalibur` in any repo root):
