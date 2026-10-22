@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.5.1] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main_test**: update TestValidateFileSyntax (+7/-0) ([`b3b46c1`](https://github.com/YusufKaya00/Syncalibur/commit/b3b46c1))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
