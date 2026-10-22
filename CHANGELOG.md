@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.9.1] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main_test**: update TestParseFleetEntry (+24/-24) ([`b5d1228`](https://github.com/YusufKaya00/Syncalibur/commit/b5d1228))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
