@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.6.3] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main**: update printFleetStatusTable() (+5/-15) ([`22a40fc`](https://github.com/YusufKaya00/Syncalibur/commit/22a40fc))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
