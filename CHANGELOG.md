@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.6.5] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main**: update getAnimatedModeBadge() (+3/-20) ([`42d4098`](https://github.com/YusufKaya00/Syncalibur/commit/42d4098))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
