@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.18.2] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **README**: update README.md (+191/-263) ([`2faca4c`](https://github.com/YusufKaya00/Syncalibur/commit/2faca4c))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
