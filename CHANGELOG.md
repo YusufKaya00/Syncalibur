@@ -1,5 +1,12 @@
 # Changelog
 
+## [v2.5.3] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **release**: update release.yml (+2/-1) ([`c31763a`](https://github.com/YusufKaya00/Syncalibur/commit/c31763a))
+- **ci**: update ci.yml (+3/-0) ([`c5a4602`](https://github.com/YusufKaya00/Syncalibur/commit/c5a4602))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
