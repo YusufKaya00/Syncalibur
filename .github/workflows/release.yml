@@ -1,11 +1,23 @@
-name: Syncalibur Automated Release
+name: Syncalibur Controlled Release
 
 on:
-  push:
-    branches: [ "main" ]
-    paths-ignore:
-      - "CHANGELOG.md"
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'SemVer Bump Type (auto, patch, minor, major)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (preview changelog without creating tag/release)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -14,8 +26,7 @@ jobs:
   release:
     name: SemVer Release & Asset Broadcast
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    timeout-minutes: 8
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -47,4 +58,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./bin/syncalibur release auto
+          FLAGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            FLAGS="--dry-run"
+          fi
+          BUMP="${{ github.event.inputs.bump || 'auto' }}"
+          ./bin/syncalibur release "${BUMP}" ${FLAGS}
