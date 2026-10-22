@@ -206,11 +206,19 @@ func main() {
 	case "status", "ui":
 		scriptPath := ""
 		repoRoot := "."
-		if len(os.Args) >= 3 {
-			scriptPath = os.Args[2]
+		for _, arg := range os.Args[2:] {
+			if strings.HasSuffix(arg, ".sh") || (strings.Contains(arg, "syncalibur") && !isGitRepoDir(arg)) {
+				scriptPath = arg
+			} else if fi, err := os.Stat(arg); err == nil && fi.IsDir() {
+				repoRoot = arg
+			}
 		}
-		if len(os.Args) >= 4 {
-			repoRoot = os.Args[3]
+		if repoRoot == "." {
+			if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+				if t := strings.TrimSpace(string(top)); t != "" {
+					repoRoot = t
+				}
+			}
 		}
 		runInteractiveTUI(scriptPath, repoRoot)
 
