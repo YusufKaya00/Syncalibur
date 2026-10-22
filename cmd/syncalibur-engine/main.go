@@ -62,7 +62,7 @@ const (
 
 // Syncalibur Official Release & Semantic Version
 const (
-	SyncaliburVersion   = "v2.3.0"
+	SyncaliburVersion   = "v2.4.0"
 	SyncaliburMilestone = "DevOps Intelligence & GitOps Guard"
 )
 
