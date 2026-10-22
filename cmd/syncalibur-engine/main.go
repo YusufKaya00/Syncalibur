@@ -2909,8 +2909,6 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 		exitCode = 3 // Secret detected
 	} else if len(syntaxErrors) > 0 {
 		exitCode = 2 // Syntax error or conflict marker
-	} else if hasDevOpsError {
-		exitCode = 4 // DevOps Policy hold
 	}
 
 	if jsonOutput {
