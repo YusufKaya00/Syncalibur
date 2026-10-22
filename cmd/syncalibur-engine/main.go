@@ -206,8 +206,11 @@ func main() {
 	case "status", "ui":
 		scriptPath := ""
 		repoRoot := "."
+		isStatic := false
 		for _, arg := range os.Args[2:] {
-			if strings.HasSuffix(arg, ".sh") || (strings.Contains(arg, "syncalibur") && !isGitRepoDir(arg)) {
+			if arg == "--static" {
+				isStatic = true
+			} else if strings.HasSuffix(arg, ".sh") || (strings.Contains(arg, "syncalibur") && !isGitRepoDir(arg)) {
 				scriptPath = arg
 			} else if fi, err := os.Stat(arg); err == nil && fi.IsDir() {
 				repoRoot = arg
@@ -219,6 +222,24 @@ func main() {
 					repoRoot = t
 				}
 			}
+		}
+		if isStatic {
+			shCandidate := scriptPath
+			if shCandidate == "" {
+				shCandidate = filepath.Join(repoRoot, "syncalibur.sh")
+			}
+			if _, err := os.Stat(shCandidate); err != nil {
+				if p, err := exec.LookPath("syncalibur.sh"); err == nil {
+					shCandidate = p
+				} else if p, err := exec.LookPath("syncalibur"); err == nil {
+					shCandidate = p
+				}
+			}
+			cmd := exec.Command("bash", shCandidate, "status", "--static", repoRoot)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			_ = cmd.Run()
+			return
 		}
 		runInteractiveTUI(scriptPath, repoRoot)
 
