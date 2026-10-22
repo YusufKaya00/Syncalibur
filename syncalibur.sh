@@ -2656,17 +2656,22 @@ cmd_checkpoint() {
 }
 
 cmd_undo() {
-  local steps="1"
-  if [[ -n "${1:-}" && "${1:-}" =~ ^[0-9]+$ ]]; then
-    steps="$1"
+  local steps="1" target_repo=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+      steps="$1"
+    elif [[ -d "$1" ]]; then
+      target_repo="$1"
+    fi
     shift
-  fi
+  done
 
-  local cur_git_root
-  cur_git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
-  local current_repo="${cur_git_root:-${1:-${REPO_ROOT}}}"
-  [[ -d "${current_repo}" ]] || current_repo="${PWD}"
-  current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
+  local current_repo
+  if [[ -n "${target_repo}" ]]; then
+    current_repo="$(cd "${target_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${target_repo}")"
+  else
+    current_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+  fi
   cd "${current_repo}" || return 1
   assert_git_operable "${current_repo}" || return 1
 
