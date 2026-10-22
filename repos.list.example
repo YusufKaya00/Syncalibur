@@ -2,21 +2,20 @@
 # Syncalibur Multi-Repository Fleet List (repos.list.example)
 # ==============================================================================
 # Copy this file to `repos.list` (gitignored) or manage it via CLI:
-#   syncalibur fleet add ~/projects/my-app --mode=instant-push
+#   syncalibur fleet add ~/projects/my-app
 #   syncalibur fleet scan ~/projects
 #   syncalibur fleet status
 #   syncalibur fleet start
 # ==============================================================================
 #
 # Supported formats:
-# 1. Standard path (uses repo-local .syncalibur or global default):
+# 1. Standard path (uses unified Autopilot default):
 # /home/username/projects/Syncalibur
 #
-# 2. Bracketed attributes (tailored mode per repo):
-# /home/username/projects/k8sfundamentals [mode=instant-push] [remote=origin]
-# /home/username/projects/infrastructure-iac [mode=devops] [remote=origin]
-# /home/username/projects/corporate-api [mode=pr] [remote=origin]
+# 2. Bracketed attributes (autopilot or manual per repo):
+# /home/username/projects/k8sfundamentals [mode=autopilot] [remote=origin]
+# /home/username/projects/production-api [mode=manual] [remote=upstream]
 #
 # 3. Inline key-value format:
-# /home/username/projects/devops-odyssey mode=instant-push
+# /home/username/projects/devops-odyssey mode=autopilot
 
