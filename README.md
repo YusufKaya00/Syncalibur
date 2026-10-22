@@ -58,6 +58,23 @@ Once installed, the global `syncalibur` CLI is accessible anywhere in your termi
 
 ---
 
+## ⚖️ Why Syncalibur? (Engineering Comparison)
+
+| Capability / Safety Guarantee | Naive Loop Script (`while true`) | `gitwatch` (bash inotify) | VS Code Auto-Save Plugin | Pre-Commit Hooks (Python) | Syncalibur Sentinel & Autopilot |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Zero-Data-Loss Flight Recorder** | ❌ Blind timer | ⚠️ Instant (no debounce) | ❌ Disk only | ❌ Manual commit only | ✅ **5s Cognitive Quiescence Settle** |
+| **Shannon Entropy Secret Shield** | ❌ None | ❌ None | ❌ None | ⚠️ Static regex only | ✅ **Mathematical ($H \ge 4.4$) + Signatures** |
+| **Polyglot Syntax Hold Gate** | ❌ Pushes broken code | ❌ Commits broken code | ❌ None | ⚠️ Slow python startup | ✅ **Pre-flight Hold (22 Languages)** |
+| **Commit Message Quality** | ❌ `update file.js` spam | ❌ Script timestamp | ❌ Naive generic text | ⚠️ Manual typing | ✅ **AST Function-Aware Semantic Commits** |
+| **Time Machine Disaster Rollback** | ❌ Reflog hell | ❌ Reflog hell | ❌ None | ❌ None | ✅ **1-Key Soft Undo (`[z]` / `syncalibur undo`)** |
+| **Staging Granularity** | ❌ Blind `git add -A` | ❌ Blind `git add -A` | ❌ All or nothing | ⚠️ Staged only | ✅ **Smart Staging by Concern (Docs/CI/K8s/Code)** |
+| **DevOps Policy Inspection** | ❌ None | ❌ None | ❌ None | ⚠️ Requires plugin | ✅ **Native K8s Ports, Dockerfile, Terraform** |
+| **Multi-Remote Parallel Push** | ❌ Sequential | ❌ Single remote | ❌ Single remote | ❌ None | ✅ **Concurrent Parallel Dispatch (GitHub+GitLab)** |
+| **Resource Footprint** | ⚠️ High bash CPU | ⚠️ High bash CPU | ❌ 150MB+ Electron | ❌ Python interpreter delay | ✅ **~0.0% CPU • ~7MB RAM (Compiled Go)** |
+| **External Dependencies** | ❌ Bash only | ❌ inotify-tools | ❌ VS Code / Node | ❌ Python + pip packages | ✅ **Pure Go Standard Library (0 Dependencies)** |
+
+---
+
 ## 🖥 Terminal Preview (`syncalibur ui`)
 
 Launch the calm, high-contrast cockpit anytime by running `syncalibur ui` (or `syncalibur status`):
