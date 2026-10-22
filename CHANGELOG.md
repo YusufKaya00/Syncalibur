@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.18.4] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **README**: update README.md (+25/-0) ([`e87c57a`](https://github.com/YusufKaya00/Syncalibur/commit/e87c57a))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
