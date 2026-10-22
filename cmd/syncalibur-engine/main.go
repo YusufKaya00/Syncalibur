@@ -4543,6 +4543,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	cachedOfflineQueued := ""
 	isPaused := false
 	cachedActiveMode := "autopilot"
+	engineVer := getEngineVersion(scriptPath)
 
 	renderFrame := func() {
 		termRows, termCols := getTerminalSize()
