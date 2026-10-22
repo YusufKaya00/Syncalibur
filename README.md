@@ -115,9 +115,23 @@ Runs in `<150ms` using the compiled Go engine.
 
 ### 4. Shannon Entropy Secret Shield
 Pre-flight security gate that intercepts secrets before `git add`:
-- **Mathematical Entropy Analysis:** Computes Shannon entropy per string token. High-randomness strings ($H \ge 4.4$) like private keys, hex tokens, and base64 hashes are flagged immediately.
+- **Mathematical Entropy Analysis:** Computes Shannon entropy per string token:
+  $$H(X) = -\sum_{i=1}^{n} P(x_i) \log_2 P(x_i)$$
+  High-randomness strings ($H \ge 4.4\text{ bit/char}$) like private keys, hex tokens, and base64 hashes are quarantined immediately.
 - **Pattern Signatures:** Detects AWS keys (`AKIA...`), GitHub PATs (`ghp_...`), OpenAI keys (`sk-...`), Slack tokens, private keys (`-----BEGIN PRIVATE KEY-----`), and `.env` files.
 - **Selective Quarantine:** Quarantines sensitive files from staging using path exclusion rules while allowing clean source files to be committed.
+
+```text
+Modified Files ──► [Token Stream] ──► Calculate H(X) = -Σ P(x) log₂ P(x)
+                                            │
+                            ┌───────────────┴───────────────┐
+                            ▼                               ▼
+                    H < 4.4 (Normal Code)          H >= 4.4 (Cryptographic Secret)
+                            │                               │
+                            ▼                               ▼
+                     Staged for Git               Quarantined from Git Index
+                                                  Desktop & Webhook Alert Sent
+```
 
 ### 5. Universal Syntax & Lexical Gate
 Ensures broken syntax is never committed:
