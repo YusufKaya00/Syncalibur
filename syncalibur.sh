@@ -151,6 +151,7 @@ if [[ "${OS_KERNEL}" =~ ^(MINGW|MSYS|CYGWIN) ]]; then
   GO_ENGINE_BIN="${GO_ENGINE_BIN}.exe"
   GO_ENGINE_COMPAT_BIN="${GO_ENGINE_COMPAT_BIN}.exe"
 fi
+FLEET_LIST_FILE="${SYNCALIBUR_FLEET_LIST:-${SCRIPT_DIR}/repos.list}"
 SELF_REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || echo "")"
 
 resolve_syncalibur_platform_version() {
