@@ -2133,6 +2133,7 @@ commit_changes() {
       if err_out="$(git commit -m "${g_msg}" 2>&1)"; then
         printf '%s\n' "${err_out}" >> "${LOG_FILE}"
         log "✓ [Smart Stage: ${g_scope}] Committed ${#g_valid_files[@]} file(s): ${g_msg}"
+        record_timeline_checkpoint
         total_committed=$(( total_committed + 1 ))
       else
         printf '%s\n' "${err_out}" >> "${LOG_FILE}"
