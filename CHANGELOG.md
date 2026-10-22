@@ -1,5 +1,14 @@
 # Changelog
 
+## [v2.25.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update runInteractiveTUI() (+21/-17) ([`a1afcac`](https://github.com/YusufKaya00/Syncalibur/commit/a1afcac))
+
+### 📚 Tooling, Tests & Fleet
+- **main**: update runInteractiveTUI() (+11/-17) ([`3ad05a9`](https://github.com/YusufKaya00/Syncalibur/commit/3ad05a9))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
