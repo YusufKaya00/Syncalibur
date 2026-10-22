@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.10.0] - 2026-10-22
+
+### 🚀 Features
+- **syncalibur**: update syncalibur.sh (+1/-1) ([`70765ea`](https://github.com/YusufKaya00/Syncalibur/commit/70765ea))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
