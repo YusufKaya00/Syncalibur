@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.6.1] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main**: update runPreflight() (+0/-2) ([`efa0dac`](https://github.com/YusufKaya00/Syncalibur/commit/efa0dac))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
