@@ -2656,6 +2656,12 @@ cmd_checkpoint() {
 }
 
 cmd_undo() {
+  local steps="1"
+  if [[ -n "${1:-}" && "${1:-}" =~ ^[0-9]+$ ]]; then
+    steps="$1"
+    shift
+  fi
+
   local cur_git_root
   cur_git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
   local current_repo="${cur_git_root:-${1:-${REPO_ROOT}}}"
@@ -2664,35 +2670,42 @@ cmd_undo() {
   cd "${current_repo}" || return 1
   assert_git_operable "${current_repo}" || return 1
 
-  local latest_ref
-  latest_ref="$(git for-each-ref --sort=-creatordate --format='%(refname)' 'refs/syncalibur/*' 2>/dev/null | head -n 1)"
-  if [[ -z "${latest_ref}" ]]; then
-    echo -e "${C_AMBER}▲ No Syncalibur checkpoint found in this repository.${C_RESET}"
-    echo -e "  ${C_SLATE}Checkpoints are created automatically by 'syncalibur tidy' or via 'syncalibur checkpoint save'.${C_RESET}"
+  local commit_cnt
+  commit_cnt="$(git rev-list --count HEAD 2>/dev/null || echo 0)"
+  if (( commit_cnt <= 1 )); then
+    echo -e "${C_AMBER}▲ Cannot undo: Repository has only 1 commit or history is empty.${C_RESET}"
     return 1
   fi
 
-  local target_sha
-  target_sha="$(git rev-parse --short "${latest_ref}" 2>/dev/null)"
-  local current_sha
+  local current_sha target_sha
   current_sha="$(git rev-parse --short HEAD 2>/dev/null)"
+  target_sha="$(git rev-parse --short "HEAD~${steps}" 2>/dev/null)"
 
-  if [[ "${target_sha}" == "${current_sha}" ]]; then
-    echo -e "${C_AMBER}▲ Repository HEAD is already at the latest checkpoint (${target_sha}).${C_RESET}"
-    return 0
+  if [[ -z "${target_sha}" ]]; then
+    echo -e "${C_RED}✕ Target commit HEAD~${steps} not found in history.${C_RESET}"
+    return 1
   fi
 
-  echo -e "${C_CYAN}◈ Syncalibur Time Machine Undo${C_RESET} [Reverting to ${latest_ref} (${target_sha})]"
+  echo -e "${C_CYAN}${C_BOLD}◈ Syncalibur Time Machine Undo${C_RESET} [Rolling back ${steps} commit(s): ${current_sha} ➔ ${target_sha}]"
 
-  local redo_ref="refs/syncalibur/checkpoint-pre-undo-$(date +%s)"
-  git update-ref "${redo_ref}" HEAD
+  # Record redo ref so developer can recover if needed
+  local redo_ref="refs/syncalibur/redo-$(date +%s)"
+  git update-ref "${redo_ref}" HEAD 2>/dev/null || true
 
-  if git reset --soft "${latest_ref}"; then
-    echo -e "  ${C_GREEN}✓ Rolled back to checkpoint ${target_sha}! (working tree preserved via soft reset)${C_RESET}"
-    echo -e "  ${C_SLATE}Redo reference saved at: ${redo_ref}${C_RESET}"
+  # Non-destructive soft reset preserves all unstaged/staged file modifications
+  if git reset --soft "HEAD~${steps}" 2>/dev/null; then
+    # Prune latest timeline ref that pointed to the undone commit
+    local latest_tl
+    latest_tl="$(git for-each-ref --sort=-creatordate --format='%(refname)' 'refs/syncalibur/timeline/*' 2>/dev/null | head -n 1)"
+    if [[ -n "${latest_tl}" ]]; then
+      git update-ref -d "${latest_tl}" 2>/dev/null || true
+    fi
+
+    echo -e "  ${C_GREEN}✓ Rolled back to ${target_sha}! (working tree preserved via soft reset)${C_RESET}"
+    echo -e "  ${C_SLATE}Redo reference saved at: ${redo_ref} (run 'git reset --soft ${redo_ref}' to re-apply)${C_RESET}"
     return 0
   else
-    echo -e "  ${C_RED}✕ Soft reset to ${latest_ref} failed.${C_RESET}"
+    echo -e "  ${C_RED}✕ Soft reset to HEAD~${steps} failed.${C_RESET}"
     return 1
   fi
 }
