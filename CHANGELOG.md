@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.24.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update RepoTelemetry struct (+100/-0) ([`6fa3c49`](https://github.com/YusufKaya00/Syncalibur/commit/6fa3c49))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
