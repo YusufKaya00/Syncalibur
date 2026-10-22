@@ -21,7 +21,7 @@ set -uo pipefail
 # transient git/network errors rather than exiting unexpectedly.
 
 export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/c/Program Files/Go/bin:/c/Go/bin:${PATH}"
-SYNCALIBUR_PLATFORM_VERSION="v2.18.4"
+SYNCALIBUR_PLATFORM_VERSION="v2.21.0"
 export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new}"
 
