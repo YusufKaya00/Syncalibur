@@ -437,36 +437,22 @@ PUSH_TIMEOUT="${SYNCALIBUR_PUSH_TIMEOUT:-${AUTO_SYNC_PUSH_TIMEOUT:-120}}"
 LOG_MAX_KB="${SYNCALIBUR_LOG_MAX_KB:-${AUTO_SYNC_LOG_MAX_KB:-1024}}"
 REMOTE_OVERRIDE="${SYNCALIBUR_REMOTE:-${AUTO_SYNC_REMOTE:-}}"
 
-# Operating Modes: "instant-push" | "developer" | "devops" | "pr" (default: "developer")
-MODE="${SYNCALIBUR_MODE:-developer}"
-
+# Syncalibur Architecture: Unified Zero-Data-Loss Autopilot & Sentinel
+MODE="${SYNCALIBUR_MODE:-autopilot}"
 case "${MODE}" in
-  instant-push | instant | stream | continuous | commit-generator | commit-gen)
-    MODE="instant-push"
-    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-5}"
+  manual | idle | sentinel)
+    MODE="manual"
+    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-0}"
     TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-999}"
     AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-false}"
     AUTO_PR="${SYNCALIBUR_AUTO_PR:-false}"
     ;;
-  devops | infra | k8s | iac)
-    MODE="devops"
-    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-30}"
-    TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-3}"
-    AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-true}"
-    AUTO_PR="${SYNCALIBUR_AUTO_PR:-burst}"
-    ;;
-  pr | review)
-    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-20}"
-    TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-2}"
-    AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-true}"
-    AUTO_PR="${SYNCALIBUR_AUTO_PR:-true}"
-    ;;
-  developer | pro | team | *)
-    MODE="developer"
-    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-20}"
-    TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-3}"
-    AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-true}"
-    AUTO_PR="${SYNCALIBUR_AUTO_PR:-burst}"
+  *)
+    MODE="autopilot"
+    BURST_COOLDOWN="${SYNCALIBUR_BURST_COOLDOWN:-5}"
+    TIDY_THRESHOLD="${SYNCALIBUR_TIDY_THRESHOLD:-999}"
+    AUTO_TIDY="${SYNCALIBUR_AUTO_TIDY:-false}"
+    AUTO_PR="${SYNCALIBUR_AUTO_PR:-false}"
     ;;
 esac
 
