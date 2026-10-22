@@ -62,8 +62,8 @@ const (
 
 // Syncalibur Official Release & Semantic Version
 const (
-	SyncaliburVersion   = "v2.3.0"
-	SyncaliburMilestone = "DevOps Intelligence & GitOps Guard"
+	SyncaliburVersion   = "v2.6.0"
+	SyncaliburMilestone = "Zero-Data-Loss Flight Recorder & Autopilot"
 )
 
 // Lucide / Minimalist Typography Icons
