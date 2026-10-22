@@ -3852,6 +3852,106 @@ func sendWebhook(webhookURL, eventType, repoName, branchName, title, message, de
 // 7. Two-Pane Interactive Live TUI with Scrollable Logs (`syncalibur ui`)
 // ==============================================================================
 
+type RepoTelemetry struct {
+	TotalCommits  string
+	TodayCommits  string
+	UnpushedCount string
+	DirtySummary  string
+	LatestTag     string
+	CurrentBranch string
+}
+
+func getRepoTelemetry(repoRoot string) RepoTelemetry {
+	var t RepoTelemetry
+	t.TotalCommits = "0"
+	t.TodayCommits = "0"
+	t.UnpushedCount = "0"
+	t.DirtySummary = "clean"
+	t.LatestTag = "none"
+	t.CurrentBranch = "main"
+
+	if repoRoot == "" || repoRoot == "." {
+		if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+			if s := strings.TrimSpace(string(top)); s != "" {
+				repoRoot = s
+			}
+		}
+	}
+
+	// Current Branch
+	if out, err := exec.Command("git", "-C", repoRoot, "symbolic-ref", "--short", "HEAD").Output(); err == nil {
+		if b := strings.TrimSpace(string(out)); b != "" {
+			t.CurrentBranch = b
+		}
+	} else if out, err := exec.Command("git", "-C", repoRoot, "rev-parse", "--short", "HEAD").Output(); err == nil {
+		if b := strings.TrimSpace(string(out)); b != "" {
+			t.CurrentBranch = "detached:" + b
+		}
+	}
+
+	// Total Commits
+	if out, err := exec.Command("git", "-C", repoRoot, "rev-list", "--count", "HEAD").Output(); err == nil {
+		if c := strings.TrimSpace(string(out)); c != "" {
+			t.TotalCommits = c
+		}
+	}
+
+	// Today's Commits & Velocity
+	velo := getCommitVelocity(repoRoot)
+	t.TodayCommits = strconv.Itoa(velo.Today)
+
+	// Unpushed Commits
+	if out, err := exec.Command("git", "-C", repoRoot, "rev-list", "--count", "@{u}..HEAD").Output(); err == nil {
+		if u := strings.TrimSpace(string(out)); u != "" {
+			t.UnpushedCount = u
+		}
+	}
+
+	// Working Tree State (staged, unstaged, untracked)
+	if out, err := exec.Command("git", "-C", repoRoot, "status", "--porcelain").Output(); err == nil {
+		staged, unstaged, untracked := 0, 0, 0
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		for _, l := range lines {
+			if len(l) < 2 {
+				continue
+			}
+			x, y := l[0], l[1]
+			if x == '?' {
+				untracked++
+			} else {
+				if x != ' ' {
+					staged++
+				}
+				if y != ' ' {
+					unstaged++
+				}
+			}
+		}
+		if staged == 0 && unstaged == 0 && untracked == 0 {
+			t.DirtySummary = "clean"
+		} else {
+			var parts []string
+			if staged > 0 {
+				parts = append(parts, fmt.Sprintf("%d staged", staged))
+			}
+			if unstaged > 0 {
+				parts = append(parts, fmt.Sprintf("%d unstaged", unstaged))
+			}
+			if untracked > 0 {
+				parts = append(parts, fmt.Sprintf("%d untracked", untracked))
+			}
+			t.DirtySummary = strings.Join(parts, ", ")
+		}
+	}
+
+	// Latest Tag for this repo
+	if tag := getLatestSemVerTag(repoRoot); tag != "" {
+		t.LatestTag = tag
+	}
+
+	return t
+}
+
 func getDaemonStatus(gitDir string) (bool, int) {
 	pidBytes, err := os.ReadFile(filepath.Join(gitDir, "syncalibur.pid"))
 	if err == nil {
