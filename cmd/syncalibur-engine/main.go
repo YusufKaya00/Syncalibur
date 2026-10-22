@@ -4566,8 +4566,8 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				lineFlash := fmt.Sprintf("│  %s", flashMsg)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
 			} else {
-				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[m]%s Mode  %s[s]%s Sync  %s[z]%s Undo  %s[b]%s Pull  %s[t]%s Logo  %s[f]%s Tail",
-					cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cGreen, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset)
+				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[z]%s Undo  %s[s]%s Sync  %s[b]%s Pull  %s[t]%s Logo  %s[f]%s Tail",
+					cBold, cReset, cRed, cReset, cGold, cReset, cGreen, cReset, cGold, cReset, cCyan, cReset, cCyan, cReset, cGreen, cReset)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
 			}
 			fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
