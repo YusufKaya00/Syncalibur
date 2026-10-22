@@ -7,7 +7,8 @@
 **The Zero-Data-Loss Git Sentinel & Autopilot for Developers**  
 *Autonomous Background Sync • AST Semantic Commits • Shannon Entropy Secret Shield • Instant Time Machine Rollback*
 
-[![Release Version](https://img.shields.io/badge/Release-v2.18.4-blue?style=for-the-badge&logo=github)](https://github.com/YusufKaya00/Syncalibur/releases)
+[![Release Version](https://img.shields.io/github/v/release/YusufKaya00/Syncalibur?style=for-the-badge&logo=github&color=blue&label=Release)](https://github.com/YusufKaya00/Syncalibur/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/YusufKaya00/Syncalibur?style=for-the-badge&logo=star&color=gold)](https://github.com/YusufKaya00/Syncalibur/stargazers)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/YusufKaya00/Syncalibur/ci.yml?branch=main&style=for-the-badge&label=CI%20Verify)](https://github.com/YusufKaya00/Syncalibur/actions)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-0ea5e9?style=for-the-badge)](#cli-command-reference)
 [![Engine](https://img.shields.io/badge/Core-Go%20Standard%20Library%20(0%20Deps)-00ADD8?style=for-the-badge&logo=go&logoColor=white)](#architecture)
