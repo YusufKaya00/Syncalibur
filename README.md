@@ -7,13 +7,14 @@
 **The Zero-Data-Loss Git Sentinel & Autopilot for Developers**  
 *Autonomous Background Sync • AST Semantic Commits • Shannon Entropy Secret Shield • Instant Time Machine Rollback*
 
+[![Release Version](https://img.shields.io/badge/Release-v2.18.4-blue?style=for-the-badge&logo=github)](https://github.com/YusufKaya00/Syncalibur/releases)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/YusufKaya00/Syncalibur/ci.yml?branch=main&style=for-the-badge&label=CI%20Verify)](https://github.com/YusufKaya00/Syncalibur/actions)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-0ea5e9?style=for-the-badge)](#cli-command-reference)
 [![Engine](https://img.shields.io/badge/Core-Go%20Standard%20Library%20(0%20Deps)-00ADD8?style=for-the-badge&logo=go&logoColor=white)](#architecture)
-[![Git Remotes](https://img.shields.io/badge/Multi--Remote-GitHub%20%2B%20GitLab%20%2B%20Self--Hosted-10b981?style=for-the-badge)](#multi-remote-push)
+[![Secret Shield](https://img.shields.io/badge/Secret%20Shield-Shannon%20Entropy%20(H%E2%89%A54.4)-10b981?style=for-the-badge)](#shannon-entropy-secret-shield)
 [![License](https://img.shields.io/badge/License-MIT-amber?style=for-the-badge)](LICENSE)
 
-*Syncalibur is a developer workstation flight recorder and autonomous Git autopilot. It runs silently in the background, detects cognitive typing pauses, validates code syntax, quarantines credentials with Shannon entropy, creates AST-aware Conventional Commits, and pushes to all your Git remotes in real-time. If you ever make a mistake, its zero-cost Time Machine rewinds commits in 1 keystroke without losing a single uncommitted character.*
+*Syncalibur is a developer workstation flight recorder and autonomous Git autopilot. It runs silently in the background, detects cognitive typing pauses, validates code syntax across 22 languages, quarantines credentials with Shannon entropy, creates AST-aware Conventional Commits, and pushes to all your Git remotes in real-time. If you ever make a mistake, its zero-cost Time Machine rewinds commits in 1 keystroke without losing a single uncommitted character.*
 
 </div>
 
