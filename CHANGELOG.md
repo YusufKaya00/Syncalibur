@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.27.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update main() (+22/-1) ([`56363b3`](https://github.com/YusufKaya00/Syncalibur/commit/56363b3))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
