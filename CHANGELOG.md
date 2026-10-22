@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.22.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update main.go (+1/-1) ([`4ae3957`](https://github.com/YusufKaya00/Syncalibur/commit/4ae3957))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
