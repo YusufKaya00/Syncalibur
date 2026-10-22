@@ -4867,11 +4867,11 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
 				case 'c', 'C': // Run Preflight Check
-					pre := runPreflight(repoRoot)
-					if pre.Passed {
+					exitCode, summary := runPreflight(repoRoot, false, false)
+					if exitCode == 0 {
 						flashMsg = fmt.Sprintf("%s%s %sPREFLIGHT PASS:%s All Syntax, Secret Shield, & AST checks OK.", cGreen, iconCheck, cBold, cReset)
 					} else {
-						flashMsg = fmt.Sprintf("%s%s %sPREFLIGHT HOLD:%s Code %d (%d issues found).", cAmber, iconWarn, cBold, cReset, pre.ExitCode, len(pre.DevOpsIssues))
+						flashMsg = fmt.Sprintf("%s%s %sPREFLIGHT HOLD:%s Code %d (%s).", cAmber, iconWarn, cBold, cReset, exitCode, summary)
 					}
 					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
