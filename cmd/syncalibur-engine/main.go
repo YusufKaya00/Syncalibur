@@ -1562,6 +1562,29 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	return true, ""
 }
 
+func isTypeScriptSyntaxError(line string) bool {
+	idx := strings.Index(line, "error TS")
+	if idx == -1 {
+		return false
+	}
+	codePart := line[idx+len("error TS"):]
+	// In TypeScript compiler, syntactic/grammar parsing errors strictly belong to the TS1000-TS1999 range (TS1xxx).
+	// Semantic errors (missing modules, missing types, missing globals, type checking) are TS2000+.
+	if len(codePart) >= 4 && codePart[0] == '1' {
+		isAllDigits := true
+		for i := 1; i < 4; i++ {
+			if codePart[i] < '0' || codePart[i] > '9' {
+				isAllDigits = false
+				break
+			}
+		}
+		if isAllDigits {
+			return true
+		}
+	}
+	return false
+}
+
 func stripCommentsFromJSON(data []byte) []byte {
 	var out []byte
 	inString := false
