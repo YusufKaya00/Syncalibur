@@ -927,43 +927,31 @@ func TestIsBinaryFile(t *testing.T) {
 
 func TestModeCycleAndBadge(t *testing.T) {
 	// Mode badge checks
-	if !strings.Contains(getModeBadge("devops"), "☸ DevOps") {
-		t.Errorf("expected getModeBadge('devops') to contain '☸ DevOps', got %s", getModeBadge("devops"))
+	if !strings.Contains(getModeBadge("autopilot"), "Autopilot") {
+		t.Errorf("expected getModeBadge('autopilot') to contain 'Autopilot', got %s", getModeBadge("autopilot"))
 	}
-	if !strings.Contains(getModeBadge("instant-push"), "Instant-Push") {
-		t.Errorf("expected Instant-Push badge, got %s", getModeBadge("instant-push"))
+	if !strings.Contains(getModeBadge("instant-push"), "Autopilot") {
+		t.Errorf("expected legacy instant-push to resolve to Autopilot badge, got %s", getModeBadge("instant-push"))
 	}
-	if !strings.Contains(getModeBadge("commit-generator"), "Instant-Push") {
-		t.Errorf("expected commit-generator alias to produce Instant-Push badge, got %s", getModeBadge("commit-generator"))
+	if !strings.Contains(getModeBadge("manual"), "Manual") {
+		t.Errorf("expected getModeBadge('manual') to contain 'Manual', got %s", getModeBadge("manual"))
 	}
 
-	// 4-state mode cycle check
+	// 2-state toggle check (autopilot <-> manual)
 	tmpDir := t.TempDir()
 	_ = exec.Command("git", "-C", tmpDir, "init").Run()
-	_ = os.WriteFile(filepath.Join(tmpDir, ".syncalibur"), []byte("MODE=\"instant-push\"\n"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, ".syncalibur"), []byte("MODE=\"autopilot\"\n"), 0644)
 
-	// instant-push -> developer
+	// autopilot -> manual
 	m1 := cycleActiveMode("syncalibur.sh", tmpDir)
-	if m1 != "developer" {
-		t.Errorf("expected developer after instant-push, got %s", m1)
+	if m1 != "manual" {
+		t.Errorf("expected manual after autopilot, got %s", m1)
 	}
 
-	// developer -> devops
+	// manual -> autopilot
 	m2 := cycleActiveMode("syncalibur.sh", tmpDir)
-	if m2 != "devops" {
-		t.Errorf("expected devops after developer, got %s", m2)
-	}
-
-	// devops -> pr
-	m3 := cycleActiveMode("syncalibur.sh", tmpDir)
-	if m3 != "pr" {
-		t.Errorf("expected pr after devops, got %s", m3)
-	}
-
-	// pr -> instant-push
-	m4 := cycleActiveMode("syncalibur.sh", tmpDir)
-	if m4 != "instant-push" {
-		t.Errorf("expected instant-push after pr, got %s", m4)
+	if m2 != "autopilot" {
+		t.Errorf("expected autopilot after manual, got %s", m2)
 	}
 }
 
