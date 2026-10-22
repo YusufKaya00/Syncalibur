@@ -4086,30 +4086,19 @@ func getActiveMode(scriptPath, repoRoot string) string {
 }
 
 func getModeBadge(mode string) string {
-	switch canonicalizeMode(mode) {
-	case "instant-push":
-		return cCyan + cBold + "⚡ Instant-Push" + cReset
-	case "devops":
-		return cBlue + cBold + "☸ DevOps" + cReset
-	case "pr":
-		return cAmber + cBold + "🔀 PR" + cReset
-	default:
-		return cGreen + cBold + "🛠 Developer" + cReset
+	if canonicalizeMode(mode) == "manual" {
+		return cGold + cBold + "⏸ Manual" + cReset
 	}
+	return cCyan + cBold + "⚡ Autopilot" + cReset
 }
 
 func cycleActiveMode(scriptPath, repoRoot string) string {
 	current := canonicalizeMode(getActiveMode(scriptPath, repoRoot))
-	var next string
-	switch current {
-	case "instant-push":
-		next = "developer"
-	case "developer":
-		next = "devops"
-	case "devops":
-		next = "pr"
-	default:
-		next = "instant-push"
+	next := "autopilot"
+	if current == "autopilot" {
+		next = "manual"
+	} else {
+		next = "autopilot"
 	}
 
 	targetCfg := filepath.Join(repoRoot, ".syncalibur")
