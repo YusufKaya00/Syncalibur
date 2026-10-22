@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.9.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update parseFleetEntry() (+1/-1) ([`69d71c4`](https://github.com/YusufKaya00/Syncalibur/commit/69d71c4))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
