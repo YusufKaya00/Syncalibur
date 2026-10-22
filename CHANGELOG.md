@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.6.0] - 2026-10-22
+
+### 🚀 Features
+- **main**: update main.go (+2/-2) ([`bad5cf9`](https://github.com/YusufKaya00/Syncalibur/commit/bad5cf9))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
