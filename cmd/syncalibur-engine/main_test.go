@@ -151,6 +151,13 @@ func TestValidateFileSyntax(t *testing.T) {
 		t.Errorf("expected valid React TSX to pass, got: %s", errReason)
 	}
 
+	// 9b. Valid TypeScript with async/await and missing ambient types
+	validTS := filepath.Join(tmpDir, "async_service.ts")
+	_ = os.WriteFile(validTS, []byte("export async function loadData(): Promise<any> { return { ok: true }; }"), 0644)
+	if valid, errReason := validateFileSyntax(tmpDir, "async_service.ts"); !valid {
+		t.Errorf("expected valid async TypeScript to pass, got: %s", errReason)
+	}
+
 	// 10. Broken React TSX (unclosed JSX expression brace)
 	brokenTSX := filepath.Join(tmpDir, "BrokenComponent.tsx")
 	_ = os.WriteFile(brokenTSX, []byte("export const Header = () => { return <div>{items.map(i => <span>{i}</span>); };"), 0644)
