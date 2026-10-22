@@ -3367,19 +3367,10 @@ func parseFleetEntry(line string) *fleetRepoConfig {
 func canonicalizeMode(m string) string {
 	m = strings.ToLower(strings.TrimSpace(m))
 	switch m {
-	case "instant-push", "instant", "stream", "continuous", "commit-generator", "commit-gen":
-		return "instant-push"
-	case "devops", "infra", "k8s", "iac":
-		return "devops"
-	case "pr", "review":
-		return "pr"
-	case "developer", "pro", "team":
-		return "developer"
+	case "manual", "idle", "sentinel":
+		return "manual"
 	default:
-		if m == "" {
-			return "developer"
-		}
-		return m
+		return "autopilot"
 	}
 }
 
@@ -3404,7 +3395,7 @@ func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 	if env := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); env != "" {
 		return canonicalizeMode(env)
 	}
-	return "developer"
+	return "autopilot"
 }
 
 func visibleLen(s string) int {
