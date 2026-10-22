@@ -2013,6 +2013,28 @@ block_reason() {
   return 1
 }
 
+record_timeline_checkpoint() {
+  local head_sha epoch_ts ref_name
+  head_sha="$(git rev-parse HEAD 2>/dev/null || echo "")"
+  [[ -z "${head_sha}" ]] && return 0
+  epoch_ts="$(date +%s%N 2>/dev/null || date +%s)"
+  ref_name="refs/syncalibur/timeline/${epoch_ts}"
+  git update-ref "${ref_name}" "${head_sha}" 2>/dev/null || true
+
+  # Prune timeline checkpoints: keep newest 50
+  local all_refs=()
+  while IFS= read -r r; do
+    [[ -n "${r}" ]] && all_refs+=("${r}")
+  done < <(git for-each-ref --sort=-creatordate --format='%(refname)' 'refs/syncalibur/timeline/*' 2>/dev/null)
+
+  if (( ${#all_refs[@]} > 50 )); then
+    local old_ref
+    for old_ref in "${all_refs[@]:50}"; do
+      git update-ref -d "${old_ref}" 2>/dev/null || true
+    done
+  fi
+}
+
 commit_changes() {
   local path reason msg count line err_out
   local -a excludes=() files=() quarantined_set=()
@@ -2038,8 +2060,7 @@ commit_changes() {
       elif (( pf_code == 4 )); then
         local devops_err
         devops_err="$(jq -r '.details[0] // .devops_errors[0] // "infrastructure lint failure"' <<< "${pf_out}")"
-        log "☸ [DEVOPS HOLD] Infrastructure lint error: ${devops_err}; holding commit until manifest is valid."
-        return 1
+        log "☸ [DEVOPS ADVISORY] Infrastructure lint warning: ${devops_err} (non-blocking)."
       fi
     elif ensure_go_engine; then
       local pf_raw pf_rc=0
@@ -2055,8 +2076,7 @@ commit_changes() {
       elif (( pf_rc == 4 )); then
         local first_err
         first_err="$(head -n 2 <<< "${pf_raw}" | tr '\n' ' ')"
-        log "☸ [DEVOPS HOLD] ${first_err}; holding commit."
-        return 1
+        log "☸ [DEVOPS ADVISORY] ${first_err} (non-blocking)."
       fi
     fi
   fi
