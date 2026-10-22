@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.13.0] - 2026-10-22
+
+### 🚀 Features
+- **syncalibur**: update syncalibur.sh (+1/-0) ([`bfa9def`](https://github.com/YusufKaya00/Syncalibur/commit/bfa9def))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
