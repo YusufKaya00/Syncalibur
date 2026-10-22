@@ -1027,17 +1027,21 @@ print_syncalibur_dashboard() {
   notify_str="$(describe_notify_channels)"
   local autorepo_str="${C_GREEN}✓ Bi-Sync${C_RESET} ${C_SLATE}•${C_RESET} ${C_GREEN}✓ Semantic Commits${C_RESET} ${C_SLATE}•${C_RESET} ${C_GREEN}✓ Auto-Repo (${REPO_VISIBILITY})${C_RESET} ${C_SLATE}•${C_RESET} ${notify_str}"
 
+  local total_commits today_commits
+  total_commits="$(git -C "${REPO_ROOT}" rev-list --count HEAD 2>/dev/null || echo "0")"
+  today_commits="$(git -C "${REPO_ROOT}" log --since="midnight" --oneline 2>/dev/null | wc -l | tr -d ' ')"
+
   cfg_short="${CONFIG_FILE:-<defaults>}"
   cfg_short="${cfg_short/#${HOME}/~}"
   watch_short="${WATCH_PATH/#${HOME}/~}"
 
   local -a info_lines=(
     "${C_GOLD}╭──────────────────────────────────────────────────────────────────────╮${C_RESET}"
-    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}${SYNCALIBUR_PLATFORM_VERSION}${C_RESET}  ${C_SLATE}•${C_RESET}   ${C_CYAN}Autonomous Git Auto-Sync Platform${C_RESET}        ${C_GOLD}│${C_RESET}"
+    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}${SYNCALIBUR_PLATFORM_VERSION}${C_RESET}  ${C_SLATE}•${C_RESET}   ${C_CYAN}Zero-Data-Loss Git Sentinel & Autopilot${C_RESET}     ${C_GOLD}│${C_RESET}"
     "${C_GOLD}╰──────────────────────────────────────────────────────────────────────╯${C_RESET}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Status    :${C_RESET} ${state_str}  ${C_SLATE}•${C_RESET}  ${engine_badge}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}OS / Svc  :${C_RESET} ${C_WHITE}${OS_KERNEL} (${SERVICE_BACKEND})${C_RESET}  ${C_SLATE}•${C_RESET}  ${autostart_str}"
-    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Sync Mode :${C_RESET} ${C_CYAN}${C_BOLD}${MODE}${C_RESET} ${C_SLATE}(burst ${BURST_COOLDOWN}s • tidy ≥${TIDY_THRESHOLD} • pr: ${AUTO_PR})${C_RESET}"
+    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Sync Mode :${C_RESET} ${C_CYAN}${C_BOLD}⚡ autopilot${C_RESET} ${C_SLATE}(5s cognitive debounce • zero-data-loss sentinel active)${C_RESET}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Author    :${C_RESET} ${C_WHITE}${C_BOLD}${git_user}${C_RESET} ${C_SLATE}<${git_email}> (${sys_ident})${C_RESET}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Verified  :${C_RESET} ${auth_badges}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Watching  :${C_RESET} ${C_WHITE}${watch_short}${C_RESET} ${C_SLATE}(scope: ${SCOPE})${C_RESET}"
@@ -1054,10 +1058,10 @@ print_syncalibur_dashboard() {
   info_lines+=(
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Self-Sync :${C_RESET} ${self_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Features  :${C_RESET} ${autorepo_str}"
-    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Velocity  :${C_RESET} ${unpushed_str}"
+    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Commits   :${C_RESET} ${C_GREEN}${total_commits}${C_RESET} ${C_SLATE}total${C_RESET}  ${C_SLATE}•${C_RESET}  ${C_GREEN}${today_commits}${C_RESET} ${C_SLATE}today${C_RESET}  ${C_SLATE}•${C_RESET}  ${unpushed_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Shield    :${C_RESET} ${C_SLATE}Poll ${POLL_INTERVAL}s • Debounce ${DEBOUNCE_WAIT}s • ≤ ${MAX_FILE_SIZE_MB} MiB & Secret Guard${C_RESET}"
     "  ${C_SLATE}──────────────────────────────────────────────────────────────────────${C_RESET}"
-    "  ${C_SLATE}Commands  : ${C_CYAN}status${C_SLATE} | ${C_CYAN}mode${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}release${C_SLATE} | ${C_CYAN}version${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}doctor${C_RESET}"
+    "  ${C_SLATE}Commands  : ${C_CYAN}save${C_SLATE} | ${C_CYAN}undo${C_SLATE} | ${C_CYAN}check${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}doctor${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}version${C_RESET}"
   )
 
   local -a logo_lines=()
