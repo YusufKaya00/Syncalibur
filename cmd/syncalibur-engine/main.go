@@ -4513,12 +4513,15 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	var cachedOnline bool
 	var cachedDaemonPid int
 	cachedBranch := "main"
+	cachedTotalCommits := "0"
 	cachedUnpushed := "0"
 	cachedToday := "0"
+	cachedDirtyState := "clean"
+	cachedRepoTag := "none"
 	cachedSpark := "───────"
 	cachedOfflineQueued := ""
 	isPaused := false
-	cachedActiveMode := "developer"
+	cachedActiveMode := "autopilot"
 
 	renderFrame := func() {
 		termRows, termCols := getTerminalSize()
@@ -4532,21 +4535,13 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		if time.Since(lastGitQuery) >= 1000*time.Millisecond {
 			cachedOnline, cachedDaemonPid = getDaemonStatus(gitDir)
 
-			branchOut, _ := exec.Command("git", "-C", repoRoot, "symbolic-ref", "--short", "HEAD").Output()
-			b := strings.TrimSpace(string(branchOut))
-			if b != "" {
-				cachedBranch = b
-			} else {
-				cachedBranch = "main"
-			}
-
-			unpushedOut, _ := exec.Command("git", "-C", repoRoot, "rev-list", "--count", "@{u}..HEAD").Output()
-			u := strings.TrimSpace(string(unpushedOut))
-			if u != "" {
-				cachedUnpushed = u
-			} else {
-				cachedUnpushed = "0"
-			}
+			telemetry := getRepoTelemetry(repoRoot)
+			cachedBranch = telemetry.CurrentBranch
+			cachedTotalCommits = telemetry.TotalCommits
+			cachedToday = telemetry.TodayCommits
+			cachedUnpushed = telemetry.UnpushedCount
+			cachedDirtyState = telemetry.DirtySummary
+			cachedRepoTag = telemetry.LatestTag
 
 			if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.offline")); err == nil {
 				cachedOfflineQueued = cachedUnpushed
@@ -4558,7 +4553,6 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			isPaused = (pauseErr == nil)
 
 			velo := getCommitVelocity(repoRoot)
-			cachedToday = strconv.Itoa(velo.Today)
 			cachedSpark = velo.Sparkline
 
 			cachedActiveMode = getActiveMode(scriptPath, repoRoot)
