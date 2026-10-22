@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.6.4] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main**: update getModeBadge() (+8/-19) ([`8806eb9`](https://github.com/YusufKaya00/Syncalibur/commit/8806eb9))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
