@@ -1051,9 +1051,17 @@ print_syncalibur_dashboard() {
   cfg_short="${cfg_short/#${HOME}/~}"
   watch_short="${WATCH_PATH/#${HOME}/~}"
 
+  local title_text="  S Y N C A L I B U R ${SYNCALIBUR_PLATFORM_VERSION}  •  Zero-Data-Loss Git Sentinel"
+  local vis_len=${#title_text}
+  local pad_len=$(( 70 - vis_len ))
+  local pad=""
+  if (( pad_len > 0 )); then
+    pad="$(printf '%*s' "${pad_len}" "")"
+  fi
+
   local -a info_lines=(
     "${C_GOLD}╭──────────────────────────────────────────────────────────────────────╮${C_RESET}"
-    "${C_GOLD}│${C_RESET}   ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}${SYNCALIBUR_PLATFORM_VERSION}${C_RESET}  ${C_SLATE}•${C_RESET}   ${C_CYAN}Zero-Data-Loss Git Sentinel & Autopilot${C_RESET}     ${C_GOLD}│${C_RESET}"
+    "${C_GOLD}│${C_RESET}  ${C_GOLD}${C_BOLD}S Y N C A L I B U R${C_RESET} ${C_GREEN}${SYNCALIBUR_PLATFORM_VERSION}${C_RESET}  ${C_SLATE}•${C_RESET}  ${C_CYAN}Zero-Data-Loss Git Sentinel${C_RESET}${pad}${C_GOLD}│${C_RESET}"
     "${C_GOLD}╰──────────────────────────────────────────────────────────────────────╯${C_RESET}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Status    :${C_RESET} ${state_str}  ${C_SLATE}•${C_RESET}  ${engine_badge}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}OS / Svc  :${C_RESET} ${C_WHITE}${OS_KERNEL} (${SERVICE_BACKEND})${C_RESET}  ${C_SLATE}•${C_RESET}  ${autostart_str}"
