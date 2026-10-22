@@ -1,7 +1,7 @@
 # Syncalibur — Comprehensive Project Memory & Living System Blueprint
 
 > **Status:** Active Platform Specification & Living Memory Ledger  
-> **Platform Version:** `v2.4.0` (Milestone: *"Developer Flight Recorder & Instant Push Autopilot"*)  
+> **Platform Version:** `v2.6.0` (Milestone: *"Zero-Data-Loss Flight Recorder & Autopilot"*)  
 > **Architecture:** Hybrid Native Go Core (`cmd/syncalibur-engine`) + Fault-Tolerant Bash Supervisor (`syncalibur.sh`)  
 > **Living Memory Rule:** *Every functional modification, architecture change, or configuration addition MUST update this document.*
 
@@ -9,20 +9,18 @@
 
 ## 1. Executive Summary & Mission Statement
 
-**Syncalibur** is an autonomous, production-grade Git synchronization platform, developer code guard, and **Developer Flight Recorder**. It operates as both a zero-friction background daemon and an ergonomic, one-shot CLI tool (`syncalibur push`, `syncalibur commit`, `syncalibur undo`/`recover`, `syncalibur status`, `syncalibur mode`, `syncalibur tidy`, `syncalibur doctor`).
+**Syncalibur** is an autonomous, production-grade Git synchronization platform, developer code guard, and **Developer Flight Recorder**. It operates as both a zero-friction background daemon and an ergonomic, one-shot CLI tool (`syncalibur save`, `syncalibur undo`, `syncalibur ui`, `syncalibur check`, `syncalibur mode`, `syncalibur fleet`, `syncalibur doctor`).
  
 ### Core Design Philosophy
-1. **Zero Data Loss Guarantee & Flight Recorder:** File changes are snapshotted and committed locally immediately upon debounce quiescence. Even if the workstation loses power or the network drops, uncommitted edits are never lost.
-2. **Clean Conventional Commit History:** Unlike crude auto-commit scripts that flood Git history with dozens of spam commits (`auto: update file.js`), Syncalibur enforces semantic Conventional Commits (`feat(scope): ... (+X/-Y)`), Smart Staging (partitioning multi-concern edits), and Burst Cadence Auto-Tidy (squashing micro-commits into one clean milestone commit before pushing).
-3. **Four Tailored Operating Modes:**
-   - **`instant-push`** (Continuous Stream Mode • 5s Debounce • No Squash): Every save passes checks, settles after 5s, is committed and pushed directly to `main` without squashing. Backward-compatible aliases: `commit-generator`, `commit-gen`, `stream`, `continuous`.
-   - **`developer`** (Adaptive Burst & Squash Mode) [Default]: 1-2 small commits push directly; 3+ commits squash into 1 clean Conventional Commit upon 20s cooldown quiescence; opens auto-PR if branch is protected.
-   - **`devops`** (DevOps & GitOps Guard Mode): Manifest validation (K8s ports, probes, ConfigMap secrets, Dockerfile tags) with 30s cooldown and automatic squash.
-   - **`pr`** (Strict Pull Request Mode): Always pushes to an isolated branch and opens a Pull Request with an auto-populated template.
-4. **Self-Sync Autopilot:** The background daemon watches Syncalibur's own repository (`/home/ysf/Syncalibur`), automatically commits and pushes improvements, pulls upstream releases, rebuilds the Go engine, and hot-reloads in place.
-5. **Zero External Dependencies:** Built with pure Go standard library (`go/parser`, `go/ast`, `image`, `syscall`, `net/http`) and native POSIX/Bash commands. Compiles in $<1.5\text{s}$ into a standalone stripped binary (`bin/syncalibur`).
-6. **Fail-Safe Secret & Syntax Shield:** High-entropy credentials, private keys, and broken syntax are quarantined before hitting the Git index or remote servers.
-7. **True Cross-Platform Operation:** Linux (`systemd`, `inotify`, `ioctl`), macOS (`launchd`, `fswatch`, `ioctl`), and Windows (`windows-startup`, PowerShell RawUI, Win32 `OpenProcess`).
+1. **Zero Data Loss Guarantee & Flight Recorder:** File changes are snapshotted and committed locally immediately upon debounce quiescence (5s). Even if the workstation loses power, the OS freezes, or the network drops, uncommitted edits are never lost.
+2. **Time Machine Local Checkpoints (`undo` / TUI `[z]`):** Every auto-commit automatically records a zero-cost timeline checkpoint ref (`refs/syncalibur/timeline/<epoch>`). `syncalibur undo [N]` safely rewinds commits using `git reset --soft` (preserving all working tree and uncommitted edits) with instant redo safety.
+3. **One-Shot Quicksave (`syncalibur save [msg]`):** For developers who prefer working on-demand without a background daemon, `save` runs the Secret Shield scan, syntax balance check, AST Conventional Commit generation, and multi-remote push in $<150\text{ms}$.
+4. **Unified Autopilot Architecture:** Replaced the legacy 4-mode experimentation matrix with a predictable, zero-friction Autopilot (`autopilot` continuous stream vs `manual` on-demand quicksave). Legacy multi-mode configs are preserved in the `archive/multi-mode-system` branch.
+5. **Clean Conventional Commit History:** Unlike crude auto-commit scripts that flood Git history with spam commits (`auto: update file.js`), Syncalibur enforces semantic Conventional Commits (`feat(scope): ... (+X/-Y)`) and Smart Staging.
+6. **Self-Sync Autopilot:** The background daemon watches Syncalibur's own repository (`/home/ysf/Syncalibur`), automatically commits and pushes improvements, pulls upstream releases, rebuilds the Go engine, and hot-reloads in place.
+7. **Zero External Dependencies:** Built with pure Go standard library (`go/parser`, `go/ast`, `image`, `syscall`, `net/http`) and native POSIX/Bash commands. Compiles in $<1.5\text{s}$ into a standalone stripped binary (`bin/syncalibur`).
+8. **Fail-Safe Secret & Syntax Shield:** High-entropy credentials, private keys, and broken syntax are quarantined before hitting the Git index or remote servers. DevOps manifest checks are advisory, never holding commits hostage.
+9. **True Cross-Platform Operation:** Linux (`systemd`, `inotify`, `ioctl`), macOS (`launchd`, `fswatch`, `ioctl`), and Windows (`windows-startup`, PowerShell RawUI, Win32 `OpenProcess`).
 
 ---
 
