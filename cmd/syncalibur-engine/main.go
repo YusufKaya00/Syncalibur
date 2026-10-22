@@ -4528,8 +4528,8 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				rightLines[18] = fmt.Sprintf("│")
 				rightLines[19] = fmt.Sprintf("│")
 			} else {
-				rightLines[16] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[m]%s Mode  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cCyan, cReset, cGold, cReset)
-				rightLines[17] = fmt.Sprintf("│           %s[b]%s Pull  %s[z]%s Undo   %s[t]%s Logo   %s[d]%s Doctor", cGold, cReset, cGreen, cReset, cCyan, cReset, cGold, cReset)
+				rightLines[16] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[z]%s Undo  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cGreen, cReset, cGold, cReset)
+				rightLines[17] = fmt.Sprintf("│           %s[b]%s Pull  %s[m]%s Mode   %s[t]%s Logo  %s[d]%s Doctor", cCyan, cReset, cGold, cReset, cCyan, cReset, cGold, cReset)
 				rightLines[18] = fmt.Sprintf("│           %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail", cCyan, cReset, cCyan, cReset, cGreen, cReset)
 				rightLines[19] = fmt.Sprintf("│           %s[0]%s Reset Pan  %s[r]%s Redraw", cCyan, cReset, cSlate, cReset)
 			}
