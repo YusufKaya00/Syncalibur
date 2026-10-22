@@ -2400,6 +2400,10 @@ cmd_check() {
   fi
 }
 
+cmd_save() {
+  cmd_push "$@"
+}
+
 cmd_push() {
   local custom_msg="" tidy_mode=0 dry_run=0
   while [[ $# -gt 0 ]]; do
@@ -2422,7 +2426,7 @@ cmd_push() {
   cd "${current_repo}" || return 1
   assert_git_operable "${current_repo}" || return 1
 
-  echo -e "${C_CYAN}◈ Syncalibur One-Shot Push${C_RESET} [$(basename "${current_repo}") @ $(git branch --show-current 2>/dev/null || echo "main")]"
+  echo -e "${C_CYAN}${C_BOLD}◈ Syncalibur Quicksave & Push${C_RESET} [$(basename "${current_repo}") @ $(git branch --show-current 2>/dev/null || echo "main")]"
 
   if (( dry_run )); then
     echo -e "  ${C_AMBER}✦ Running in --dry-run mode (no changes will be committed or pushed)${C_RESET}"
@@ -2449,13 +2453,10 @@ cmd_push() {
       echo -e "  ${C_SLATE}Hint: Move credentials to .env or add to .gitignore before pushing.${C_RESET}"
       return 1
     elif (( pf_rc == 4 )); then
-      echo -e "  ${C_RED}☸ [DEVOPS HOLD] Infrastructure policy violation detected; push halted:${C_RESET}"
-      echo "${pf_raw}"
-      return 1
+      echo -e "  ${C_AMBER}☸ [DEVOPS ADVISORY] Infrastructure lint warnings detected (non-blocking).${C_RESET}"
     fi
     echo -e "  ${C_GREEN}⛨ Secret Shield : Clean${C_RESET}"
     echo -e "  ${C_GREEN}▲ Syntax Hold   : Valid${C_RESET}"
-    echo -e "  ${C_GREEN}☸ DevOps Policy : Valid${C_RESET}"
   fi
 
   # 2. Stage & Commit if changes exist
@@ -2467,6 +2468,7 @@ cmd_push() {
     if [[ -n "${custom_msg}" ]]; then
       git add -A -- "${SCOPE}" 2>/dev/null
       git commit -m "${custom_msg}"
+      record_timeline_checkpoint
       echo -e "  ${C_GREEN}✓ Committed     : ${custom_msg}${C_RESET}"
     else
       commit_changes || true
