@@ -4635,7 +4635,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 
 			rightLines := make([]string, 21)
 			rightLines[0] = fmt.Sprintf("╭%s╮", strings.Repeat("─", rightBoxWidth-2))
-			rightLines[1] = fmt.Sprintf("│  %s%s%s SYNCALIBUR COCKPIT %s[%s]%s", cCyan, cBold, iconDiamond, cGold, SyncaliburVersion, cReset)
+			rightLines[1] = fmt.Sprintf("│  %s%s%s SYNCALIBUR COCKPIT %s[%s]%s", cCyan, cBold, iconDiamond, cGold, engineVer, cReset)
 			rightLines[2] = fmt.Sprintf("│  Status    : %s", onlineStr)
 			rightLines[3] = fmt.Sprintf("│  Mode      : %s  •  Loop: %s", modeBadge, pauseState)
 			rightLines[4] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
@@ -4648,7 +4648,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
 			rightLines[12] = fmt.Sprintf("│  %s◈ Velocity%s : %s", cGold, cReset, cachedSpark)
 			rightLines[13] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
-			rightLines[14] = fmt.Sprintf("│  %s◈ Engine%s   : %s%s%s (%s)", cGold, cReset, cGreen, SyncaliburVersion, cReset, SyncaliburMilestone)
+			rightLines[14] = fmt.Sprintf("│  %s◈ Engine%s   : %s%s%s (%s)", cGold, cReset, cGreen, engineVer, cReset, SyncaliburMilestone)
 			rightLines[15] = fmt.Sprintf("│  %s◈ Target%s   : %s%s%s  •  Tag: %s%s%s", cGold, cReset, cCyan, repoBase, cReset, cGold, cachedRepoTag, cReset)
 			rightLines[16] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
 			if time.Now().Before(flashUntil) && flashMsg != "" {
@@ -4676,7 +4676,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			fmt.Fprintf(&frame, "  %s╭%s╮%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
 
 			line1 := fmt.Sprintf("│  %s%s%s SYNCALIBUR COCKPIT %s[%s]%s  •  %s  •  Mode: %s  •  Loop: %s",
-				cCyan, cBold, iconDiamond, cGold, SyncaliburVersion, cReset, onlineStr, modeBadge, pauseState)
+				cCyan, cBold, iconDiamond, cGold, engineVer, cReset, onlineStr, modeBadge, pauseState)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line1, boxWidth, 0))
 
 			line2 := fmt.Sprintf("│  %s◈ Watching :%s %s%s [%s • %s]%s  •  %sCommits :%s %s%s total (%s today)%s  •  %sUnpushed :%s %s",
@@ -4684,7 +4684,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line2, boxWidth, 0))
 
 			line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s%s Syntax%s • %s%s Secrets%s  •  %sRelease :%s %s%s%s  •  %sVelocity :%s %s",
-				cGold, cReset, cGreen, iconCheck, cReset, cGreen, iconCheck, cReset, cGold, cReset, cGreen, SyncaliburVersion, cReset, cGold, cReset, cachedSpark)
+				cGold, cReset, cGreen, iconCheck, cReset, cGreen, iconCheck, cReset, cGold, cReset, cGreen, engineVer, cReset, cGold, cReset, cachedSpark)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line3, boxWidth, 0))
 
 			fmt.Fprintf(&frame, "  %s├%s┤%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
