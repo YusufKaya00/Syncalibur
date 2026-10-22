@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.6.2] - 2026-10-22
+
+### 📚 Tooling, Tests & Fleet
+- **main**: update canonicalizeMode() (+4/-13) ([`cdba764`](https://github.com/YusufKaya00/Syncalibur/commit/cdba764))
+
+
 ## [v2.2.0] - 2026-10-20
 
 ### 🚀 Features
