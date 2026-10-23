@@ -2485,11 +2485,12 @@ cmd_save() {
 }
 
 cmd_push() {
-  local custom_msg="" tidy_mode=0 dry_run=0
+  local custom_msg="" tidy_mode=0 dry_run=0 no_shield=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --tidy) tidy_mode=1; shift ;;
       --dry-run) dry_run=1; shift ;;
+      --no-shield | --skip-shield | --noshield) no_shield=1; shift ;;
       *)
         if [[ -z "${custom_msg}" ]]; then
           custom_msg="$1"
@@ -2521,22 +2522,32 @@ cmd_push() {
 
   # 1. Run Pre-flight Safety Gate
   if ensure_go_engine; then
-    local pf_raw pf_rc=0
-    pf_raw="$("${GO_ENGINE_BIN}" preflight "${current_repo}" 2>&1)" || pf_rc=$?
-    if (( pf_rc == 2 )); then
-      echo -e "  ${C_AMBER}▲ [SYNTAX HOLD] Incomplete syntax detected; push halted:${C_RESET}"
-      echo "${pf_raw}"
-      return 1
-    elif (( pf_rc == 3 )); then
-      echo -e "  ${C_RED}⛨ [SECRET SHIELD] High-entropy credential detected in files:${C_RESET}"
-      echo "${pf_raw}"
-      echo -e "  ${C_SLATE}Hint: Move credentials to .env or add to .gitignore before pushing.${C_RESET}"
-      return 1
-    elif (( pf_rc == 4 )); then
-      echo -e "  ${C_AMBER}☸ [DEVOPS ADVISORY] Infrastructure lint warnings detected (non-blocking).${C_RESET}"
+    local -a pf_shield_args=()
+    local skip_shield=0
+    if (( no_shield )) || are_shields_disabled "${current_repo}"; then
+      skip_shield=1
+      pf_shield_args=("--no-shield")
     fi
-    echo -e "  ${C_GREEN}⛨ Secret Shield : Clean${C_RESET}"
-    echo -e "  ${C_GREEN}▲ Syntax Hold   : Valid${C_RESET}"
+    local pf_raw pf_rc=0
+    pf_raw="$("${GO_ENGINE_BIN}" preflight "${current_repo}" "${pf_shield_args[@]}" 2>&1)" || pf_rc=$?
+    if (( ! skip_shield )); then
+      if (( pf_rc == 2 )); then
+        echo -e "  ${C_AMBER}▲ [SYNTAX HOLD] Incomplete syntax detected; push halted:${C_RESET}"
+        echo "${pf_raw}"
+        return 1
+      elif (( pf_rc == 3 )); then
+        echo -e "  ${C_RED}⛨ [SECRET SHIELD] High-entropy credential detected in files:${C_RESET}"
+        echo "${pf_raw}"
+        echo -e "  ${C_SLATE}Hint: Move credentials to .env or add to .gitignore before pushing.${C_RESET}"
+        return 1
+      elif (( pf_rc == 4 )); then
+        echo -e "  ${C_AMBER}☸ [DEVOPS ADVISORY] Infrastructure lint warnings detected (non-blocking).${C_RESET}"
+      fi
+      echo -e "  ${C_GREEN}⛨ Secret Shield : Clean${C_RESET}"
+      echo -e "  ${C_GREEN}▲ Syntax Hold   : Valid${C_RESET}"
+    else
+      echo -e "  ${C_AMBER}⚠ Shields Bypassed (--no-shield active: test secrets allowed)${C_RESET}"
+    fi
   fi
 
   # 2. Stage & Commit if changes exist
