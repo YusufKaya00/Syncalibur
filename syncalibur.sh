@@ -3154,16 +3154,14 @@ COMMIT_MSG_FILE="$1"
 COMMIT_SOURCE="$2"
 if [[ -z "${COMMIT_SOURCE}" ]] && command -v syncalibur >/dev/null 2>&1; then
   REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  BIN_ENG="${REPO_ROOT}/bin/syncalibur"
-  if [[ -x "${BIN_ENG}" ]]; then
-    SUGG="$("${BIN_ENG}" commit-msg "${REPO_ROOT}" 2>/dev/null || true)"
-    if [[ -n "${SUGG}" ]]; then
-      printf '%s\n\n# Syncalibur AST Conventional Commit Suggestion\n' "${SUGG}" > "${COMMIT_MSG_FILE}"
-    fi
+  SUGG="$(syncalibur commit-msg "${REPO_ROOT}" 2>/dev/null || true)"
+  if [[ -n "${SUGG}" ]]; then
+    printf '%s\n\n# Syncalibur AST Conventional Commit Suggestion\n' "${SUGG}" > "${COMMIT_MSG_FILE}"
   fi
 fi
 # --- END SYNCALIBUR PREPARE-COMMIT-MSG HOOK ---
 HOOK_EOF
+
       chmod +x "${prep_msg_hook}"
 
       echo -e "${C_GREEN}✓ Installed Syncalibur Git hooks in $(basename "${current_repo}")/.git/hooks:${C_RESET}"
