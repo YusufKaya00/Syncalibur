@@ -2879,17 +2879,40 @@ func validateDevOpsGate(repoRoot string, files []string) []InfraIssue {
 	return allIssues
 }
 
-type preflightJSONResult struct {
-	Passed       bool         `json:"passed"`
-	ExitCode     int          `json:"exit_code"`
-	Mode         string       `json:"mode,omitempty"`
-	SyntaxErrors []string     `json:"syntax_errors"`
-	Quarantined  []string     `json:"quarantined_files"`
-	DevOpsIssues []InfraIssue `json:"devops_issues,omitempty"`
-	Details      []string     `json:"details"`
+func areShieldsDisabled(repoRoot string) bool {
+	gitDir := resolveGitDir(repoRoot)
+	if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.noshield")); err == nil {
+		return true
+	}
+	if v := strings.ToLower(os.Getenv("SYNCALIBUR_SECRET_SHIELD")); v == "false" || v == "0" || v == "off" || v == "no" {
+		return true
+	}
+	if v := strings.ToLower(os.Getenv("SYNCALIBUR_SHIELD")); v == "false" || v == "0" || v == "off" || v == "no" {
+		return true
+	}
+	if v := strings.ToLower(os.Getenv("SYNCALIBUR_DISABLE_SHIELDS")); v == "true" || v == "1" || v == "yes" {
+		return true
+	}
+	return false
 }
 
-func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
+type preflightJSONResult struct {
+	Passed          bool         `json:"passed"`
+	ExitCode        int          `json:"exit_code"`
+	ShieldsDisabled bool         `json:"shields_disabled,omitempty"`
+	Mode            string       `json:"mode,omitempty"`
+	SyntaxErrors    []string     `json:"syntax_errors"`
+	Quarantined     []string     `json:"quarantined_files"`
+	DevOpsIssues    []InfraIssue `json:"devops_issues,omitempty"`
+	Details         []string     `json:"details"`
+}
+
+func runPreflight(repoRoot string, stagedOnly, jsonOutput bool, noShield ...bool) (int, string) {
+	shieldsDisabled := areShieldsDisabled(repoRoot)
+	if len(noShield) > 0 && noShield[0] {
+		shieldsDisabled = true
+	}
+
 	mode := resolveEffectiveRepoMode(repoRoot, "")
 	if env := os.Getenv("SYNCALIBUR_MODE"); env != "" {
 		mode = strings.ToLower(env)
@@ -2953,16 +2976,18 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 			details = append(details, markerMsg)
 		}
 
-		// 2. Secret & Sensitive Pattern Check
-		if hasSecret, reason := detectSecretsInFile(absPath); hasSecret {
-			quarantinedFiles = append(quarantinedFiles, rel)
-			details = append(details, reason)
-		}
+		if !shieldsDisabled {
+			// 2. Secret & Sensitive Pattern Check
+			if hasSecret, reason := detectSecretsInFile(absPath); hasSecret {
+				quarantinedFiles = append(quarantinedFiles, rel)
+				details = append(details, reason)
+			}
 
-		// 3. Syntax Validation Check
-		if valid, errReason := validateFileSyntax(repoRoot, rel); !valid {
-			syntaxErrors = append(syntaxErrors, rel)
-			details = append(details, errReason)
+			// 3. Syntax Validation Check
+			if valid, errReason := validateFileSyntax(repoRoot, rel); !valid {
+				syntaxErrors = append(syntaxErrors, rel)
+				details = append(details, errReason)
+			}
 		}
 	}
 
@@ -2988,16 +3013,21 @@ func runPreflight(repoRoot string, stagedOnly, jsonOutput bool) (int, string) {
 
 	if jsonOutput {
 		res := preflightJSONResult{
-			Passed:       exitCode == 0,
-			ExitCode:     exitCode,
-			Mode:         mode,
-			SyntaxErrors: syntaxErrors,
-			Quarantined:  quarantinedFiles,
-			DevOpsIssues: devopsIssues,
-			Details:      details,
+			Passed:          exitCode == 0,
+			ExitCode:        exitCode,
+			ShieldsDisabled: shieldsDisabled,
+			Mode:            mode,
+			SyntaxErrors:    syntaxErrors,
+			Quarantined:     quarantinedFiles,
+			DevOpsIssues:    devopsIssues,
+			Details:         details,
 		}
 		b, _ := json.MarshalIndent(res, "", "  ")
 		return exitCode, string(b)
+	}
+
+	if shieldsDisabled && exitCode == 0 && len(devopsIssues) == 0 {
+		return 0, fmt.Sprintf("%s%s %sPre-flight verification: Shields DISABLED (test mode / dummy credentials allowed)%s", cAmber, iconAlert, cWhite, cReset)
 	}
 
 	if exitCode == 0 && len(devopsIssues) == 0 {
