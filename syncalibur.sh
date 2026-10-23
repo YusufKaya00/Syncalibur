@@ -1181,10 +1181,14 @@ print_syncalibur_dashboard() {
     shield_desc="${C_AMBER}⚠ DISABLED (Test Mode • Passwords & Secrets Allowed)${C_RESET}"
   fi
 
+  local push_state_desc
+  push_state_desc="$(get_push_status_summary "${REPO_ROOT}")"
+
   info_lines+=(
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Self-Sync :${C_RESET} ${self_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Features  :${C_RESET} ${autorepo_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Commits   :${C_RESET} ${C_GREEN}${total_commits}${C_RESET} ${C_SLATE}total${C_RESET}  ${C_SLATE}•${C_RESET}  ${C_GREEN}${today_commits}${C_RESET} ${C_SLATE}today${C_RESET}  ${C_SLATE}•${C_RESET}  ${unpushed_str}"
+    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Push State:${C_RESET} ${push_state_desc}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Shield    :${C_RESET} ${shield_desc}"
     "  ${C_SLATE}──────────────────────────────────────────────────────────────────────${C_RESET}"
     "  ${C_SLATE}Commands  : ${C_CYAN}save${C_SLATE} | ${C_CYAN}undo${C_SLATE} | ${C_CYAN}check${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}shield${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}doctor${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}version${C_RESET}"
