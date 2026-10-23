@@ -614,17 +614,26 @@ FS_WATCHER="$(detect_fs_watcher)"
 # ==============================================================================
 
 get_remote() {
+  local target_repo="${1:-${REPO_ROOT}}"
   if [[ -n "${REMOTE_OVERRIDE}" ]]; then
     echo "${REMOTE_OVERRIDE}"
-  elif git -C "${REPO_ROOT}" remote | grep -qx "all"; then
+  elif git -C "${target_repo}" remote 2>/dev/null | grep -qx "all"; then
     echo "all"
-  else
+  elif git -C "${target_repo}" remote 2>/dev/null | grep -qx "origin"; then
     echo "origin"
+  else
+    git -C "${target_repo}" remote 2>/dev/null | head -n 1
   fi
 }
 
 get_branch() {
-  git -C "${REPO_ROOT}" symbolic-ref --quiet --short HEAD 2>/dev/null
+  local target_repo="${1:-${REPO_ROOT}}"
+  local b
+  b="$(git -C "${target_repo}" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [[ -z "${b}" ]]; then
+    b="$(git -C "${target_repo}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+  fi
+  echo "${b}"
 }
 
 parse_remote_url() {
