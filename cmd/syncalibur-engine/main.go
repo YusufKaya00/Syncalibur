@@ -4765,14 +4765,17 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			rightLines[6] = fmt.Sprintf("│  %s◈ Branch%s   : %s%s%s (%s)  •  Unpushed: %s", cGold, cReset, cBold, cachedBranch, cReset, cachedDirtyState, unpushedDisplay)
 			rightLines[7] = fmt.Sprintf("│  %s◈ Commits%s  : %s%s total%s  •  %s%s today%s  •  %s%s%s", cGold, cReset, cGreen, cachedTotalCommits, cReset, cGreen, cachedToday, cReset, cSlate, nowStr, cReset)
 			rightLines[8] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
+			unpushedCount, _ := strconv.Atoi(cachedUnpushed)
+			pushBadge := getPushStateBadge(gitDir, unpushedCount)
+
 			if isShieldDisabled {
 				rightLines[9] = fmt.Sprintf("│  %s◈ Shields%s  : %s%s Syntax Pre-flight %s[BYPASS]%s", cAmber, cReset, cAmber, iconAlert, cAmber, cReset)
 				rightLines[10] = fmt.Sprintf("│              %s%s Shannon Secret Guard %s[OFF: Test Mode]%s", cAmber, iconAlert, cAmber, cReset)
-				rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
+				rightLines[11] = fmt.Sprintf("│  %s◈ Push State%s: %s", cGold, cReset, pushBadge)
 			} else {
 				rightLines[9] = fmt.Sprintf("│  %s◈ Shields%s  : %s%s Syntax Pre-flight (AST)%s", cGold, cReset, cGreen, iconCheck, cReset)
 				rightLines[10] = fmt.Sprintf("│              %s%s Shannon Entropy Guard%s", cGreen, iconCheck, cReset)
-				rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
+				rightLines[11] = fmt.Sprintf("│  %s◈ Push State%s: %s", cGold, cReset, pushBadge)
 			}
 			rightLines[12] = fmt.Sprintf("│  %s◈ Velocity%s : %s", cGold, cReset, cachedSpark)
 			rightLines[13] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
@@ -4815,8 +4818,10 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			if isShieldDisabled {
 				shieldBadge = fmt.Sprintf("%s%s SHIELDS OFF (Test Mode)%s", cAmber, iconAlert, cReset)
 			}
-			line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s  •  %sRelease :%s %s%s%s  •  %sVelocity :%s %s",
-				cGold, cReset, shieldBadge, cGold, cReset, cGreen, engineVer, cReset, cGold, cReset, cachedSpark)
+			unpushedCount, _ := strconv.Atoi(cachedUnpushed)
+			pushBadge := getPushStateBadge(gitDir, unpushedCount)
+			line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s  •  %sPush :%s %s  •  %sVelocity :%s %s",
+				cGold, cReset, shieldBadge, cGold, cReset, pushBadge, cGold, cReset, cachedSpark)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line3, boxWidth, 0))
 
 			fmt.Fprintf(&frame, "  %s├%s┤%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
