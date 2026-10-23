@@ -5142,9 +5142,9 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				rightLines[18] = fmt.Sprintf("│  %s", cSlate+"Press any hotkey to interact..."+cReset)
 				rightLines[19] = fmt.Sprintf("│")
 			} else {
-				rightLines[17] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[x]%s Shield  %s[z]%s Undo  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cAmber, cReset, cGreen, cReset, cGold, cReset)
-				rightLines[18] = fmt.Sprintf("│           %s[b]%s Pull  %s[c]%s Check  %s[t]%s Logo  %s[d]%s Doctor", cCyan, cReset, cGold, cReset, cCyan, cReset, cGold, cReset)
-				rightLines[19] = fmt.Sprintf("│           %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail  %s[r]%s Redraw", cCyan, cReset, cCyan, cReset, cGreen, cReset, cSlate, cReset)
+				rightLines[17] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[x]%s Shield  %s[z]%s Undo  %s[y]%s Redo", cBold, cReset, cRed, cReset, cGold, cReset, cAmber, cReset, cGreen, cReset, cGold, cReset)
+				rightLines[18] = fmt.Sprintf("│           %s[s]%s Sync  %s[b]%s Pull  %s[c]%s Check  %s[t]%s Logo  %s[?]%s Help", cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset, cGreen, cReset)
+				rightLines[19] = fmt.Sprintf("│           %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail  %s[d]%s Doctor", cCyan, cReset, cCyan, cReset, cGreen, cReset, cGold, cReset)
 			}
 			rightLines[20] = fmt.Sprintf("╰%s╯", strings.Repeat("─", rightBoxWidth-2))
 
@@ -5185,8 +5185,8 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				lineFlash := fmt.Sprintf("│  %s", flashMsg)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
 			} else {
-				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[x]%s Shield  %s[z]%s Undo  %s[s]%s Sync  %s[b]%s Pull  %s[c]%s Check  %s[t]%s Logo",
-					cBold, cReset, cRed, cReset, cGold, cReset, cAmber, cReset, cGreen, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset)
+				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[x]%s Shield  %s[z]%s Undo  %s[y]%s Redo  %s[s]%s Sync  %s[b]%s Pull  %s[?]%s Help",
+					cBold, cReset, cRed, cReset, cGold, cReset, cAmber, cReset, cGreen, cReset, cGold, cReset, cGold, cReset, cCyan, cReset, cGreen, cReset)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
 			}
 			fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
@@ -5255,7 +5255,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		}
 
 		// 3. Footer Bar
-		fmt.Fprintf(&frame, "  %s%s%s\033[0m\033[K", cSlate, "[q] Quit  [p] Pause/Resume  [s] Sync  [b] Pull  [↑/↓/k/j] Scroll  [←/→/h/l] Pan  [f] Tail  [d] Doctor", cReset)
+		fmt.Fprintf(&frame, "  %s%s%s\033[0m\033[K", cSlate, "[q] Quit  [p] Pause  [z] Undo  [y] Redo  [s] Sync  [b] Pull  [?] Help  [↑/↓] Scroll  [f] Tail", cReset)
 		frame.WriteString("\033[J")
 		fmt.Print(frame.String())
 	}
@@ -5328,6 +5328,12 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 						continue
 					} else if i+1 == len(keys) {
 						// Lone Escape
+						if showHelpModal {
+							showHelpModal = false
+							renderFrame()
+							i++
+							continue
+						}
 						shouldExit = true
 						break
 					}
@@ -5336,7 +5342,20 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				// Single character
 				ch := keys[i]
 				i++
+
+				if showHelpModal {
+					if ch == '?' || ch == 27 || ch == 'q' || ch == 'Q' || ch == 10 || ch == 13 || ch == ' ' {
+						showHelpModal = false
+						renderFrame()
+						continue
+					}
+				}
+
 				switch ch {
+				case '?':
+					showHelpModal = !showHelpModal
+					renderFrame()
+					continue
 				case 'q', 'Q', 3, 27: // q, Q, Ctrl+C, Esc -> INSTANT QUIT
 					shouldExit = true
 				case 'k', 'K': // vim scroll up
@@ -5421,6 +5440,15 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 						flashMsg = fmt.Sprintf("%s%s %sUNDO:%s %s", cAmber, iconWarn, cBold, cReset, strings.TrimSpace(string(out)))
 					} else {
 						flashMsg = fmt.Sprintf("%s%s %sUNDO:%s Rolled back to previous checkpoint cleanly.", cGreen, iconCheck, cBold, cReset)
+					}
+					lastGitQuery = time.Time{}
+					flashUntil = time.Now().Add(4 * time.Second)
+				case 'y', 'Y': // Redo to advance checkpoint
+					out, err := exec.Command("bash", scriptPath, "redo").CombinedOutput()
+					if err != nil {
+						flashMsg = fmt.Sprintf("%s%s %sREDO:%s %s", cAmber, iconWarn, cBold, cReset, strings.TrimSpace(string(out)))
+					} else {
+						flashMsg = fmt.Sprintf("%s%s %sREDO:%s Advanced checkpoint from redo stack cleanly.", cGreen, iconCheck, cBold, cReset)
 					}
 					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(4 * time.Second)
