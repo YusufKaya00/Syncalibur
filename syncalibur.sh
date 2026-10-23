@@ -2595,14 +2595,16 @@ cmd_save() {
 }
 
 cmd_push() {
-  local custom_msg="" tidy_mode=0 dry_run=0 no_shield=0
+  local custom_msg="" tidy_mode=0 dry_run=0 no_shield=0 target_repo=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --tidy) tidy_mode=1; shift ;;
       --dry-run) dry_run=1; shift ;;
       --no-shield | --skip-shield | --noshield) no_shield=1; shift ;;
       *)
-        if [[ -z "${custom_msg}" ]]; then
+        if [[ -z "${target_repo}" && -d "$1" ]] && git -C "$1" rev-parse --show-toplevel >/dev/null 2>&1; then
+          target_repo="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo "$1")"
+        elif [[ -z "${custom_msg}" ]]; then
           custom_msg="$1"
         else
           custom_msg="${custom_msg} $1"
@@ -2613,7 +2615,11 @@ cmd_push() {
   done
 
   local current_repo
-  current_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+  if [[ -n "${target_repo}" ]]; then
+    current_repo="${target_repo}"
+  else
+    current_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+  fi
   cd "${current_repo}" || return 1
   assert_git_operable "${current_repo}" || return 1
 
