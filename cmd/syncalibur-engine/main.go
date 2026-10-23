@@ -2195,6 +2195,8 @@ func validateSQLSyntax(data []byte, relPath string) (bool, string) {
 	var stack []bracketToken
 	inBlockComment := false
 	inString := false
+	inDollarQuote := false
+	dollarTag := ""
 
 	for lineNum, line := range lines {
 		runes := []rune(line)
@@ -2207,6 +2209,16 @@ func validateSQLSyntax(data []byte, relPath string) (bool, string) {
 				if r == '*' && i+1 < n && runes[i+1] == '/' {
 					inBlockComment = false
 					i++
+				}
+				continue
+			}
+
+			if inDollarQuote {
+				tagRunes := []rune(dollarTag)
+				tagLen := len(tagRunes)
+				if i+tagLen <= n && string(runes[i:i+tagLen]) == dollarTag {
+					inDollarQuote = false
+					i += tagLen - 1
 				}
 				continue
 			}
@@ -2231,6 +2243,27 @@ func validateSQLSyntax(data []byte, relPath string) (bool, string) {
 				continue
 			}
 
+			// PostgreSQL dollar-quoting: $$ or $tag$
+			if r == '$' {
+				endIdx := -1
+				for j := i + 1; j < n; j++ {
+					if runes[j] == '$' {
+						endIdx = j
+						break
+					}
+					rj := runes[j]
+					if !((rj >= 'a' && rj <= 'z') || (rj >= 'A' && rj <= 'Z') || (rj >= '0' && rj <= '9') || rj == '_') {
+						break
+					}
+				}
+				if endIdx != -1 {
+					dollarTag = string(runes[i : endIdx+1])
+					inDollarQuote = true
+					i = endIdx
+					continue
+				}
+			}
+
 			if r == '\'' {
 				inString = true
 				continue
@@ -2247,6 +2280,9 @@ func validateSQLSyntax(data []byte, relPath string) (bool, string) {
 		}
 	}
 
+	if inDollarQuote {
+		return false, fmt.Sprintf("%s: unclosed dollar quote '%s' at end of file", relPath, dollarTag)
+	}
 	if inString {
 		return false, fmt.Sprintf("%s: unclosed string literal ''' at end of file", relPath)
 	}
