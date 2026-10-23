@@ -416,9 +416,8 @@ UPD_TRIGGER_FILE="${GIT_DIR}/syncalibur.upd"
 are_shields_disabled() {
   local target_repo="${1:-${REPO_ROOT:-.}}"
   local g_dir
-  if [[ -n "${GIT_DIR:-}" && "${target_repo}" == "${REPO_ROOT:-}" && -d "${GIT_DIR}" ]]; then
-    g_dir="${GIT_DIR}"
-  else
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -z "${g_dir}" ]]; then
     g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
     [[ "${g_dir}" != /* ]] && g_dir="${target_repo}/${g_dir}"
   fi
