@@ -885,10 +885,9 @@ auto_create_or_bind_remote() {
       fi
     elif [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] && command -v curl >/dev/null 2>&1; then
       log "✦ Creating ${REPO_VISIBILITY} GitHub repository '${slug}' via GitHub API..."
-      if curl -fsSL -m 10 -X POST \
-        -H "Authorization: token ${GH_TOKEN:-${GITHUB_TOKEN}}" \
-        -H "Accept: application/vnd.github+json" \
-        https://api.github.com/user/repos \
+      local _ght="${GH_TOKEN:-${GITHUB_TOKEN}}"
+      if printf 'header = "Authorization: token %s"\nheader = "Accept: application/vnd.github+json"\n' "${_ght}" | \
+        curl -fsSL -m 10 -X POST -K - https://api.github.com/user/repos \
         -d "{\"name\":\"${name_only}\",\"private\":${is_private}}" >/dev/null 2>&1; then
         if ! git -C "${REPO_ROOT}" remote get-url origin >/dev/null 2>&1; then
           git -C "${REPO_ROOT}" remote add origin "git@github.com:${slug}.git" 2>/dev/null || true
@@ -907,8 +906,8 @@ auto_create_or_bind_remote() {
       glab repo create "${slug}" "--${REPO_VISIBILITY}" >/dev/null 2>&1 || true
     elif [[ -n "${GITLAB_TOKEN:-}" ]] && command -v curl >/dev/null 2>&1; then
       log "✦ Creating ${REPO_VISIBILITY} GitLab project '${slug}' via GitLab API..."
-      curl -fsSL -m 10 -X POST \
-        --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+      printf 'header = "PRIVATE-TOKEN: %s"\n' "${GITLAB_TOKEN}" | \
+        curl -fsSL -m 10 -X POST -K - \
         "https://gitlab.com/api/v4/projects?name=${name_only}&visibility=${REPO_VISIBILITY}" >/dev/null 2>&1 || true
     fi
     if [[ -n "${gl_user}" ]] && ! git -C "${REPO_ROOT}" remote get-url origin >/dev/null 2>&1; then
