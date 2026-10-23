@@ -1311,13 +1311,15 @@ send_webhook_notification() {
 
   # Pure-Bash curl fallback when Go binary is unavailable
   if command -v curl >/dev/null 2>&1 && [[ -n "${TELEGRAM_BOT_TOKEN}" && -n "${TELEGRAM_CHAT_ID}" ]]; then
-    local tg_url="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN#bot}/sendMessage"
+    local tg_bot="${TELEGRAM_BOT_TOKEN#bot}"
     local tg_text="◈ ${title} — ${message} [${repo_name} (${branch_name})]"
+    local tg_cfg
+    tg_cfg="$(printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "${tg_bot}")"
     if [[ "${sync_flag}" == "sync" ]]; then
-      curl -fsSL -m 8 -X POST "${tg_url}" -d "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${tg_text}" >/dev/null
+      printf '%s\n' "${tg_cfg}" | curl -fsSL -m 8 -K - -d "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${tg_text}" >/dev/null 2>&1
       return $?
     else
-      (curl -fsSL -m 8 -X POST "${tg_url}" -d "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${tg_text}" >/dev/null 2>&1 &)
+      (printf '%s\n' "${tg_cfg}" | curl -fsSL -m 8 -K - -d "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${tg_text}" >/dev/null 2>&1 &)
     fi
   fi
   return 0
