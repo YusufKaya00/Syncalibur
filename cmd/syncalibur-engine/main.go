@@ -1223,21 +1223,46 @@ func detectSecretsInFile(filePath string) (bool, string) {
 		return false, ""
 	}
 
-	// 2. Binary / size safety check
+	// 2. Binary safety check (check header bytes)
 	if isBin, _ := isBinaryFile(filePath); isBin {
 		return false, ""
 	}
 
-	data, err := os.ReadFile(filePath)
+	f, err := os.Open(filePath)
 	if err != nil {
 		return false, ""
 	}
+	defer f.Close()
+
+	bom := make([]byte, 2)
+	nBom, _ := f.Read(bom)
+	isUTF16 := nBom >= 2 && ((bom[0] == 0xFF && bom[1] == 0xFE) || (bom[0] == 0xFE && bom[1] == 0xFF))
+	_, _ = f.Seek(0, io.SeekStart)
 
 	ext := strings.ToLower(filepath.Ext(filePath))
 	isDocFile := ext == ".md" || ext == ".markdown" || ext == ".rst" || ext == ".txt"
 
-	lines := strings.Split(string(data), "\n")
-	for lineNum, line := range lines {
+	var scanner *bufio.Scanner
+	if isUTF16 {
+		limited := io.LimitReader(f, 20*1024*1024)
+		rawBytes, err := io.ReadAll(limited)
+		if err != nil {
+			return false, ""
+		}
+		decodedStr := decodeUTF16(rawBytes)
+		scanner = bufio.NewScanner(strings.NewReader(decodedStr))
+	} else {
+		limited := io.LimitReader(f, 50*1024*1024)
+		scanner = bufio.NewScanner(limited)
+	}
+
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
 			// Skip explicit sample/example comments
@@ -1264,7 +1289,7 @@ func detectSecretsInFile(filePath string) (bool, string) {
 				// Still check explicit known regex signatures
 				for _, re := range knownSecretRegexes {
 					if m := re.FindString(trimmed); m != "" {
-						return true, fmt.Sprintf("%s:%d (matches known credential signature)", filepath.Base(filePath), lineNum+1)
+						return true, fmt.Sprintf("%s:%d (matches known credential signature)", filepath.Base(filePath), lineNum)
 					}
 				}
 				continue
@@ -1273,7 +1298,7 @@ func detectSecretsInFile(filePath string) (bool, string) {
 
 		for _, re := range knownSecretRegexes {
 			if m := re.FindString(trimmed); m != "" {
-				return true, fmt.Sprintf("%s:%d (matches known credential signature)", filepath.Base(filePath), lineNum+1)
+				return true, fmt.Sprintf("%s:%d (matches known credential signature)", filepath.Base(filePath), lineNum)
 			}
 		}
 
@@ -1287,8 +1312,8 @@ func detectSecretsInFile(filePath string) (bool, string) {
 				w = w[idx+1:]
 			}
 			w = strings.Trim(w, `"'=:,;()[]{}<>$*`+"`")
-			// Skip shell variable expansions, regexes, code syntax, or paths
-			if strings.Contains(w, "${") || strings.Contains(w, ":-") || strings.Contains(w, "/") || strings.Contains(w, "\\") || strings.Contains(w, ":") || strings.ContainsAny(w, "()[]{}<>^&|;*~") {
+			// Skip shell variable expansions, regexes, code syntax
+			if strings.Contains(w, "${") || strings.Contains(w, ":-") || strings.ContainsAny(w, "()[]{}<>^&|;*~") {
 				continue
 			}
 			if len(w) >= 24 {
@@ -1334,13 +1359,14 @@ func detectSecretsInFile(filePath string) (bool, string) {
 					hasLetter := regexp.MustCompile(`[a-zA-Z]`).MatchString(w)
 					hasDigit := regexp.MustCompile(`[0-9]`).MatchString(w)
 					if hasLetter && hasDigit {
-						return true, fmt.Sprintf("%s:%d (high entropy %.2f bit/char token)", filepath.Base(filePath), lineNum+1, ent)
+						return true, fmt.Sprintf("%s:%d (high entropy %.2f bit/char token)", filepath.Base(filePath), lineNum, ent)
 					}
 				}
 			}
 		}
 	}
 	return false, ""
+
 }
 
 type bracketToken struct {
