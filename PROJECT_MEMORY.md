@@ -170,6 +170,8 @@ Syncalibur provides an automated infrastructure policy engine for Kubernetes, He
   - `b`: Trigger bidirectional remote pull (`syncalibur pull`).
   - `u`: Trigger self-update check (`syncalibur.upd`).
   - `z`: Safe rollback to previous checkpoint (`syncalibur undo` / `syncalibur recover`).
+  - `y`: Safe forward advance from LIFO redo stack (`syncalibur redo`).
+  - `?`: Toggle floating modal key shortcut help overlay.
   - `d`: Flash status for 12-point diagnostic check.
   - `t` / `e`: Toggle side-by-side Emblem Cockpit vs Compact Tail view.
   - `f`: Lock follow/tail mode.
