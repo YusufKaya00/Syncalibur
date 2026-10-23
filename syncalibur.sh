@@ -2191,8 +2191,13 @@ block_reason() {
 record_timeline_checkpoint() {
   local head_sha epoch_ts ref_name
   head_sha="$(git rev-parse HEAD 2>/dev/null || echo "")"
-  [[ -z "${head_sha}" ]] && return 0
-  epoch_ts="$(date +%s%N 2>/dev/null || date +%s)"
+  local raw_ts
+  raw_ts="$(date +%s%N 2>/dev/null || echo "")"
+  if [[ "${raw_ts}" =~ ^[0-9]{10,}$ ]]; then
+    epoch_ts="${raw_ts}"
+  else
+    epoch_ts="$(date +%s)-${RANDOM}"
+  fi
   ref_name="refs/syncalibur/timeline/${epoch_ts}"
   git update-ref "${ref_name}" "${head_sha}" 2>/dev/null || true
 
