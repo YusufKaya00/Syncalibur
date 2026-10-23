@@ -2207,10 +2207,16 @@ commit_changes() {
           quarantined_set+=("${q_file}")
           log "⛨ [SECRET SHIELD] Quarantined '${q_file}' (high-entropy credential detected; excluded from commit)"
         done < <(jq -r '.quarantined_files[]?' <<< "${pf_out}")
+        if (( ${#quarantined_set[@]} > 0 )); then
+          record_push_state "BLOCKED_SHIELD" "${#quarantined_set[@]} file(s) quarantined" "${REPO_ROOT}"
+          trigger_failure_alert "SECRET SHIELD (PUSH BLOCKED)" "Detected credentials in ${#quarantined_set[@]} file(s): ${quarantined_set[*]}" "${pf_out}"
+        fi
       elif ! are_shields_disabled && (( pf_code == 2 )); then
         local syn_err
         syn_err="$(jq -r '.details[0] // .syntax_errors[0] // "syntax error"' <<< "${pf_out}")"
         log "▲ [SYNTAX HOLD] Incomplete syntax in ${syn_err}; holding commit until write settles."
+        record_push_state "BLOCKED_SYNTAX" "${syn_err}" "${REPO_ROOT}"
+        trigger_failure_alert "SYNTAX HOLD (PUSH BLOCKED)" "Incomplete syntax in ${syn_err}" "${pf_out}"
         return 1
       elif (( pf_code == 4 )); then
         local devops_err
@@ -2224,9 +2230,13 @@ commit_changes() {
         local first_err
         first_err="$(head -n 2 <<< "${pf_raw}" | tr '\n' ' ')"
         log "▲ [SYNTAX HOLD] ${first_err}; holding commit until write settles."
+        record_push_state "BLOCKED_SYNTAX" "${first_err}" "${REPO_ROOT}"
+        trigger_failure_alert "SYNTAX HOLD (PUSH BLOCKED)" "${first_err}" "${pf_raw}"
         return 1
       elif ! are_shields_disabled && (( pf_rc == 3 )); then
         log "⛨ [SECRET SHIELD] Detected credential in working tree; holding commit."
+        record_push_state "BLOCKED_SHIELD" "credentials detected" "${REPO_ROOT}"
+        trigger_failure_alert "SECRET SHIELD (PUSH BLOCKED)" "Detected credentials in working tree" "${pf_raw}"
         return 1
       elif (( pf_rc == 4 )); then
         local first_err
