@@ -3539,6 +3539,116 @@ func resolveGitDir(repoPath string) string {
 	return filepath.Join(repoPath, ".git")
 }
 
+func resolveGitDirFast(repoPath string) string {
+	dotGit := filepath.Join(repoPath, ".git")
+	fi, err := os.Stat(dotGit)
+	if err != nil {
+		return ""
+	}
+	if fi.IsDir() {
+		return dotGit
+	}
+	content, err := os.ReadFile(dotGit)
+	if err == nil {
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "gitdir:") {
+				target := strings.TrimSpace(strings.TrimPrefix(line, "gitdir:"))
+				if filepath.IsAbs(target) {
+					return target
+				}
+				return filepath.Clean(filepath.Join(repoPath, target))
+			}
+		}
+	}
+	return dotGit
+}
+
+func renderPromptGlyph(repoPath, format string, short bool) string {
+	gitDir := resolveGitDirFast(repoPath)
+	if gitDir == "" {
+		return ""
+	}
+
+	badgeIcon := "✓"
+	badgeLabel := "IN SYNC"
+	colorName := "green"
+
+	if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.pause")); err == nil {
+		badgeIcon = "⏸"
+		badgeLabel = "PAUSED"
+		colorName = "yellow"
+	} else if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.offline")); err == nil {
+		badgeIcon = "🌐"
+		badgeLabel = "OFFLINE"
+		colorName = "cyan"
+	} else if pushStateData, err := os.ReadFile(filepath.Join(gitDir, "syncalibur.push_state")); err == nil {
+		parts := strings.Split(strings.TrimSpace(string(pushStateData)), "|")
+		if len(parts) > 0 {
+			switch parts[0] {
+			case "BLOCKED_SHIELD":
+				badgeIcon = "⛨"
+				badgeLabel = "SHIELD"
+				colorName = "red"
+			case "BLOCKED_SYNTAX":
+				badgeIcon = "▲"
+				badgeLabel = "SYNTAX"
+				colorName = "yellow"
+			case "PUSHING":
+				badgeIcon = "↗"
+				badgeLabel = "PUSHING"
+				colorName = "cyan"
+			case "FAILED":
+				badgeIcon = "✕"
+				badgeLabel = "FAILED"
+				colorName = "red"
+			case "IN_SYNC":
+				badgeIcon = "✓"
+				badgeLabel = "IN SYNC"
+				colorName = "green"
+			}
+		}
+	}
+
+	content := ""
+	if short {
+		content = fmt.Sprintf("[⚡%s]", badgeIcon)
+	} else {
+		content = fmt.Sprintf("[⚡%s %s]", badgeIcon, badgeLabel)
+	}
+
+	ansiColor := "\033[32m"
+	ansiReset := "\033[0m"
+	switch colorName {
+	case "green":
+		ansiColor = "\033[32m"
+	case "yellow":
+		ansiColor = "\033[33m"
+	case "red":
+		ansiColor = "\033[31m"
+	case "cyan":
+		ansiColor = "\033[36m"
+	case "blue":
+		ansiColor = "\033[34m"
+	}
+
+	switch strings.ToLower(format) {
+	case "zsh":
+		return fmt.Sprintf("%%F{%s}%s%%f", colorName, content)
+	case "bash":
+		return fmt.Sprintf("\\[%s\\]%s\\[%s\\]", ansiColor, content, ansiReset)
+	case "tmux":
+		return fmt.Sprintf("#[fg=%s]%s#[default]", colorName, content)
+	case "raw":
+		return content
+	case "starship", "ansi":
+		fallthrough
+	default:
+		return fmt.Sprintf("%s%s%s", ansiColor, content, ansiReset)
+	}
+}
+
 func scanGitRepos(root string, maxDepth int) []string {
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
