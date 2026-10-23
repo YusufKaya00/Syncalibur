@@ -2006,16 +2006,6 @@ is_lock_held_by_process() {
   return 1
 }
 
-find_git_locks() {
-  local locks=()
-  for marker in index.lock refs/heads/*.lock HEAD.lock config.lock MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG BISECT_START rebase-merge rebase-apply sequencer AUTO_MERGE; do
-    for path in "${GIT_DIR}"/${marker}; do
-      [[ -e "${path}" ]] && locks+=("${path}")
-    done
-  done
-  printf '%s\n' "${locks[@]}"
-}
-
 run_git_with_backoff() {
   local max_attempts=5 delay=1 attempt=1
   while (( attempt <= max_attempts )); do
