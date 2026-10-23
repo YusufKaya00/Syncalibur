@@ -1258,6 +1258,223 @@ func TestDetectSecretsLargeFileNoBypass(t *testing.T) {
 	}
 }
 
+func TestCalculateShannonEntropySafety(t *testing.T) {
+	// 1. Empty string
+	if e := calculateShannonEntropy(""); e != 0 {
+		t.Errorf("expected 0 entropy for empty string, got %f", e)
+	}
+
+	// 2. Monotonous string
+	if e := calculateShannonEntropy("AAAAAAAAAA"); e != 0 {
+		t.Errorf("expected 0 entropy for repetitive characters, got %f", e)
+	}
+
+	// 3. High entropy string
+	eHigh := calculateShannonEntropy("gH7$xK9#vL2@mQ4!zP5*")
+	if eHigh < 4.0 {
+		t.Errorf("expected high entropy (>4.0) for random password, got %f", eHigh)
+	}
+
+	// 4. Unicode and invalid byte sequences (must never panic)
+	invalidUtf8 := string([]byte{0xff, 0xfe, 0x80, 0x81, 'a', 'b', 'c', 0x99})
+	eUnicode := calculateShannonEntropy(invalidUtf8)
+	if eUnicode <= 0 {
+		t.Errorf("expected positive entropy for bytes, got %f", eUnicode)
+	}
+
+	// 5. Turkish UTF-8 characters
+	eTR := calculateShannonEntropy("ÇalışmaAğacıGüvenliğiVeŞifreleme1234")
+	if eTR <= 0 {
+		t.Errorf("expected positive entropy for Turkish text, got %f", eTR)
+	}
+}
+
+func TestHasLetterAndDigit(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected bool
+	}{
+		{"abc123", true},
+		{"a1", true},
+		{"ABC999XYZ", true},
+		{"abcdef", false},
+		{"123456", false},
+		{"!@#$%^&*", false},
+		{"", false},
+		{"token_with_digit_1", true},
+	}
+
+	for _, c := range cases {
+		if res := hasLetterAndDigit(c.input); res != c.expected {
+			t.Errorf("hasLetterAndDigit(%q) = %v; want %v", c.input, res, c.expected)
+		}
+	}
+}
+
+func TestValidateSQLDollarQuoting(t *testing.T) {
+	// 1. Valid PostgreSQL function with $$ dollar quote
+	sqlFunc := []byte(`
+CREATE OR REPLACE FUNCTION update_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Notice single quotes and parentheses inside dollar quotes
+    NEW.updated_at = now();
+    IF NEW.name IS NULL THEN
+        RAISE EXCEPTION 'name cannot be null (check table)';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+`)
+	ok, reason := validateSQLSyntax(sqlFunc, "update.sql")
+	if !ok {
+		t.Errorf("expected valid PostgreSQL function to pass, got: %s", reason)
+	}
+
+	// 2. Valid PostgreSQL function with named dollar quote $body$
+	sqlBody := []byte(`
+CREATE FUNCTION test_body() RETURNS void AS $body$
+BEGIN
+    PERFORM 1;
+END;
+$body$ LANGUAGE plpgsql;
+`)
+	ok2, reason2 := validateSQLSyntax(sqlBody, "func.sql")
+	if !ok2 {
+		t.Errorf("expected valid named dollar quote to pass, got: %s", reason2)
+	}
+
+	// 3. Unclosed dollar quote
+	unclosed := []byte(`
+CREATE FUNCTION broken() AS $$
+BEGIN
+    SELECT 1;
+`)
+	ok3, reason3 := validateSQLSyntax(unclosed, "broken.sql")
+	if ok3 {
+		t.Errorf("expected unclosed dollar quote to fail")
+	} else if !strings.Contains(reason3, "unclosed dollar quote '$$'") {
+		t.Errorf("unexpected error message: %s", reason3)
+	}
+
+	// 4. Unclosed named dollar quote
+	unclosedNamed := []byte(`
+CREATE FUNCTION broken() AS $proc$
+BEGIN
+    SELECT 1;
+`)
+	ok4, reason4 := validateSQLSyntax(unclosedNamed, "broken_named.sql")
+	if ok4 {
+		t.Errorf("expected unclosed named dollar quote to fail")
+	} else if !strings.Contains(reason4, "unclosed dollar quote '$proc$'") {
+		t.Errorf("unexpected error message: %s", reason4)
+	}
+}
+
+func TestWebhookSanitizationAndTruncateRunes(t *testing.T) {
+	// 1. Multi-byte rune truncation
+	emojis := "🚀🔥⚡🎉🛡️✨💻🌐🎯"
+	truncated := truncateRunes(emojis, 4)
+	runes := []rune(truncated)
+	if len(runes) != 4 {
+		t.Errorf("expected 4 runes, got %d", len(runes))
+	}
+
+	// 2. Token sanitization in telemetry details
+	rawTelemetry := "Git remote URL: https://ghp_111122223333444455556666777788889999:x-oauth-basic@github.com/org/repo.git\nAuthorization: Bearer secret_bearer_token\nFailed push token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	cleanTelemetry := sanitizeTelemetryDetails(rawTelemetry)
+	if strings.Contains(cleanTelemetry, "ghp_111122223333444455556666777788889999") {
+		t.Errorf("URL credentials were not sanitized: %s", cleanTelemetry)
+	}
+	if strings.Contains(cleanTelemetry, "secret_bearer_token") {
+		t.Errorf("Bearer token was not sanitized: %s", cleanTelemetry)
+	}
+	if strings.Contains(cleanTelemetry, "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") {
+		t.Errorf("PAT token was not sanitized: %s", cleanTelemetry)
+	}
+
+	// 3. Discord code block escape
+	discordText := "Error during ```bash\necho hello\n```"
+	escapedDiscord := escapeDiscordCodeBlock(discordText)
+	if strings.Contains(escapedDiscord, "```") {
+		t.Errorf("Discord backticks were not escaped: %s", escapedDiscord)
+	}
+
+	// 4. Slack text escaping
+	slackText := "Build <failed> & alert <admin@corp.internal>"
+	escapedSlack := escapeSlackText(slackText)
+	if strings.Contains(escapedSlack, "<failed>") || strings.Contains(escapedSlack, "& ") {
+		t.Errorf("Slack text was not escaped: %s", escapedSlack)
+	}
+}
+
+func TestPromptCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Non-git directory -> empty output
+	glyphNonGit := renderPromptGlyph(tmpDir, "starship", false)
+	if glyphNonGit != "" {
+		t.Errorf("expected empty string for non-git dir, got %q", glyphNonGit)
+	}
+
+	// 2. Initialize fake git dir
+	gitDir := filepath.Join(tmpDir, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. In Sync state (default)
+	glyphInSync := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphInSync != "[⚡✓ IN SYNC]" {
+		t.Errorf("expected '[⚡✓ IN SYNC]', got %q", glyphInSync)
+	}
+
+	// Short mode
+	glyphShort := renderPromptGlyph(tmpDir, "raw", true)
+	if glyphShort != "[⚡✓]" {
+		t.Errorf("expected '[⚡✓]', got %q", glyphShort)
+	}
+
+	// 4. Paused state
+	_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.pause"), []byte("1"), 0644)
+	glyphPaused := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphPaused != "[⚡⏸ PAUSED]" {
+		t.Errorf("expected '[⚡⏸ PAUSED]', got %q", glyphPaused)
+	}
+	_ = os.Remove(filepath.Join(gitDir, "syncalibur.pause"))
+
+	// 5. Offline state
+	_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.offline"), []byte("1"), 0644)
+	glyphOffline := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphOffline != "[⚡🌐 OFFLINE]" {
+		t.Errorf("expected '[⚡🌐 OFFLINE]', got %q", glyphOffline)
+	}
+	_ = os.Remove(filepath.Join(gitDir, "syncalibur.offline"))
+
+	// 6. Push state: BLOCKED_SHIELD
+	_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.push_state"), []byte("BLOCKED_SHIELD|12345|now|credentials"), 0644)
+	glyphShield := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphShield != "[⚡⛨ SHIELD]" {
+		t.Errorf("expected '[⚡⛨ SHIELD]', got %q", glyphShield)
+	}
+
+	// 7. Format variations: zsh, bash, tmux, starship
+	zshGlyph := renderPromptGlyph(tmpDir, "zsh", true)
+	if !strings.HasPrefix(zshGlyph, "%F{red}") || !strings.HasSuffix(zshGlyph, "%f") {
+		t.Errorf("unexpected zsh format: %s", zshGlyph)
+	}
+
+	tmuxGlyph := renderPromptGlyph(tmpDir, "tmux", true)
+	if !strings.HasPrefix(tmuxGlyph, "#[fg=red]") || !strings.HasSuffix(tmuxGlyph, "#[default]") {
+		t.Errorf("unexpected tmux format: %s", tmuxGlyph)
+	}
+
+	bashGlyph := renderPromptGlyph(tmpDir, "bash", true)
+	if !strings.Contains(bashGlyph, "\\[") || !strings.Contains(bashGlyph, "\\]") {
+		t.Errorf("unexpected bash format: %s", bashGlyph)
+	}
+}
+
 
 
 
