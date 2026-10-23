@@ -4530,6 +4530,42 @@ func getAnimatedModeBadge(mode string, frame int) string {
 	return fmt.Sprintf("%s%s⚡ Autopilot%s", cCyan, cBold, cReset)
 }
 
+func getPushStateBadge(gitDir string, unpushed int) string {
+	stateFile := filepath.Join(gitDir, "syncalibur.push_state")
+	lastPushFile := filepath.Join(gitDir, "syncalibur.last_push")
+
+	if data, err := os.ReadFile(stateFile); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(lines) > 0 && lines[0] != "" {
+			parts := strings.Split(lines[0], "|")
+			state := parts[0]
+			switch state {
+			case "BLOCKED_SHIELD":
+				return fmt.Sprintf("%s%s BLOCKED (Shield)%s", cRed, iconShield, cReset)
+			case "BLOCKED_SYNTAX":
+				return fmt.Sprintf("%s%s BLOCKED (Syntax)%s", cAmber, iconWarn, cReset)
+			case "PUSHING":
+				return fmt.Sprintf("%s%s PUSHING...%s", cCyan, iconSync, cReset)
+			case "FAILED":
+				return fmt.Sprintf("%s%s PUSH FAILED%s", cRed, iconCross, cReset)
+			}
+		}
+	}
+
+	if unpushed > 0 {
+		return fmt.Sprintf("%s%s QUEUED (%d unpushed)%s", cAmber, iconPending, unpushed, cReset)
+	}
+
+	if data, err := os.ReadFile(lastPushFile); err == nil {
+		parts := strings.Split(strings.TrimSpace(string(data)), "|")
+		if len(parts) >= 2 {
+			return fmt.Sprintf("%s%s IN SYNC%s %s(%s)%s", cGreen, iconCheck, cReset, cSlate, parts[1], cReset)
+		}
+	}
+
+	return fmt.Sprintf("%s%s IN SYNC (0 unpushed)%s", cGreen, iconCheck, cReset)
+}
+
 func runInteractiveTUI(scriptPath, repoRoot string) {
 	sttyOrigCmd := exec.Command("stty", "-g")
 	sttyOrigCmd.Stdin = os.Stdin
