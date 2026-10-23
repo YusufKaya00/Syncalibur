@@ -1575,8 +1575,12 @@ check_network_liveness() {
     host="${BASH_REMATCH[1]}"
     port="443"
   fi
-  timeout 1 bash -c "cat < /dev/null > /dev/tcp/${host}/${port}" 2>/dev/null
+  # Strictly validate host and port characters to prevent command injection
+  [[ "${host}" =~ ^[a-zA-Z0-9.-]+$ ]] || return 1
+  [[ "${port}" =~ ^[0-9]+$ ]] || return 1
+  timeout 1 bash -c 'cat < /dev/null > "/dev/tcp/$1/$2"' _ "${host}" "${port}" 2>/dev/null
 }
+
 
 safe_bidirectional_sync() {
   [[ "${BIDIRECTIONAL_SYNC}" == "true" ]] || return 0
