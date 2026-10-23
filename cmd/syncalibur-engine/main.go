@@ -71,6 +71,7 @@ const (
 	iconCheck   = "✓"
 	iconCross   = "✕"
 	iconWarn    = "▲"
+	iconAlert   = "⚠"
 	iconShield  = "⛨"
 	iconZap     = "✦"
 	iconSparkle = "✦"
