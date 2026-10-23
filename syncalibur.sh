@@ -1912,24 +1912,30 @@ wait_for_fs_change() {
 
   case "${FS_WATCHER}" in
     inotifywait)
-      if run_with_timeout "$(( timeout + 2 ))" inotifywait \
+      local rc=0
+      run_with_timeout "$(( timeout + 2 ))" inotifywait \
         -r -q -t "${timeout}" \
         -e modify,close_write,move,create,delete \
-        --exclude '(/\.git(/|$)|/\.git/.*|\.swp$|\.tmp$|4913$|~|\.DS_Store$)' \
-        "${WATCH_PATH}" >/dev/null 2>&1; then
+        --exclude '(/\.git(/|$)|/\.git/.*|/node_modules(/|$)|/vendor(/|$)|/target(/|$)|/\.venv(/|$)|/\.terraform(/|$)|/dist(/|$)|/build(/|$)|\.swp$|\.tmp$|4913$|~|\.DS_Store$)' \
+        "${WATCH_PATH}" >/dev/null 2>&1 || rc=$?
+      if (( rc == 0 )); then
         return 0
+      elif (( rc != 1 && rc != 2 && rc != 124 )); then
+        # System error (e.g. ENOSPC / too many watches); back off to prevent 100% CPU busy-spin
+        nap 2
       fi
       return 1
       ;;
     fswatch)
       if run_with_timeout "${timeout}" fswatch \
         -1 -t "${timeout}" \
-        -e '/\.git(/|$)' -e '\.swp$' -e '\.tmp$' -e '\.DS_Store$' \
+        -e '/\.git(/|$)' -e '/node_modules(/|$)' -e '/vendor(/|$)' -e '/target(/|$)' -e '/\.venv(/|$)' -e '/\.terraform(/|$)' -e '\.swp$' -e '\.tmp$' -e '\.DS_Store$' \
         "${WATCH_PATH}" >/dev/null 2>&1; then
         return 0
       fi
       return 1
       ;;
+
     *)
       nap "${timeout}"
       return 0
