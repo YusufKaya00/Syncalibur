@@ -132,20 +132,65 @@ func main() {
 		repo := "."
 		stagedOnly := false
 		jsonOut := false
+		noShield := false
 		for _, arg := range os.Args[2:] {
 			if arg == "--staged-only" {
 				stagedOnly = true
 			} else if arg == "--json" {
 				jsonOut = true
+			} else if arg == "--no-shield" || arg == "--skip-shield" || arg == "--noshield" {
+				noShield = true
 			} else if !strings.HasPrefix(arg, "-") {
 				repo = arg
 			}
 		}
-		exitCode, output := runPreflight(repo, stagedOnly, jsonOut)
+		exitCode, output := runPreflight(repo, stagedOnly, jsonOut, noShield)
 		if output != "" {
 			fmt.Println(output)
 		}
 		os.Exit(exitCode)
+
+	case "shield":
+		action := "status"
+		repo := "."
+		for _, arg := range os.Args[2:] {
+			if arg == "on" || arg == "enable" || arg == "arm" {
+				action = "on"
+			} else if arg == "off" || arg == "disable" || arg == "disarm" {
+				action = "off"
+			} else if arg == "toggle" {
+				action = "toggle"
+			} else if arg == "status" {
+				action = "status"
+			} else if !strings.HasPrefix(arg, "-") && isGitRepoDir(arg) {
+				repo = arg
+			}
+		}
+		gitDir := resolveGitDir(repo)
+		shieldFile := filepath.Join(gitDir, "syncalibur.noshield")
+		switch action {
+		case "on":
+			_ = os.Remove(shieldFile)
+			fmt.Printf("%s%s Syncalibur Shields ARMED%s (Shannon entropy guard & AST syntax pre-flight active)\n", cGreen, iconCheck, cReset)
+		case "off":
+			_ = os.WriteFile(shieldFile, []byte("1\n"), 0644)
+			fmt.Printf("%s%s Syncalibur Shields DISABLED%s (Test mode: credentials & fake passwords allowed)\n", cAmber, iconAlert, cReset)
+		case "toggle":
+			if _, err := os.Stat(shieldFile); err == nil {
+				_ = os.Remove(shieldFile)
+				fmt.Printf("%s%s Syncalibur Shields ARMED%s (Shannon entropy guard & AST syntax pre-flight active)\n", cGreen, iconCheck, cReset)
+			} else {
+				_ = os.WriteFile(shieldFile, []byte("1\n"), 0644)
+				fmt.Printf("%s%s Syncalibur Shields DISABLED%s (Test mode: credentials & fake passwords allowed)\n", cAmber, iconAlert, cReset)
+			}
+		case "status":
+			if areShieldsDisabled(repo) {
+				fmt.Printf("%s%s Syncalibur Shields: DISABLED (Test Mode)%s [Bypassed: credentials allowed]\n", cAmber, iconAlert, cReset)
+			} else {
+				fmt.Printf("%s%s Syncalibur Shields: ARMED (Full Protection)%s [Shannon entropy H ≥ 4.4 & AST active]\n", cGreen, iconCheck, cReset)
+			}
+		}
+		return
 
 	case "sparkline":
 		repo := "."
