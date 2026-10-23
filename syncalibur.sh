@@ -1304,7 +1304,11 @@ cmd_notify() {
 
 diagnose_failure_hint() {
   local raw="$1"
-  if grep -qiE 'Permission denied \(publickey\)|Authentication failed|Could not read from remote repository' <<< "${raw}"; then
+  if grep -qiE 'SECRET.*SHIELD|High-entropy credential|quarantined|detected credential' <<< "${raw}"; then
+    echo "High-entropy credential or secret detected! Push held to protect repository. Move secrets to .env, or press [X] to disable shield & allow test passwords."
+  elif grep -qiE 'SYNTAX.*HOLD|Incomplete syntax|syntax error' <<< "${raw}"; then
+    echo "Incomplete syntax or unclosed bracket detected. Complete the syntax, or press [X] to bypass shields."
+  elif grep -qiE 'Permission denied \(publickey\)|Authentication failed|Could not read from remote repository' <<< "${raw}"; then
     echo "SSH key or token is not authorized for this remote. Check 'ssh -T git@github.com' / 'gh auth status'."
   elif grep -qiE 'Repository not found|project you were looking for could not be found' <<< "${raw}"; then
     echo "Remote repository does not exist or account lacks access. Authenticate 'gh auth login' or 'glab auth login' for auto-creation."
