@@ -1396,9 +1396,7 @@ func detectSecretsInFile(filePath string) (bool, string) {
 
 				ent := calculateShannonEntropy(w)
 				if ent >= 4.4 {
-					hasLetter := regexp.MustCompile(`[a-zA-Z]`).MatchString(w)
-					hasDigit := regexp.MustCompile(`[0-9]`).MatchString(w)
-					if hasLetter && hasDigit {
+					if hasLetterAndDigit(w) {
 						return true, fmt.Sprintf("%s:%d (high entropy %.2f bit/char token)", filepath.Base(filePath), lineNum, ent)
 					}
 				}
