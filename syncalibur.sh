@@ -641,10 +641,11 @@ get_branch() {
   local target_repo="${1:-${REPO_ROOT}}"
   local b
   b="$(git -C "${target_repo}" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-  if [[ -z "${b}" ]]; then
-    b="$(git -C "${target_repo}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+  if [[ -n "${b}" && "${b}" != "HEAD" ]]; then
+    echo "${b}"
+    return 0
   fi
-  echo "${b}"
+  return 1
 }
 
 parse_remote_url() {
