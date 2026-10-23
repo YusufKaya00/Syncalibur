@@ -407,10 +407,27 @@ LOG_FILE="${GIT_DIR}/syncalibur.log"
 AUTH_CACHE_FILE="${GIT_DIR}/syncalibur.auth"
 FAIL_REPORT_FILE="${GIT_DIR}/syncalibur.failure"
 OFFLINE_FLAG_FILE="${GIT_DIR}/syncalibur.offline"
-ALERT_STATE_FILE="${GIT_DIR}/syncalibur.alert_ts"
 PAUSE_FILE="${GIT_DIR}/syncalibur.pause"
+SHIELD_DISABLE_FILE="${GIT_DIR}/syncalibur.noshield"
 SYNC_TRIGGER_FILE="${GIT_DIR}/syncalibur.sync"
 UPD_TRIGGER_FILE="${GIT_DIR}/syncalibur.upd"
+
+are_shields_disabled() {
+  local target_repo="${1:-${REPO_ROOT:-.}}"
+  local g_dir
+  if [[ -n "${GIT_DIR:-}" && "${target_repo}" == "${REPO_ROOT:-}" ]]; then
+    g_dir="${GIT_DIR}"
+  else
+    g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  fi
+  if [[ -f "${g_dir}/syncalibur.noshield" ]]; then
+    return 0
+  fi
+  if [[ "${SYNCALIBUR_SECRET_SHIELD:-true}" == "false" || "${SYNCALIBUR_SHIELD:-true}" == "false" || "${SYNCALIBUR_DISABLE_SHIELDS:-false}" == "true" ]]; then
+    return 0
+  fi
+  return 1
+}
 
 if [[ -n "${SYNCALIBUR_SERVICE_NAME:-${AUTO_SYNC_SERVICE_NAME:-}}" ]]; then
   SERVICE_NAME="${SYNCALIBUR_SERVICE_NAME:-${AUTO_SYNC_SERVICE_NAME}}"
