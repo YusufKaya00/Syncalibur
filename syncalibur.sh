@@ -781,7 +781,8 @@ probe_provider_auth() {
     fi
   fi
   if [[ -z "${gh_user}" && -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] && command -v curl >/dev/null 2>&1; then
-    out="$(curl -fsSL -m 4 -H "Authorization: token ${GH_TOKEN:-${GITHUB_TOKEN}}" https://api.github.com/user 2>/dev/null || true)"
+    local _ght="${GH_TOKEN:-${GITHUB_TOKEN}}"
+    out="$(printf 'header = "Authorization: token %s"\n' "${_ght}" | curl -fsSL -m 4 -K - https://api.github.com/user 2>/dev/null || true)"
     if [[ "${out}" =~ \"login\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
       gh_user="${BASH_REMATCH[1]}"
       gh_via="token"
@@ -803,7 +804,7 @@ probe_provider_auth() {
     fi
   fi
   if [[ -z "${gl_user}" && -n "${GITLAB_TOKEN:-}" ]] && command -v curl >/dev/null 2>&1; then
-    out="$(curl -fsSL -m 4 --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" https://gitlab.com/api/v4/user 2>/dev/null || true)"
+    out="$(printf 'header = "PRIVATE-TOKEN: %s"\n' "${GITLAB_TOKEN}" | curl -fsSL -m 4 -K - https://gitlab.com/api/v4/user 2>/dev/null || true)"
     if [[ "${out}" =~ \"username\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
       gl_user="${BASH_REMATCH[1]}"
       gl_via="token"
@@ -818,8 +819,7 @@ probe_provider_auth() {
   fi
 
   local line="${gh_user}|${gh_via}|${gl_user}|${gl_via}"
-  mkdir -p "$(dirname "${AUTH_CACHE_FILE}")" 2>/dev/null || true
-  printf '%s\n' "${line}" > "${AUTH_CACHE_FILE}" 2>/dev/null || true
+  atomic_write_file "${AUTH_CACHE_FILE}" "${line}"
   printf '%s\n' "${line}"
 }
 
