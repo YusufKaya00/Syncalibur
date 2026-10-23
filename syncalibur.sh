@@ -2092,6 +2092,12 @@ unpushed_count() {
     git rev-list --count "refs/remotes/${remote}/${branch}..HEAD" 2>/dev/null || echo 0
   elif git rev-parse -q --verify "refs/remotes/origin/${branch}" >/dev/null 2>&1; then
     git rev-list --count "refs/remotes/origin/${branch}..HEAD" 2>/dev/null || echo 0
+  elif git rev-parse -q --verify "refs/remotes/${remote}/HEAD" >/dev/null 2>&1; then
+    git rev-list --count "refs/remotes/${remote}/HEAD..HEAD" 2>/dev/null || echo 0
+  elif git rev-parse -q --verify "refs/remotes/origin/main" >/dev/null 2>&1; then
+    git rev-list --count "refs/remotes/origin/main..HEAD" 2>/dev/null || echo 0
+  elif git rev-parse -q --verify "refs/remotes/origin/master" >/dev/null 2>&1; then
+    git rev-list --count "refs/remotes/origin/master..HEAD" 2>/dev/null || echo 0
   else
     git rev-list --count HEAD 2>/dev/null || echo 0
   fi
