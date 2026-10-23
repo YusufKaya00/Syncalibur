@@ -3481,10 +3481,21 @@ cmd_doctor() {
 # ==============================================================================
 
 daemon_pid() {
-  local pid
+  local pid comm
   pid="$(cat "${PID_FILE}" 2>/dev/null)" || return 1
-  [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null && echo "${pid}"
+  [[ -n "${pid}" ]] || return 1
+  if kill -0 "${pid}" 2>/dev/null; then
+    comm="$(ps -p "${pid}" -o comm= 2>/dev/null || true)"
+    if [[ "${comm}" =~ syncalibur|bash ]]; then
+      echo "${pid}"
+      return 0
+    fi
+  fi
+  # If PID is not running or belongs to an unrelated command, remove stale PID file
+  rm -f "${PID_FILE}" 2>/dev/null || true
+  return 1
 }
+
 
 acquire_single_instance_lock() {
   if command -v flock >/dev/null 2>&1; then
