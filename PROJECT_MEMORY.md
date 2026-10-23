@@ -173,6 +173,7 @@ Syncalibur provides an automated infrastructure policy engine for Kubernetes, He
   - `d`: Flash status for 12-point diagnostic check.
   - `t` / `e`: Toggle side-by-side Emblem Cockpit vs Compact Tail view.
   - `f`: Lock follow/tail mode.
+  - `x`: Toggle Secret Shield & Syntax Hold (creates/removes `.git/syncalibur.noshield` marker file for test password/credential bypass).
   - `↑` / `k` / `PgUp`: Scroll viewport up (disables follow mode).
   - `↓` / `j` / `PgDn`: Scroll viewport down (re-enables follow mode at bottom).
   - `←` / `h` & `→` / `l`: Horizontal pan (10 columns). `0`: Reset pan.
@@ -188,6 +189,7 @@ Syncalibur provides an automated infrastructure policy engine for Kubernetes, He
 #### Daemon Lifecycle & Single-Instance Lock
 - File descriptor advisory lock via `flock -w 5` on `${GIT_DIR}/syncalibur.lock`. Fallback to PID probing via `kill -0` if flock is unavailable.
 - Stored PID in `${GIT_DIR}/syncalibur.pid`.
+- **File-System IPC Marker Files:** `${GIT_DIR}/syncalibur.lock` (single-instance advisory lock), `syncalibur.pid` (daemon PID), `syncalibur.pause` (pause sentinel), `syncalibur.sync` (force-sync trigger), `syncalibur.upd` (self-update check trigger), `syncalibur.offline` (offline state sentinel), `syncalibur.noshield` (shield bypass / dummy credentials test marker).
 - Traps: `trap on_exit EXIT`, `trap 'exit 0' INT TERM`.
 
 #### Filesystem Event Watching & Debounce Quiescence
