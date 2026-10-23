@@ -1042,8 +1042,9 @@ var knownSecretRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`\b(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{24,}\b`),                                   // Stripe Keys
 	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),                                             // Private Key (RSA, EC, PKCS8)
 	regexp.MustCompile(`-----BEGIN OPENSSH PRIVATE KEY-----`),                                            // OpenSSH Private Key
-	regexp.MustCompile(`(?i)(?:api[_-]?key|secret|password|auth[_-]?token|bearer)\s*[:=]\s*["']([A-Za-z0-9_\-+/=]{20,})["']`), // Generic Secret assignments
+	regexp.MustCompile(`(?i)(?:api[_-]?key|secret|password|auth[_-]?token|bearer)\s*[:=]\s*["']?([A-Za-z0-9_\-+/=]{20,})["']?`), // Generic Secret assignments
 }
+
 
 var defaultSensitiveGlobs = []string{
 	".env*", "*.tfstate*", "*.tfvars*", "credentials.json", "*serviceaccount*.json",
