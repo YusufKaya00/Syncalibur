@@ -2720,6 +2720,7 @@ cmd_push() {
       return 1
     fi
   else
+    clear_sync_failure
     record_push_state "IN_SYNC" "${targets_desc}" "${current_repo}"
     echo -e "  ${C_GREEN}✓ IN SYNC       : 0 unpushed commits (branch '${branch}' is fully pushed to ${targets_desc}).${C_RESET}"
     return 0
