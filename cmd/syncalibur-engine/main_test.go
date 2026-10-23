@@ -1104,4 +1104,33 @@ func TestShieldToggleAndBypass(t *testing.T) {
 	}
 }
 
+func TestIsSafePathDeletedFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "syncalibur-safepath-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// 1. Deleted file should be reported safe (not an error)
+	safe, reason := isSafePath(tmpDir, "deleted-file.txt")
+	if !safe {
+		t.Errorf("expected deleted file to be safe, got: %s", reason)
+	}
+
+	// 2. Existing regular file
+	realFile := filepath.Join(tmpDir, "real.txt")
+	_ = os.WriteFile(realFile, []byte("hello"), 0644)
+	safeReal, reasonReal := isSafePath(tmpDir, "real.txt")
+	if !safeReal {
+		t.Errorf("expected existing file to be safe, got: %s", reasonReal)
+	}
+
+	// 3. Path traversal outside repo
+	safeEscape, _ := isSafePath(tmpDir, "../outside.txt")
+	if safeEscape {
+		t.Errorf("expected path traversal outside repo to be rejected")
+	}
+}
+
+
 
