@@ -5102,10 +5102,14 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			animFrame++
 			renderFrame()
 
+		case <-winchCh:
+			renderFrame()
+
 		case <-ticker.C:
 			animFrame++
 			renderFrame()
 		}
+
 	}
 }
 
