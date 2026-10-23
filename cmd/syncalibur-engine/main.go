@@ -1074,7 +1074,7 @@ func decodeUTF16(b []byte) string {
 	if len(b) < 2 {
 		return string(b)
 	}
-	endian := binary.LittleEndian
+	var endian binary.ByteOrder = binary.LittleEndian
 	offset := 0
 	if b[0] == 0xFF && b[1] == 0xFE {
 		endian = binary.LittleEndian
@@ -1085,6 +1085,7 @@ func decodeUTF16(b []byte) string {
 	} else {
 		return string(b)
 	}
+
 	u16 := make([]uint16, (len(b)-offset)/2)
 	for i := range u16 {
 		u16[i] = endian.Uint16(b[offset+i*2:])
