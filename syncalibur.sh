@@ -2102,12 +2102,9 @@ has_changes_in_scope() {
 
 snapshot() {
   git -c core.quotePath=false status --porcelain -uall -- "${SCOPE}" 2>/dev/null \
-    | sed -E 's/^.{3}//; s/^.* -> //; s/^"(.*)"$/\1/' \
-    | while IFS= read -r path; do
-        printf '%s %s\n' "${path}" "$(file_signature "${path}")"
-      done \
     | git hash-object --stdin
 }
+
 
 wait_for_quiet() {
   local previous current waited=0
