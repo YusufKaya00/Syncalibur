@@ -4305,6 +4305,8 @@ usage() {
   ${C_GOLD}${C_BOLD}Developer Ergonomics & Flight Recorder:${C_RESET}
     ${C_CYAN}save [msg]${C_RESET}             One-shot quicksave: secret scan + syntax check + AST commit + push
     ${C_CYAN}undo [N]${C_RESET}               Time Machine: safely revert N commits via soft reset (preserves working tree)
+    ${C_CYAN}redo [N|--list]${C_RESET}        Time Machine: re-apply previously undone commits from LIFO redo stack
+    ${C_CYAN}prompt [options]${C_RESET}       Sub-millisecond status glyph (<3ms) for Starship, Zsh, Bash, Tmux
     ${C_CYAN}push [msg]${C_RESET}             Alias to 'save' (one-shot quicksave & multi-remote push)
     ${C_CYAN}commit [msg]${C_RESET}           Local preflight check & commit (skips network push)
     ${C_CYAN}check | preflight${C_RESET}     Run pre-push inspection (syntax hold, secret shield, diff, proposed msg)
@@ -4341,6 +4343,8 @@ case "${1:-}" in
   shield | shields) shift; cmd_shield "$@" ;;
   noshield)   shift; cmd_shield off "$@" ;;
   undo | recover) shift; cmd_undo "$@" ;;
+  redo)       shift; cmd_redo "$@" ;;
+  prompt)     shift; cmd_prompt "$@" ;;
   checkpoint | checkpoints) shift; cmd_checkpoint "$@" ;;
   release)    shift; cmd_release "$@" ;;
   version | --version | -v) cmd_version ;;
