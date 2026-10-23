@@ -2840,6 +2840,70 @@ cmd_pull() {
   fi
 }
 
+cmd_shield() {
+  local target_repo="" subcmd=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      on | enable | arm) subcmd="on"; shift ;;
+      off | disable | disarm) subcmd="off"; shift ;;
+      toggle) subcmd="toggle"; shift ;;
+      status) subcmd="status"; shift ;;
+      *)
+        if [[ -d "$1" ]]; then
+          target_repo="$1"
+        elif [[ -z "${subcmd}" ]]; then
+          subcmd="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "${target_repo}" ]]; then
+    target_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+  else
+    target_repo="$(cd "${target_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${target_repo}")"
+  fi
+
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  local s_file="${g_dir}/syncalibur.noshield"
+
+  case "${subcmd}" in
+    off)
+      touch "${s_file}"
+      echo -e "${C_AMBER}⚠  Syncalibur Shields DISABLED for $(basename "${target_repo}")${C_RESET}"
+      echo -e "   ${C_SLATE}Test mode active: Shannon entropy & syntax checks bypassed.${C_RESET}"
+      echo -e "   ${C_SLATE}You can now commit and push test credentials/passwords.${C_RESET}"
+      echo -e "   ${C_SLATE}Run 'syncalibur shield on' to restore full protection.${C_RESET}"
+      ;;
+    on)
+      rm -f "${s_file}" 2>/dev/null || true
+      echo -e "${C_GREEN}⛨  Syncalibur Shields ARMED for $(basename "${target_repo}")${C_RESET}"
+      echo -e "   ${C_SLATE}Full protection active: Shannon entropy & AST syntax pre-flight enabled.${C_RESET}"
+      ;;
+    toggle)
+      if [[ -f "${s_file}" ]]; then
+        cmd_shield on "${target_repo}"
+      else
+        cmd_shield off "${target_repo}"
+      fi
+      ;;
+    status | "")
+      if are_shields_disabled "${target_repo}"; then
+        echo -e "${C_AMBER}⚠  Syncalibur Shields: DISABLED (Test Mode)${C_RESET} [$(basename "${target_repo}")]"
+        echo -e "   ${C_SLATE}Shannon entropy & syntax hold are bypassed (test credentials allowed).${C_RESET}"
+      else
+        echo -e "${C_GREEN}⛨  Syncalibur Shields: ARMED (Full Protection)${C_RESET} [$(basename "${target_repo}")]"
+        echo -e "   ${C_SLATE}Shannon entropy guard (H ≥ 4.4) & AST syntax pre-flight active.${C_RESET}"
+      fi
+      ;;
+    *)
+      echo "Usage: syncalibur shield [on|off|toggle|status] [repo]"
+      ;;
+  esac
+}
+
 cmd_mode() {
   local target_mode=""
   local is_global=0
