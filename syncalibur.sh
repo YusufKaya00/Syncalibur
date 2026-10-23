@@ -2644,11 +2644,16 @@ cmd_push() {
       if (( pf_rc == 2 )); then
         echo -e "  ${C_AMBER}▲ [SYNTAX HOLD] Incomplete syntax detected; push halted:${C_RESET}"
         echo "${pf_raw}"
+        record_push_state "BLOCKED_SYNTAX" "syntax hold active" "${current_repo}"
+        trigger_failure_alert "SYNTAX HOLD (PUSH BLOCKED)" "Incomplete syntax detected; push halted" "${pf_raw}"
         return 1
       elif (( pf_rc == 3 )); then
         echo -e "  ${C_RED}⛨ [SECRET SHIELD] High-entropy credential detected in files:${C_RESET}"
         echo "${pf_raw}"
         echo -e "  ${C_SLATE}Hint: Move credentials to .env or add to .gitignore before pushing.${C_RESET}"
+        echo -e "  ${C_SLATE}Or run 'syncalibur shield off' / press [x] in cockpit to allow test passwords.${C_RESET}"
+        record_push_state "BLOCKED_SHIELD" "high-entropy credential detected" "${current_repo}"
+        trigger_failure_alert "SECRET SHIELD (PUSH BLOCKED)" "High-entropy credential detected; push halted to protect repository" "${pf_raw}"
         return 1
       elif (( pf_rc == 4 )); then
         echo -e "  ${C_AMBER}☸ [DEVOPS ADVISORY] Infrastructure lint warnings detected (non-blocking).${C_RESET}"
@@ -2684,18 +2689,24 @@ cmd_push() {
   fi
 
   # 4. Push to all remotes
-  local unpushed
+  local unpushed targets_desc
   unpushed="$(unpushed_count "${remote}" "${branch}")"
+  targets_desc="$(describe_push_targets_inline "${remote}")"
   if (( unpushed > 0 )); then
+    echo -e "  ${C_CYAN}↗ Pushing ${unpushed} commit(s) -> ${targets_desc}...${C_RESET}"
+    record_push_state "PUSHING" "${targets_desc}" "${current_repo}"
     if push_changes "${remote}" "${branch}"; then
-      echo -e "  ${C_GREEN}✦ All remotes in sync.${C_RESET}"
+      record_push_state "IN_SYNC" "${targets_desc}" "${current_repo}"
+      echo -e "  ${C_GREEN}✓ PUSH SUCCESS  : ${branch} -> ${targets_desc} (all remotes in sync).${C_RESET}"
       return 0
     else
-      echo -e "  ${C_RED}✕ Push failed (see details above).${C_RESET}"
+      record_push_state "FAILED" "push to ${remote} failed" "${current_repo}"
+      echo -e "  ${C_RED}✕ PUSH FAILED   : Push to remote failed (diagnostic alert triggered).${C_RESET}"
       return 1
     fi
   else
-    echo -e "  ${C_GREEN}✓ Already up to date with remote.${C_RESET}"
+    record_push_state "IN_SYNC" "${targets_desc}" "${current_repo}"
+    echo -e "  ${C_GREEN}✓ IN SYNC       : 0 unpushed commits (branch '${branch}' is fully pushed to ${targets_desc}).${C_RESET}"
     return 0
   fi
 }
