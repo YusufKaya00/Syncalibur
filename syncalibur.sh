@@ -412,6 +412,8 @@ PAUSE_FILE="${GIT_DIR}/syncalibur.pause"
 SHIELD_DISABLE_FILE="${GIT_DIR}/syncalibur.noshield"
 SYNC_TRIGGER_FILE="${GIT_DIR}/syncalibur.sync"
 UPD_TRIGGER_FILE="${GIT_DIR}/syncalibur.upd"
+LAST_PUSH_FILE="${GIT_DIR}/syncalibur.last_push"
+PUSH_STATE_FILE="${GIT_DIR}/syncalibur.push_state"
 
 are_shields_disabled() {
   local target_repo="${1:-${REPO_ROOT:-.}}"
@@ -428,6 +430,83 @@ are_shields_disabled() {
     return 0
   fi
   return 1
+}
+
+record_push_state() {
+  local state="$1" details="${2:-}" target_repo="${3:-${REPO_ROOT}}"
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -z "${g_dir}" ]]; then
+    g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
+    [[ "${g_dir}" != /* ]] && g_dir="${target_repo}/${g_dir}"
+  fi
+  local now_epoch now_human
+  now_epoch="$(date +%s)"
+  now_human="$(date '+%H:%M:%S')"
+
+  if [[ "${state}" == "IN_SYNC" ]]; then
+    local head_sha
+    head_sha="$(git -C "${target_repo}" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+    printf '%s|%s|%s|%s\n' "${now_epoch}" "${now_human}" "${head_sha}" "${details}" > "${g_dir}/syncalibur.last_push" 2>/dev/null || true
+    printf 'IN_SYNC|%s|%s|%s\n' "${now_epoch}" "${now_human}" "${details}" > "${g_dir}/syncalibur.push_state" 2>/dev/null || true
+  else
+    printf '%s|%s|%s|%s\n' "${state}" "${now_epoch}" "${now_human}" "${details}" > "${g_dir}/syncalibur.push_state" 2>/dev/null || true
+  fi
+}
+
+get_push_status_summary() {
+  local target_repo="${1:-${REPO_ROOT}}"
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -z "${g_dir}" ]]; then
+    g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
+    [[ "${g_dir}" != /* ]] && g_dir="${target_repo}/${g_dir}"
+  fi
+
+  local state_file="${g_dir}/syncalibur.push_state"
+  local last_push_file="${g_dir}/syncalibur.last_push"
+  local remote branch unpushed=0
+  remote="$(get_remote "${target_repo}" 2>/dev/null || echo "origin")"
+  branch="$(get_branch "${target_repo}" 2>/dev/null || echo "main")"
+  unpushed="$(unpushed_count "${remote}" "${branch}" "${target_repo}" 2>/dev/null || echo 0)"
+
+  if [[ -f "${state_file}" ]]; then
+    local s_line s_state s_epoch s_time s_details
+    s_line="$(cat "${state_file}" 2>/dev/null || true)"
+    IFS='|' read -r s_state s_epoch s_time s_details <<< "${s_line}"
+    case "${s_state}" in
+      BLOCKED_SHIELD)
+        echo -e "${C_RED}⛨ BLOCKED BY SECRET SHIELD${C_RESET} ${C_SLATE}(${s_details})${C_RESET}"
+        return 0
+        ;;
+      BLOCKED_SYNTAX)
+        echo -e "${C_AMBER}▲ BLOCKED BY SYNTAX HOLD${C_RESET} ${C_SLATE}(${s_details})${C_RESET}"
+        return 0
+        ;;
+      PUSHING)
+        echo -e "${C_CYAN}↗ PUSHING TO REMOTE...${C_RESET} ${C_SLATE}(${s_details})${C_RESET}"
+        return 0
+        ;;
+      FAILED)
+        echo -e "${C_RED}✕ PUSH FAILED${C_RESET} ${C_SLATE}(${s_details})${C_RESET}"
+        return 0
+        ;;
+    esac
+  fi
+
+  if (( unpushed > 0 )); then
+    echo -e "${C_AMBER}● QUEUED (${unpushed} unpushed commit(s) pending push)${C_RESET}"
+    return 0
+  fi
+
+  if [[ -f "${last_push_file}" ]]; then
+    local lp_epoch lp_time lp_sha lp_targets
+    IFS='|' read -r lp_epoch lp_time lp_sha lp_targets < "${last_push_file}"
+    echo -e "${C_GREEN}✓ IN SYNC${C_RESET} ${C_SLATE}(Pushed at ${lp_time} • ${lp_sha} → ${lp_targets})${C_RESET}"
+    return 0
+  fi
+
+  echo -e "${C_GREEN}✓ IN SYNC${C_RESET} ${C_SLATE}(Remote is up to date • 0 unpushed)${C_RESET}"
 }
 
 if [[ -n "${SYNCALIBUR_SERVICE_NAME:-${AUTO_SYNC_SERVICE_NAME:-}}" ]]; then
