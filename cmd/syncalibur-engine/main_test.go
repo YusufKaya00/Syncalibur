@@ -1048,4 +1048,60 @@ func TestGetLatestSemVerTag(t *testing.T) {
 	}
 }
 
+func TestShieldToggleAndBypass(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = exec.Command("git", "-C", tmpDir, "init").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.email", "test@test.com").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.name", "Test").Run()
+
+	gitDir := filepath.Join(tmpDir, ".git")
+
+	// 1. By default, shields should be enabled
+	if areShieldsDisabled(tmpDir) {
+		t.Errorf("expected shields to be enabled by default")
+	}
+
+	// 2. Test file with dummy secret
+	secretFile := filepath.Join(tmpDir, "credentials.py")
+	_ = os.WriteFile(secretFile, []byte("api_key = \"sk-live-dummysecretpassword1234567890abcdef\"\n"), 0644)
+
+	// Preflight should detect secret and exit with code 3
+	exitCode, _ := runPreflight(tmpDir, false, false)
+	if exitCode != 3 {
+		t.Errorf("expected preflight to detect secret and return 3, got %d", exitCode)
+	}
+
+	// 3. Disable shields via syncalibur.noshield marker file
+	noShieldFile := filepath.Join(gitDir, "syncalibur.noshield")
+	_ = os.WriteFile(noShieldFile, []byte("1\n"), 0644)
+	if !areShieldsDisabled(tmpDir) {
+		t.Errorf("expected shields to be disabled when syncalibur.noshield exists")
+	}
+
+	// Preflight should now pass (exit code 0) because shields are disabled
+	exitCodeBypass, _ := runPreflight(tmpDir, false, false)
+	if exitCodeBypass != 0 {
+		t.Errorf("expected preflight to pass (0) when shields are disabled, got %d", exitCodeBypass)
+	}
+
+	// 4. Re-enable shields by removing marker file
+	_ = os.Remove(noShieldFile)
+	if areShieldsDisabled(tmpDir) {
+		t.Errorf("expected shields to be re-enabled after removing syncalibur.noshield")
+	}
+
+	// 5. Test explicit --no-shield parameter to runPreflight
+	exitCodeExplicit, _ := runPreflight(tmpDir, false, false, true)
+	if exitCodeExplicit != 0 {
+		t.Errorf("expected preflight to pass (0) when explicit noShield is true, got %d", exitCodeExplicit)
+	}
+
+	// 6. Test environment variable SYNCALIBUR_SECRET_SHIELD="false"
+	os.Setenv("SYNCALIBUR_SECRET_SHIELD", "false")
+	defer os.Unsetenv("SYNCALIBUR_SECRET_SHIELD")
+	if !areShieldsDisabled(tmpDir) {
+		t.Errorf("expected shields to be disabled when SYNCALIBUR_SECRET_SHIELD=false")
+	}
+}
+
 
