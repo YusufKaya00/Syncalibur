@@ -235,11 +235,18 @@ load_config() {
       value="${value%%[[:space:]]#*}"
       value="${value%"${value##*[![:space:]]}"}"
     fi
+    if (( allow_override )); then
+      if [[ "${key}" =~ ^(SYNCALIBUR_SECRET_SHIELD|SYNCALIBUR_DISABLE_SHIELDS|SYNCALIBUR_SHIELD|SYNCALIBUR_PROTECT_SYNTAX|SYNCALIBUR_WEBHOOK_URL|SYNCALIBUR_TELEGRAM_BOT_TOKEN|SYNCALIBUR_TELEGRAM_CHAT_ID|GITHUB_TOKEN|GH_TOKEN|GITLAB_TOKEN)$ ]]; then
+        echo "▲  ${file}:${n}: security setting '${key}' cannot be overridden by repo-level config (ignored)" >&2
+        continue
+      fi
+    fi
     eval "[[ -n \"\${${key}+x}\" ]] && is_set=1 || is_set=0"
     (( is_set && ! allow_override )) && continue
     printf -v "${key}" '%s' "${value}"
   done < "${file}"
 }
+
 
 DEFAULT_ENV_FILE="${SCRIPT_DIR}/syncalibur.env"
 EXAMPLE_ENV_FILE="${SCRIPT_DIR}/syncalibur.env.example"
