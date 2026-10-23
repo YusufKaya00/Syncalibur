@@ -4598,7 +4598,11 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		os.Exit(0)
 	}()
 
+	winchCh := make(chan os.Signal, 1)
+	notifyResize(winchCh)
+
 	fmt.Print("\033[?1049h\033[?25l")
+
 
 	keyCh := make(chan []byte, 32)
 	go func() {
