@@ -4024,6 +4024,7 @@ usage() {
     ${C_CYAN}push [msg]${C_RESET}             Alias to 'save' (one-shot quicksave & multi-remote push)
     ${C_CYAN}commit [msg]${C_RESET}           Local preflight check & commit (skips network push)
     ${C_CYAN}check | preflight${C_RESET}     Run pre-push inspection (syntax hold, secret shield, diff, proposed msg)
+    ${C_CYAN}shield [subcmd]${C_RESET}       Toggle or check Secret Shield & Syntax Hold: ${C_WHITE}on | off | toggle | status${C_RESET}
     ${C_CYAN}checkpoint [list|save]${C_RESET} List or create safety rollback checkpoints
     ${C_CYAN}release [mode]${C_RESET}         Automated SemVer bump, CHANGELOG generation & Git release tag
     ${C_CYAN}version | -v${C_RESET}          Print official release version & platform milestone
@@ -4052,7 +4053,9 @@ case "${1:-}" in
   save | quicksave) shift; cmd_save "$@" ;;
   push)       shift; cmd_push "$@" ;;
   commit)     shift; cmd_commit "$@" ;;
-  check | preflight) shift; cmd_check "${1:-}" ;;
+  check | preflight) shift; cmd_check "$@" ;;
+  shield | shields) shift; cmd_shield "$@" ;;
+  noshield)   shift; cmd_shield off "$@" ;;
   undo | recover) shift; cmd_undo "$@" ;;
   checkpoint | checkpoints) shift; cmd_checkpoint "$@" ;;
   release)    shift; cmd_release "$@" ;;
