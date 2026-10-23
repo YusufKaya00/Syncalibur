@@ -4972,6 +4972,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	isShieldDisabled := false
 	cachedActiveMode := "autopilot"
 	engineVer := getEngineVersion(scriptPath)
+	showHelpModal := false
 
 	renderFrame := func() {
 		termRows, termCols := getTerminalSize()
@@ -4980,6 +4981,52 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		}
 		if termRows < 14 {
 			termRows = 14
+		}
+
+		if showHelpModal {
+			modalLines := []string{
+				"╭───────────────── SYNEXCALIBUR COCKPIT KEY SHORTCUTS ─────────────────╮",
+				"│                                                                      │",
+				"│  [q] / [Esc]   Quit interactive cockpit                              │",
+				"│  [p]           Pause / Resume background auto-sync                   │",
+				"│  [s]           Trigger immediate sync cycle (quicksave & push)       │",
+				"│  [b]           Trigger safe bidirectional pull & rebase              │",
+				"│  [c]           Run preflight check (AST syntax & Secret Shield)      │",
+				"│  [x]           Toggle Secret Shield (test mode vs full armor)        │",
+				"│  [m]           Cycle operating mode (autopilot, developer, devops)   │",
+				"│  [z]           Time Machine Undo (soft-reset 1 commit safely)        │",
+				"│  [y]           Time Machine Redo (re-apply from LIFO redo stack)     │",
+				"│  [t] / [e]     Toggle TrueColor emblem logo / Compact view           │",
+				"│  [f]           Toggle log auto-tail (follow latest writes)           │",
+				"│  [d]           Run 12-point system diagnostic doctor                 │",
+				"│  [↑/↓] [k/j]   Scroll log viewport up / down                         │",
+				"│  [←/→] [h/l]   Pan log viewport horizontally                         │",
+				"│  [0]           Reset horizontal pan to 0                             │",
+				"│  [?]           Close this shortcut help dialog                       │",
+				"│                                                                      │",
+				"│                Press [?] or [Esc] to close this window               │",
+				"╰──────────────────────────────────────────────────────────────────────╯",
+			}
+			var modalFrame strings.Builder
+			modalFrame.WriteString("\033[H\033[2J")
+			topPad := (termRows - len(modalLines)) / 2
+			if topPad < 1 {
+				topPad = 1
+			}
+			for p := 0; p < topPad; p++ {
+				modalFrame.WriteString("\n")
+			}
+			modalWidth := 72
+			leftPad := (termCols - modalWidth) / 2
+			if leftPad < 2 {
+				leftPad = 2
+			}
+			padStr := strings.Repeat(" ", leftPad)
+			for _, ml := range modalLines {
+				modalFrame.WriteString(padStr + cGold + ml + cReset + "\n")
+			}
+			fmt.Print(modalFrame.String())
+			return
 		}
 
 		if time.Since(lastGitQuery) >= 1000*time.Millisecond {
