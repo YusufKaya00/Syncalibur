@@ -4047,10 +4047,12 @@ func sendWebhook(webhookURL, eventType, repoName, branchName, title, message, de
 
 	var payload any
 
+	details = sanitizeTelemetryDetails(details)
+
 	switch {
 	case strings.Contains(lowerURL, "discord.com/api/webhooks/") || strings.Contains(lowerURL, "discordapp.com/api/webhooks/"):
-		if len(details) > 900 {
-			details = details[:900] + "..."
+		if len([]rune(details)) > 900 {
+			details = truncateRunes(details, 900) + "..."
 		}
 		fields := []map[string]any{
 			{"name": "Repository", "value": "`" + repoName + "`", "inline": true},
@@ -4058,7 +4060,8 @@ func sendWebhook(webhookURL, eventType, repoName, branchName, title, message, de
 			{"name": "Host", "value": "`" + hostInfo + "`", "inline": true},
 		}
 		if strings.TrimSpace(details) != "" {
-			fields = append(fields, map[string]any{"name": "Telemetry", "value": "```text\n" + details + "\n```", "inline": false})
+			escapedDetails := escapeDiscordCodeBlock(details)
+			fields = append(fields, map[string]any{"name": "Telemetry", "value": "```text\n" + escapedDetails + "\n```", "inline": false})
 		}
 		payload = map[string]any{
 			"username":   "Syncalibur Daemon",
@@ -4075,12 +4078,15 @@ func sendWebhook(webhookURL, eventType, repoName, branchName, title, message, de
 			},
 		}
 	case strings.Contains(lowerURL, "hooks.slack.com/services/"):
-		attText := fmt.Sprintf("%s\n*Repo:* `%s` (%s) • *Host:* `%s`", message, repoName, branchName, hostInfo)
+		if len([]rune(details)) > 900 {
+			details = truncateRunes(details, 900) + "..."
+		}
+		attText := fmt.Sprintf("%s\n*Repo:* `%s` (%s) • *Host:* `%s`", escapeSlackText(message), escapeSlackText(repoName), escapeSlackText(branchName), escapeSlackText(hostInfo))
 		if strings.TrimSpace(details) != "" {
-			attText += fmt.Sprintf("\n```%s```", details)
+			attText += fmt.Sprintf("\n```%s```", escapeDiscordCodeBlock(details))
 		}
 		payload = map[string]any{
-			"text": "*" + title + "*",
+			"text": "*" + escapeSlackText(title) + "*",
 			"attachments": []map[string]any{
 				{
 					"color": colorHex,
