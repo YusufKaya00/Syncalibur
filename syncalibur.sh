@@ -1807,10 +1807,18 @@ sync_and_update_self_repo() {
 
   # External repo daemons never auto-commit Syncalibur's own repo to prevent thundering herd locks.
   # Syncalibur is committed by its own dedicated daemon when watched.
+  if (( ! force_upd )) && (( now - LAST_SELF_CHECK_TS < SELF_CHECK_INTERVAL )); then
+    return 0
+  fi
+  LAST_SELF_CHECK_TS="${now}"
 
+  local self_branch self_remote="origin"
+  self_branch="$(git -C "${SELF_REPO_ROOT}" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")"
+  [[ -n "${self_branch}" ]] || return 0
 
   git -C "${SELF_REPO_ROOT}" remote get-url "${self_remote}" >/dev/null 2>&1 || return 0
   run_with_timeout 30 git -C "${SELF_REPO_ROOT}" fetch -q "${self_remote}" "${self_branch}" 2>/dev/null || return 0
+
 
   local local_sha remote_sha behind_cnt
   local_sha="$(git -C "${SELF_REPO_ROOT}" rev-parse -q --verify HEAD 2>/dev/null || echo "")"
