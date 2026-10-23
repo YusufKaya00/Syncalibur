@@ -2976,13 +2976,115 @@ cmd_undo() {
     touch "${g_dir}/syncalibur.pause" 2>/dev/null || true
 
     echo -e "  ${C_GREEN}✓ Rolled back to ${target_sha}! (working tree preserved via soft reset)${C_RESET}"
-    echo -e "  ${C_SLATE}Redo reference saved at: ${redo_ref} (run 'git reset --soft ${redo_ref}' to re-apply)${C_RESET}"
+    echo -e "  ${C_SLATE}Redo reference saved at: ${redo_ref} (run 'syncalibur redo' to re-apply)${C_RESET}"
     echo -e "  ${C_AMBER}⏸ Auto-sync paused (.git/syncalibur.pause). Run '${C_CYAN}syncalibur resume${C_AMBER}' when ready to resume.${C_RESET}"
     return 0
 
   else
     echo -e "  ${C_RED}✕ Soft reset to HEAD~${steps} failed.${C_RESET}"
     return 1
+  fi
+}
+
+cmd_redo() {
+  local target_repo=""
+  local list_mode=0
+  local steps=1
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --list|-l|list)
+        list_mode=1
+        ;;
+      [0-9]*)
+        steps="$1"
+        ;;
+      *)
+        if [[ -d "$1" ]]; then
+          target_repo="$1"
+        fi
+        ;;
+    esac
+    shift
+  done
+
+  local current_repo
+  if [[ -n "${target_repo}" ]]; then
+    current_repo="$(cd "${target_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${target_repo}")"
+  else
+    current_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+  fi
+  cd "${current_repo}" || return 1
+  assert_git_operable "${current_repo}" || return 1
+
+  if (( list_mode )); then
+    echo -e "${C_CYAN}${C_BOLD}◈ Syncalibur Redo Stack (refs/syncalibur/redo-*):${C_RESET}"
+    local count=0
+    while IFS= read -r line; do
+      [[ -z "${line}" ]] && continue
+      count=$((count + 1))
+      local r_ref r_sha r_subj
+      r_ref="$(awk '{print $1}' <<< "${line}")"
+      r_sha="$(awk '{print $2}' <<< "${line}")"
+      r_subj="$(cut -d' ' -f3- <<< "${line}")"
+      echo -e "  [${count}] ${C_GREEN}${r_sha}${C_RESET} - ${r_subj} (${C_SLATE}${r_ref}${C_RESET})"
+    done < <(git for-each-ref --sort=-creatordate --format='%(refname) %(objectname:short) %(contents:subject)' 'refs/syncalibur/redo-*' 2>/dev/null)
+    if (( count == 0 )); then
+      echo -e "  ${C_SLATE}(Redo stack is empty)${C_RESET}"
+    fi
+    return 0
+  fi
+
+  local target_ref
+  target_ref="$(git for-each-ref --sort=-creatordate --format='%(refname)' 'refs/syncalibur/redo-*' 2>/dev/null | sed -n "${steps}p")"
+
+  if [[ -z "${target_ref}" ]]; then
+    echo -e "${C_AMBER}▲ Cannot redo: No matching checkpoint found in redo stack (index: ${steps}).${C_RESET}"
+    echo -e "  Run '${C_CYAN}syncalibur redo --list${C_RESET}' to inspect available redo checkpoints."
+    return 1
+  fi
+
+  local target_sha current_sha
+  target_sha="$(git rev-parse --short "${target_ref}" 2>/dev/null)"
+  current_sha="$(git rev-parse --short HEAD 2>/dev/null)"
+
+  echo -e "${C_CYAN}${C_BOLD}◈ Syncalibur Time Machine Redo${C_RESET} [Advancing ${current_sha} ➔ ${target_sha} via ${target_ref}]"
+
+  if git reset --soft "${target_ref}" 2>/dev/null; then
+    git update-ref -d "${target_ref}" 2>/dev/null || true
+    record_timeline_checkpoint "${current_repo}" 2>/dev/null || true
+
+    echo -e "  ${C_GREEN}✓ Re-applied commit ${target_sha}! (working tree preserved via soft reset)${C_RESET}"
+    local remaining_count
+    remaining_count="$(git for-each-ref --format='%(refname)' 'refs/syncalibur/redo-*' 2>/dev/null | wc -l)"
+    echo -e "  ${C_SLATE}Remaining redo checkpoints: ${remaining_count}${C_RESET}"
+    return 0
+  else
+    echo -e "${C_RED}✕ Soft reset to ${target_sha} failed.${C_RESET}"
+    return 1
+  fi
+}
+
+cmd_prompt() {
+  local target_repo=""
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    if [[ -d "$1" && ! "$1" =~ ^-- ]]; then
+      target_repo="$1"
+    else
+      args+=("$1")
+    fi
+    shift
+  done
+
+  if [[ -z "${target_repo}" ]]; then
+    target_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
+  fi
+
+  if ensure_go_engine 2>/dev/null; then
+    "${GO_ENGINE_BIN}" prompt "${target_repo}" "${args[@]}"
+  else
+    echo "[⚡]"
   fi
 }
 
