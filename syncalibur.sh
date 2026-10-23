@@ -1097,13 +1097,18 @@ print_syncalibur_dashboard() {
     d_idx=$(( d_idx + 1 ))
   done
 
+  local shield_desc="${C_SLATE}Poll ${POLL_INTERVAL}s • Debounce ${DEBOUNCE_WAIT}s • ≤ ${MAX_FILE_SIZE_MB} MiB & Secret Guard${C_RESET}"
+  if are_shields_disabled; then
+    shield_desc="${C_AMBER}⚠ DISABLED (Test Mode • Passwords & Secrets Allowed)${C_RESET}"
+  fi
+
   info_lines+=(
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Self-Sync :${C_RESET} ${self_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Features  :${C_RESET} ${autorepo_str}"
     "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Commits   :${C_RESET} ${C_GREEN}${total_commits}${C_RESET} ${C_SLATE}total${C_RESET}  ${C_SLATE}•${C_RESET}  ${C_GREEN}${today_commits}${C_RESET} ${C_SLATE}today${C_RESET}  ${C_SLATE}•${C_RESET}  ${unpushed_str}"
-    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Shield    :${C_RESET} ${C_SLATE}Poll ${POLL_INTERVAL}s • Debounce ${DEBOUNCE_WAIT}s • ≤ ${MAX_FILE_SIZE_MB} MiB & Secret Guard${C_RESET}"
+    "  ${C_GOLD}◈${C_RESET} ${C_BOLD}Shield    :${C_RESET} ${shield_desc}"
     "  ${C_SLATE}──────────────────────────────────────────────────────────────────────${C_RESET}"
-    "  ${C_SLATE}Commands  : ${C_CYAN}save${C_SLATE} | ${C_CYAN}undo${C_SLATE} | ${C_CYAN}check${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}doctor${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}version${C_RESET}"
+    "  ${C_SLATE}Commands  : ${C_CYAN}save${C_SLATE} | ${C_CYAN}undo${C_SLATE} | ${C_CYAN}check${C_SLATE} | ${C_CYAN}status${C_SLATE} | ${C_CYAN}shield${C_SLATE} | ${C_CYAN}push${C_SLATE} | ${C_CYAN}doctor${C_SLATE} | ${C_CYAN}fleet${C_SLATE} | ${C_CYAN}version${C_RESET}"
   )
 
   local -a logo_lines=()
