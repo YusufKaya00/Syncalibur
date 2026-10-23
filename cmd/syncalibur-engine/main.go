@@ -1097,9 +1097,15 @@ func isBinaryFile(filePath string) (bool, error) {
 }
 
 func isSafePath(repoRoot, relPath string) (bool, string) {
+	if filepath.IsAbs(relPath) || strings.HasPrefix(filepath.Clean(relPath), "..") {
+		return false, "path targets location outside repository"
+	}
 	absPath := filepath.Join(repoRoot, relPath)
 	lst, err := os.Lstat(absPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return true, "" // Deleted file in working tree is safe
+		}
 		return false, "failed to lstat path"
 	}
 
