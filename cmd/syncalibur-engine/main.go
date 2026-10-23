@@ -1070,14 +1070,36 @@ func matchesSensitivePattern(filePath string) bool {
 	return false
 }
 
+func decodeUTF16(b []byte) string {
+	if len(b) < 2 {
+		return string(b)
+	}
+	endian := binary.LittleEndian
+	offset := 0
+	if b[0] == 0xFF && b[1] == 0xFE {
+		endian = binary.LittleEndian
+		offset = 2
+	} else if b[0] == 0xFE && b[1] == 0xFF {
+		endian = binary.BigEndian
+		offset = 2
+	} else {
+		return string(b)
+	}
+	u16 := make([]uint16, (len(b)-offset)/2)
+	for i := range u16 {
+		u16[i] = endian.Uint16(b[offset+i*2:])
+	}
+	runes := utf16.Decode(u16)
+	return string(runes)
+}
+
 func isBinaryFile(filePath string) (bool, error) {
 	st, err := os.Lstat(filePath)
 	if err != nil {
 		return false, err
 	}
-	// Never load files > 10MB into memory for secret/syntax analysis
-	if st.Size() > 10*1024*1024 {
-		return true, nil
+	if !st.Mode().IsRegular() {
+		return false, nil
 	}
 
 	f, err := os.Open(filePath)
@@ -1092,6 +1114,11 @@ func isBinaryFile(filePath string) (bool, error) {
 		return false, err
 	}
 
+	// UTF-16 BOM (Little Endian or Big Endian) denotes text, not binary
+	if n >= 2 && ((buf[0] == 0xFF && buf[1] == 0xFE) || (buf[0] == 0xFE && buf[1] == 0xFF)) {
+		return false, nil
+	}
+
 	for i := 0; i < n; i++ {
 		if buf[i] == 0 {
 			return true, nil
@@ -1099,6 +1126,7 @@ func isBinaryFile(filePath string) (bool, error) {
 	}
 	return false, nil
 }
+
 
 func isSafePath(repoRoot, relPath string) (bool, string) {
 	if filepath.IsAbs(relPath) || strings.HasPrefix(filepath.Clean(relPath), "..") {
