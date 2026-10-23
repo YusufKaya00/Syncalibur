@@ -1132,5 +1132,129 @@ func TestIsSafePathDeletedFiles(t *testing.T) {
 	}
 }
 
+func TestIsSafePathSymlinkDirectoryTraversal(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "syncalibur-symlink-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	outsideDir, err := os.MkdirTemp("", "syncalibur-outside-dir-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(outsideDir)
+
+	secretFile := filepath.Join(outsideDir, "secret.txt")
+	_ = os.WriteFile(secretFile, []byte("super-secret"), 0644)
+
+	// Create directory symlink inside repo pointing outside
+	symlinkPath := filepath.Join(tmpDir, "leak_dir")
+	if err := os.Symlink(outsideDir, symlinkPath); err != nil {
+		t.Skip("symlinks not supported on this environment")
+	}
+
+	// isSafePath on leak_dir/secret.txt must be rejected!
+	safe, reason := isSafePath(tmpDir, "leak_dir/secret.txt")
+	if safe {
+		t.Errorf("expected directory symlink traversal to be rejected, but was marked safe")
+	} else if !strings.Contains(reason, "traverses outside repository via symlink") {
+		t.Errorf("expected traversal error message, got: %s", reason)
+	}
+}
+
+func TestDetectConflictMarkersMarkdownH1(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "syncalibur-doc-*.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// CommonMark Setext H1 header format
+	mdContent := "# Project Documentation\nSome description here.\n\nSection Title\n=======\nMore text.\n"
+	_, _ = tmpFile.WriteString(mdContent)
+	_ = tmpFile.Close()
+
+	hasConflict, reason := detectConflictMarkers(tmpFile.Name())
+	if hasConflict {
+		t.Errorf("CommonMark Setext H1 header was falsely flagged as merge conflict: %s", reason)
+	}
+
+	// Now add an actual Git merge conflict block
+	conflictContent := "<<<<<<< HEAD\nlocal change\n=======\nremote change\n>>>>>>> feature\n"
+	_ = os.WriteFile(tmpFile.Name(), []byte(conflictContent), 0644)
+	hasRealConflict, _ := detectConflictMarkers(tmpFile.Name())
+	if !hasRealConflict {
+		t.Errorf("expected genuine Git conflict to be flagged, but was missed")
+	}
+}
+
+func TestDetectSecretsUnquotedAndUTF16(t *testing.T) {
+	// 1. Unquoted YAML API key
+	tmpYaml, err := os.CreateTemp("", "syncalibur-test-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpYaml.Name())
+
+	_, _ = tmpYaml.WriteString("service:\n  api_key: AIzaSyD123456789012345678901234\n")
+	_ = tmpYaml.Close()
+
+	hasSecret, reason := detectSecretsInFile(tmpYaml.Name())
+	if !hasSecret {
+		t.Errorf("expected unquoted YAML secret to be detected, but was missed")
+	} else if !strings.Contains(reason, "matches known credential signature") {
+		t.Errorf("unexpected reason: %s", reason)
+	}
+
+	// 2. UTF-16 LE encoded secret file
+	tmpUtf16, err := os.CreateTemp("", "syncalibur-test-*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpUtf16.Name())
+
+	secretPlain := "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+	u16Runes := utf16.Encode([]rune(secretPlain))
+	buf := []byte{0xFF, 0xFE} // UTF-16 LE BOM
+	for _, r := range u16Runes {
+		buf = append(buf, byte(r), byte(r>>8))
+	}
+	_ = os.WriteFile(tmpUtf16.Name(), buf, 0644)
+
+	hasU16Secret, u16Reason := detectSecretsInFile(tmpUtf16.Name())
+	if !hasU16Secret {
+		t.Errorf("expected UTF-16 encoded AWS secret to be detected, but was bypassed")
+	} else if !strings.Contains(u16Reason, "matches known credential signature") {
+		t.Errorf("unexpected UTF-16 reason: %s", u16Reason)
+	}
+}
+
+func TestDetectSecretsLargeFileNoBypass(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "syncalibur-large-*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// Write 500 lines of SQL and inject a secret at line 250
+	for i := 1; i <= 500; i++ {
+		if i == 250 {
+			_, _ = tmpFile.WriteString("INSERT INTO configs (k, v) VALUES ('github_token', 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');\n")
+		} else {
+			_, _ = tmpFile.WriteString(fmt.Sprintf("INSERT INTO users (id, name) VALUES (%d, 'user_%d');\n", i, i))
+		}
+	}
+	_ = tmpFile.Close()
+
+	hasSecret, reason := detectSecretsInFile(tmpFile.Name())
+	if !hasSecret {
+		t.Errorf("expected secret in SQL dump to be detected, but was missed")
+	} else if !strings.Contains(reason, "matches known credential signature") {
+		t.Errorf("unexpected reason: %s", reason)
+	}
+}
+
+
 
 
