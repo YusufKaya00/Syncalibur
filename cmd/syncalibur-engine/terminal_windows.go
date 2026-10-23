@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -38,3 +39,8 @@ func isProcessAlive(pid int) bool {
 	const STILL_ACTIVE = 259
 	return exitCode == STILL_ACTIVE
 }
+
+func notifyResize(ch chan os.Signal) {
+	// Windows handles resize without SIGWINCH
+}
+
