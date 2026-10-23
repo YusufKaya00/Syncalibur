@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
@@ -46,3 +47,8 @@ func getTerminalSize() (int, int) {
 func isProcessAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
+
+func notifyResize(ch chan os.Signal) {
+	signal.Notify(ch, syscall.SIGWINCH)
+}
+
