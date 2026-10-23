@@ -4618,6 +4618,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	cachedSpark := "───────"
 	cachedOfflineQueued := ""
 	isPaused := false
+	isShieldDisabled := false
 	cachedActiveMode := "autopilot"
 	engineVer := getEngineVersion(scriptPath)
 
@@ -4649,6 +4650,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 
 			_, pauseErr := os.Stat(filepath.Join(gitDir, "syncalibur.pause"))
 			isPaused = (pauseErr == nil)
+			isShieldDisabled = areShieldsDisabled(repoRoot)
 
 			velo := getCommitVelocity(repoRoot)
 			cachedSpark = velo.Sparkline
