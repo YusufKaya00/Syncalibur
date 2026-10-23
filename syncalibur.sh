@@ -2921,9 +2921,16 @@ cmd_undo() {
       git update-ref -d "${latest_tl}" 2>/dev/null || true
     fi
 
+    local g_dir
+    g_dir="$(git rev-parse --git-dir 2>/dev/null || echo ".git")"
+    [[ "${g_dir}" != /* ]] && g_dir="${current_repo}/${g_dir}"
+    touch "${g_dir}/syncalibur.pause" 2>/dev/null || true
+
     echo -e "  ${C_GREEN}✓ Rolled back to ${target_sha}! (working tree preserved via soft reset)${C_RESET}"
     echo -e "  ${C_SLATE}Redo reference saved at: ${redo_ref} (run 'git reset --soft ${redo_ref}' to re-apply)${C_RESET}"
+    echo -e "  ${C_AMBER}⏸ Auto-sync paused (.git/syncalibur.pause). Run '${C_CYAN}syncalibur resume${C_AMBER}' when ready to resume.${C_RESET}"
     return 0
+
   else
     echo -e "  ${C_RED}✕ Soft reset to HEAD~${steps} failed.${C_RESET}"
     return 1
