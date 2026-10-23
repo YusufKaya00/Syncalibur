@@ -3284,7 +3284,7 @@ cmd_fleet() {
         printf '%s\n' "${entry}" >> "${FLEET_LIST_FILE}"
         echo "✓ Added '${target}' (${target_mode}) to Syncalibur Fleet (${FLEET_LIST_FILE})."
       else
-        sed -i -E "s|^[[:space:]]*${target}([[:space:]].*)?$|${entry}|" "${FLEET_LIST_FILE}"
+        safe_sed_i "s|^[[:space:]]*${target}([[:space:]].*)?$|${entry}|" "${FLEET_LIST_FILE}"
         echo "✓ Updated '${target}' in Fleet to mode '${target_mode}'."
       fi
       ;;
