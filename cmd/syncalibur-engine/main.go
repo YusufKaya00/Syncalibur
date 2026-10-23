@@ -4976,6 +4976,18 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 					}
 					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(3 * time.Second)
+				case 'x', 'X': // Toggle Shields (Secret Shield & Syntax Hold)
+					shieldFile := filepath.Join(gitDir, "syncalibur.noshield")
+					if _, err := os.Stat(shieldFile); err == nil {
+						_ = os.Remove(shieldFile)
+						flashMsg = fmt.Sprintf("%s%s %sSHIELDS ARMED:%s Full protection active (Shannon entropy & syntax scanned).", cGreen, iconCheck, cBold, cReset)
+					} else {
+						_ = os.WriteFile(shieldFile, []byte("1\n"), 0644)
+						flashMsg = fmt.Sprintf("%s%s %sSHIELDS DISABLED:%s Test mode. Secrets & fake passwords allowed.", cAmber, iconAlert, cBold, cReset)
+					}
+					isShieldDisabled = areShieldsDisabled(repoRoot)
+					lastGitQuery = time.Time{}
+					flashUntil = time.Now().Add(3 * time.Second)
 				case 'c', 'C': // Run Preflight Check
 					exitCode, summary := runPreflight(repoRoot, false, false)
 					if exitCode == 0 {
