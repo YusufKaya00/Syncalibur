@@ -1016,6 +1016,22 @@ var (
 	pureHexRegex = regexp.MustCompile(`^[0-9a-fA-F]{32,}$`)
 )
 
+func hasLetterAndDigit(s string) bool {
+	hasLetter := false
+	hasDigit := false
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			hasLetter = true
+		} else if r >= '0' && r <= '9' {
+			hasDigit = true
+		}
+		if hasLetter && hasDigit {
+			return true
+		}
+	}
+	return false
+}
+
 func calculateShannonEntropy(s string) float64 {
 	if len(s) == 0 {
 		return 0
@@ -1026,7 +1042,7 @@ func calculateShannonEntropy(s string) float64 {
 	total := float64(len([]rune(s)))
 
 	for _, r := range s {
-		if r < 256 {
+		if uint32(r) < 256 {
 			freq[r]++
 		} else {
 			hasUnicode = true
