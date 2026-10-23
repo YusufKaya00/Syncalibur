@@ -1533,7 +1533,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 		}
 	case ".py":
 		if _, err := exec.LookPath("python3"); err == nil {
-			cmd := exec.Command("python3", "-B", "-m", "py_compile", absPath)
+			cmd := exec.Command("python3", "-I", "-B", "-m", "py_compile", absPath)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg == "" {
@@ -1560,14 +1560,12 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 			return false, fmt.Sprintf("%s: %s", relPath, reason)
 		}
 	case ".ts", ".tsx", ".jsx":
-		localTsc := filepath.Join(repoRoot, "node_modules", ".bin", "tsc")
 		tscBin := ""
-		if _, err := os.Stat(localTsc); err == nil {
-			tscBin = localTsc
-		} else if p, err := exec.LookPath("tsc"); err == nil {
+		if p, err := exec.LookPath("tsc"); err == nil {
 			tscBin = p
 		}
 		if tscBin != "" {
+
 			cmd := exec.Command(tscBin, "--noEmit", "--skipLibCheck", "--target", "esnext", "--jsx", "preserve", absPath)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
