@@ -488,10 +488,10 @@ record_push_state() {
   if [[ "${state}" == "IN_SYNC" ]]; then
     local head_sha
     head_sha="$(git -C "${target_repo}" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-    printf '%s|%s|%s|%s\n' "${now_epoch}" "${now_human}" "${head_sha}" "${details}" > "${g_dir}/syncalibur.last_push" 2>/dev/null || true
-    printf 'IN_SYNC|%s|%s|%s\n' "${now_epoch}" "${now_human}" "${details}" > "${g_dir}/syncalibur.push_state" 2>/dev/null || true
+    atomic_write_file "${g_dir}/syncalibur.last_push" "${now_epoch}|${now_human}|${head_sha}|${details}"
+    atomic_write_file "${g_dir}/syncalibur.push_state" "IN_SYNC|${now_epoch}|${now_human}|${details}"
   else
-    printf '%s|%s|%s|%s\n' "${state}" "${now_epoch}" "${now_human}" "${details}" > "${g_dir}/syncalibur.push_state" 2>/dev/null || true
+    atomic_write_file "${g_dir}/syncalibur.push_state" "${state}|${now_epoch}|${now_human}|${details}"
   fi
 }
 
