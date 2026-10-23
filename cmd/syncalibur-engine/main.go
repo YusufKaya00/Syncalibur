@@ -4553,7 +4553,7 @@ func getPushStateBadge(gitDir string, unpushed int) string {
 	}
 
 	if unpushed > 0 {
-		return fmt.Sprintf("%s%s QUEUED (%d unpushed)%s", cAmber, iconPending, unpushed, cReset)
+		return fmt.Sprintf("%s%s QUEUED (%d unpushed)%s", cAmber, iconDot, unpushed, cReset)
 	}
 
 	if data, err := os.ReadFile(lastPushFile); err == nil {
