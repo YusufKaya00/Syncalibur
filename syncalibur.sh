@@ -2398,7 +2398,23 @@ push_changes() {
 # ==============================================================================
 
 cmd_check() {
-  local target_repo="${1:-${REPO_ROOT}}"
+  local target_repo="" no_shield=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --no-shield | --skip-shield | --noshield)
+        no_shield=1
+        shift
+        ;;
+      *)
+        if [[ -z "${target_repo}" ]]; then
+          target_repo="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  [[ -z "${target_repo}" ]] && target_repo="${REPO_ROOT}"
   [[ -d "${target_repo}" ]] || target_repo="${PWD}"
   target_repo="$(cd "${target_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${target_repo}")"
 
@@ -2407,9 +2423,18 @@ cmd_check() {
 
   # 1. Secret Shield & Syntax Hold via Go engine
   if ensure_go_engine; then
+    local -a pf_shield_args=()
+    local skip_shield=0
+    if (( no_shield )) || are_shields_disabled "${target_repo}"; then
+      skip_shield=1
+      pf_shield_args=("--no-shield")
+    fi
     local pf_raw pf_rc=0
-    pf_raw="$("${GO_ENGINE_BIN}" preflight "${target_repo}" 2>&1)" || pf_rc=$?
-    if (( pf_rc == 0 )); then
+    pf_raw="$("${GO_ENGINE_BIN}" preflight "${target_repo}" "${pf_shield_args[@]}" 2>&1)" || pf_rc=$?
+    if (( skip_shield )); then
+      echo -e "  ${C_AMBER}⛨ Secret Shield : Bypassed (Shields Disabled • test mode active)${C_RESET}"
+      echo -e "  ${C_AMBER}▲ Syntax Hold   : Bypassed (Shields Disabled • test mode active)${C_RESET}"
+    elif (( pf_rc == 0 )); then
       echo -e "  ${C_GREEN}⛨ Secret Shield : Clean (0 credentials detected)${C_RESET}"
       echo -e "  ${C_GREEN}▲ Syntax Hold   : Valid (universal lexical balance passed)${C_RESET}"
     else
