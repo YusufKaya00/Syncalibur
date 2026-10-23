@@ -1805,58 +1805,9 @@ sync_and_update_self_repo() {
     force_upd=1
   fi
 
-  local self_dirty=""
-  if [[ "${SELF_REPO_ROOT}" != "${REPO_ROOT}" ]]; then
-    self_dirty="$(git -C "${SELF_REPO_ROOT}" status --porcelain -uall 2>/dev/null || true)"
-  fi
+  # External repo daemons never auto-commit Syncalibur's own repo to prevent thundering herd locks.
+  # Syncalibur is committed by its own dedicated daemon when watched.
 
-  if (( ! force_upd )) && [[ -z "${self_dirty}" ]] && (( now - LAST_SELF_CHECK_TS < SELF_CHECK_INTERVAL )); then
-    return 0
-  fi
-  LAST_SELF_CHECK_TS="${now}"
-
-  local self_branch self_remote="origin"
-  self_branch="$(git -C "${SELF_REPO_ROOT}" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")"
-  [[ -n "${self_branch}" ]] || return 0
-
-  if [[ "${SELF_REPO_ROOT}" != "${REPO_ROOT}" && -n "${self_dirty}" ]]; then
-    nap 2
-    if ! git -C "${SELF_REPO_ROOT}" add -A -- ":(exclude)syncalibur.env" ":(exclude)repos.list" ":(exclude).env" ":(exclude)bin/" >/dev/null 2>&1; then
-      git -C "${SELF_REPO_ROOT}" add -A >/dev/null 2>&1 || true
-      git -C "${SELF_REPO_ROOT}" reset -q -- syncalibur.env repos.list .env bin/ 2>/dev/null || true
-    fi
-    if ! git -C "${SELF_REPO_ROOT}" diff --cached --quiet; then
-      local s_msg
-      if ensure_go_engine; then
-        s_msg="$(SYNCALIBUR_AI_COMMIT="${AI_COMMIT}" SYNCALIBUR_OLLAMA_MODEL="${OLLAMA_MODEL}" "${GO_ENGINE_BIN}" commit-msg "${SELF_REPO_ROOT}" 2>/dev/null || echo "chore(syncalibur): self-sync ($(date '+%H:%M:%S'))")"
-      else
-        s_msg="chore(syncalibur): self-sync ($(date '+%H:%M:%S'))"
-      fi
-      if git -C "${SELF_REPO_ROOT}" commit -m "${s_msg}" >> "${LOG_FILE}" 2>&1; then
-        log "⇄ Self-Sync: Committed Syncalibur update: ${s_msg}"
-        local p_out
-        if p_out="$(run_with_timeout "${PUSH_TIMEOUT}" git -C "${SELF_REPO_ROOT}" push -u "${self_remote}" "${self_branch}" 2>&1)"; then
-          printf '%s\n' "${p_out}" >> "${LOG_FILE}"
-          log "✓ Self-Sync: Pushed Syncalibur repository updates to ${self_remote}/${self_branch}."
-        elif grep -qiE 'GH006|protected branch|Required status check|At least 1 approving review' <<< "${p_out}"; then
-          local pr_branch="sync/auto-$(date '+%Y%m%d-%H%M%S')" pr_body
-          pr_body="$(render_auto_pr_body "${SELF_REPO_ROOT}" "${self_branch}" "${pr_branch}" "${s_msg}" "Self-Sync Protected Branch Auto-PR (\`GH006\`)")"
-          log "⇄ Self-Sync: '${self_branch}' is protected; pushing feature branch '${pr_branch}' & opening templated Pull Request..."
-          if git -C "${SELF_REPO_ROOT}" push -u "${self_remote}" "HEAD:refs/heads/${pr_branch}" >> "${LOG_FILE}" 2>&1; then
-            if command -v gh >/dev/null 2>&1; then
-              gh pr create -R YusufKaya00/Syncalibur --base "${self_branch}" --head "${pr_branch}" --title "${s_msg}" --body "${pr_body}" >> "${LOG_FILE}" 2>&1 || true
-            fi
-            git -C "${SELF_REPO_ROOT}" reset --hard "${self_remote}/${self_branch}" >/dev/null 2>&1 || true
-            log "✓ Self-Sync: Opened templated Pull Request '${pr_branch}' -> '${self_branch}'."
-          fi
-        else
-          printf '%s\n' "${p_out}" >> "${LOG_FILE}"
-          log "▲  Self-Sync push failed: $(push_error_summary "${p_out}")"
-          trigger_failure_alert "SELF-REPO PUSH (${SELF_REPO_ROOT})" "Failed to push Syncalibur self-repository to ${self_remote}/${self_branch}" "${p_out}"
-        fi
-      fi
-    fi
-  fi
 
   git -C "${SELF_REPO_ROOT}" remote get-url "${self_remote}" >/dev/null 2>&1 || return 0
   run_with_timeout 30 git -C "${SELF_REPO_ROOT}" fetch -q "${self_remote}" "${self_branch}" 2>/dev/null || return 0
