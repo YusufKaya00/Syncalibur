@@ -203,6 +203,29 @@ func main() {
 		}
 		fmt.Print(generateSparkline(repo))
 
+	case "prompt":
+		repo := "."
+		format := "starship"
+		short := false
+		for _, arg := range os.Args[2:] {
+			if strings.HasPrefix(arg, "--format=") {
+				format = strings.TrimPrefix(arg, "--format=")
+			} else if arg == "--short" || arg == "-s" {
+				short = true
+			} else if !strings.HasPrefix(arg, "-") && isGitRepoDir(arg) {
+				repo = arg
+			}
+		}
+		if repo == "." {
+			if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+				if t := strings.TrimSpace(string(top)); t != "" {
+					repo = t
+				}
+			}
+		}
+		fmt.Print(renderPromptGlyph(repo, format, short))
+		return
+
 	case "probe-network":
 		rawURL := "github.com"
 		timeoutMs := 1000
