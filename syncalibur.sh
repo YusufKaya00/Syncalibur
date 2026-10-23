@@ -90,6 +90,36 @@ file_signature() {
   fi
 }
 
+atomic_write_file() {
+  local target_file="$1"
+  local content="$2"
+  local dir_name
+  dir_name="$(dirname "${target_file}")"
+  mkdir -p "${dir_name}" 2>/dev/null || true
+  local tmp_file="${target_file}.tmp.$$.${RANDOM}"
+  if printf '%s\n' "${content}" > "${tmp_file}" 2>/dev/null; then
+    mv -f "${tmp_file}" "${target_file}" 2>/dev/null || rm -f "${tmp_file}" 2>/dev/null || true
+  fi
+}
+
+safe_sed_i() {
+  local expr="$1" file="$2"
+  if [[ "${STAT_FLAVOR}" == "gnu" ]]; then
+    sed -i -E "${expr}" "${file}"
+  else
+    sed -i '' -E "${expr}" "${file}"
+  fi
+}
+
+mask_sensitive_text() {
+  local text="$1"
+  # Redact credentials in URLs: https://user:pass@host or https://token@host -> https://***@host
+  text="$(sed -E 's#(https?://)[^/@[:space:]]+@#\1***@#g' <<< "${text}")"
+  # Redact common tokens: ghp_*, github_pat_*, glpat-*, sk-*
+  text="$(sed -E 's#ghp_[A-Za-z0-9]{36}#ghp_***#g; s#github_pat_[A-Za-z0-9_]{82}#github_pat_***#g; s#glpat-[A-Za-z0-9_-]{20,}#glpat-***#g; s#sk-[A-Za-z0-9_-]{32,}#sk-***#g' <<< "${text}")"
+  echo "${text}"
+}
+
 run_with_timeout() {
   local secs="$1"
   shift
