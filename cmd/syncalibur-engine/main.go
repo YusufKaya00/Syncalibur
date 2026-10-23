@@ -16,6 +16,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -41,7 +42,9 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+	"unicode/utf16"
 )
+
 
 // ANSI Color Palette (24-bit TrueColor & 16-color Fallback)
 const (
