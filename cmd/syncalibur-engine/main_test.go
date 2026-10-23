@@ -1,13 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf16"
 )
+
 
 func TestCalculateShannonEntropy(t *testing.T) {
 	// Normal low-entropy text
