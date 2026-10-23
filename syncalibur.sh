@@ -3141,7 +3141,7 @@ cmd_mode() {
     local cfg_file="${CONFIG_FILE:-${SCRIPT_DIR}/syncalibur.env}"
     if [[ -f "${cfg_file}" ]]; then
       if grep -q "^SYNCALIBUR_MODE=" "${cfg_file}"; then
-        sed -i -E "s/^SYNCALIBUR_MODE=.*/SYNCALIBUR_MODE=\"${target_mode}\"/" "${cfg_file}"
+        safe_sed_i "s/^SYNCALIBUR_MODE=.*/SYNCALIBUR_MODE=\"${target_mode}\"/" "${cfg_file}"
       else
         echo "SYNCALIBUR_MODE=\"${target_mode}\"" >> "${cfg_file}"
       fi
@@ -3151,7 +3151,7 @@ cmd_mode() {
     local repo_cfg="${current_repo}/.syncalibur"
     if [[ -f "${repo_cfg}" ]]; then
       if grep -qiE '^(MODE|SYNCALIBUR_MODE)=' "${repo_cfg}"; then
-        sed -i -E "s/^(MODE|SYNCALIBUR_MODE)=.*/MODE=\"${target_mode}\"/" "${repo_cfg}"
+        safe_sed_i "s/^(MODE|SYNCALIBUR_MODE)=.*/MODE=\"${target_mode}\"/" "${repo_cfg}"
       else
         echo "MODE=\"${target_mode}\"" >> "${repo_cfg}"
       fi
@@ -3163,7 +3163,7 @@ EOF
     fi
     echo -e "${C_GREEN}✓ '${current_repo}' için Syncalibur modu '${target_mode}' olarak ayarlandı (.syncalibur).${C_RESET}"
     if [[ -f "${FLEET_LIST_FILE}" ]] && grep -qE "^[[:space:]]*${current_repo}([[:space:]]|$)" "${FLEET_LIST_FILE}"; then
-      sed -i -E "s|^[[:space:]]*(${current_repo})([[:space:]].*)?$|\1 [mode=${target_mode}]|" "${FLEET_LIST_FILE}"
+      safe_sed_i "s|^[[:space:]]*(${current_repo})([[:space:]].*)?$|\1 [mode=${target_mode}]|" "${FLEET_LIST_FILE}"
     fi
   fi
 
