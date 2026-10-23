@@ -100,20 +100,24 @@ run_with_timeout() {
 
   "$@" &
   local cmd_pid=$!
+  local sleeper_pid=""
   (
-    sleep "${secs}"
+    sleep "${secs}" &
+    sleeper_pid=$!
+    wait "${sleeper_pid}" 2>/dev/null || true
     kill -TERM "${cmd_pid}" 2>/dev/null || true
   ) &
   local watchdog_pid=$!
 
   wait "${cmd_pid}" 2>/dev/null
   local rc=$?
-  if kill -0 "${watchdog_pid}" 2>/dev/null; then
-    kill "${watchdog_pid}" 2>/dev/null || true
-    wait "${watchdog_pid}" 2>/dev/null || true
-    return "${rc}"
-  fi
-  return 124
+
+  kill -TERM "${watchdog_pid}" 2>/dev/null || true
+  pkill -P "${watchdog_pid}" 2>/dev/null || true
+  wait "${watchdog_pid}" 2>/dev/null || true
+
+  (( rc > 128 )) && return 124
+  return "${rc}"
 }
 
 detect_service_backend() {
