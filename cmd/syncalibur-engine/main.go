@@ -1101,7 +1101,7 @@ func isSafePath(repoRoot, relPath string) (bool, string) {
 		return false, "path targets location outside repository"
 	}
 	absPath := filepath.Join(repoRoot, relPath)
-	lst, err := os.Lstat(absPath)
+	_, err := os.Lstat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return true, "" // Deleted file in working tree is safe
@@ -1109,20 +1109,30 @@ func isSafePath(repoRoot, relPath string) (bool, string) {
 		return false, "failed to lstat path"
 	}
 
-	if lst.Mode()&os.ModeSymlink != 0 {
-		target, err := filepath.EvalSymlinks(absPath)
-		if err != nil {
-			return false, "broken or cyclic symlink"
-		}
-		relToRoot, err := filepath.Rel(repoRoot, target)
-		if err != nil || strings.HasPrefix(relToRoot, "..") || filepath.IsAbs(relToRoot) {
-			return false, fmt.Sprintf("symlink targets location outside repository: %s -> %s", relPath, target)
-		}
+	canonicalRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		canonicalRoot = filepath.Clean(repoRoot)
 	}
 
-	if !lst.Mode().IsRegular() && lst.Mode()&os.ModeSymlink == 0 {
+	// Resolve symlinks for the entire path (handles both leaf symlinks and directory symlinks)
+	canonicalTarget, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return false, "broken or cyclic symlink in path"
+	}
+
+	relToRoot, err := filepath.Rel(canonicalRoot, canonicalTarget)
+	if err != nil || strings.HasPrefix(relToRoot, "..") || filepath.IsAbs(relToRoot) {
+		return false, fmt.Sprintf("path traverses outside repository via symlink: %s -> %s", relPath, canonicalTarget)
+	}
+
+	targetSt, err := os.Stat(canonicalTarget)
+	if err != nil {
+		return false, "failed to stat resolved path"
+	}
+	if !targetSt.Mode().IsRegular() && !targetSt.Mode().IsDir() {
 		return false, fmt.Sprintf("special file/socket/pipe rejected: %s", relPath)
 	}
+
 	return true, ""
 }
 
