@@ -2023,7 +2023,7 @@ block_reason() {
   case "${name}" in
     *.example | *.sample | *.template | *.dist | *.default | *.skel) ;;
     *)
-      if (( ${#SENSITIVE_PATTERNS[@]} > 0 )); then
+      if ! are_shields_disabled && (( ${#SENSITIVE_PATTERNS[@]} > 0 )); then
         for pattern in "${SENSITIVE_PATTERNS[@]}"; do
           [[ -z "${pattern}" ]] && continue
           # shellcheck disable=SC2053
