@@ -1477,7 +1477,13 @@ cmd_alert() {
 
   local box_color="${C_RED}"
   local box_title="✕  S Y N C   F A I L E D   —   D I A G N O S T I C   R E P O R T"
-  if [[ ! -f "${FAIL_REPORT_FILE}" && "${mode}" != "--test" ]]; then
+  if [[ "${stage}" =~ SECRET.*SHIELD ]]; then
+    box_color="${C_RED}"
+    box_title="⛨  S E C R E T   S H I E L D   —   P U S H   B L O C K E D"
+  elif [[ "${stage}" =~ SYNTAX.*HOLD ]]; then
+    box_color="${C_AMBER}"
+    box_title="▲  S Y N T A X   H O L D   —   P U S H   B L O C K E D"
+  elif [[ ! -f "${FAIL_REPORT_FILE}" && "${mode}" != "--test" ]]; then
     box_color="${C_GREEN}"
     box_title="✓  D I A G N O S T I C   S T A T U S   —   A L L   S Y S T E M S   HEALTHY"
   fi
@@ -1513,13 +1519,20 @@ cmd_alert() {
   fi
 
   if [[ "${mode}" == "--wait" ]]; then
-    printf '  %sPress [Enter] to close, [R] + [Enter] to force retry/restart, or [L] + [Enter] for live logs: %s' "${C_GOLD}${C_BOLD}" "${C_RESET}"
+    printf '  %sOptions: [Enter] Close  •  [X] Disable Shield & Allow Test Passwords  •  [R] Retry/Restart  •  [L] Live Logs: %s' "${C_GOLD}${C_BOLD}" "${C_RESET}"
     local reply=""
     read -r reply || true
-    if [[ "${reply}" =~ ^[Ll]$ ]]; then
+    if [[ "${reply}" =~ ^[Xx]$ ]]; then
+      cmd_shield off "${REPO_ROOT}"
+      clear_sync_failure
+      echo -e "\n  ${C_GREEN}✓ Syncalibur Shields DISABLED for $(basename "${REPO_ROOT}") (Test Mode Active)!${C_RESET}"
+      echo -e "  ${C_CYAN}Retrying push now...${C_RESET}\n"
+      cmd_push "${REPO_ROOT}" || true
+    elif [[ "${reply}" =~ ^[Ll]$ ]]; then
       cmd_logs
     elif [[ "${reply}" =~ ^[Rr]$ ]]; then
-      cmd_restart
+      clear_sync_failure
+      cmd_push "${REPO_ROOT}" || cmd_restart
     fi
   fi
 }
