@@ -2092,18 +2092,22 @@ commit_changes() {
 
   # 1. Pre-flight Syntax Gate, Secret Shield & DevOps Lint Gate (Go Engine)
   if ensure_go_engine; then
+    local -a pf_shield_args=()
+    if are_shields_disabled; then
+      pf_shield_args=("--no-shield")
+    fi
     local pf_out pf_code=0
-    pf_out="$("${GO_ENGINE_BIN}" preflight "${REPO_ROOT}" --json 2>/dev/null || true)"
+    pf_out="$("${GO_ENGINE_BIN}" preflight "${REPO_ROOT}" --json "${pf_shield_args[@]}" 2>/dev/null || true)"
     if [[ -n "${pf_out}" ]] && command -v jq >/dev/null 2>&1; then
       pf_code="$(jq -r '.exit_code // 0' <<< "${pf_out}")"
-      if (( pf_code == 3 )); then
+      if ! are_shields_disabled && (( pf_code == 3 )); then
         while IFS= read -r q_file; do
           [[ -z "${q_file}" ]] && continue
           excludes+=(":(exclude,literal)${q_file}")
           quarantined_set+=("${q_file}")
           log "⛨ [SECRET SHIELD] Quarantined '${q_file}' (high-entropy credential detected; excluded from commit)"
         done < <(jq -r '.quarantined_files[]?' <<< "${pf_out}")
-      elif (( pf_code == 2 )); then
+      elif ! are_shields_disabled && (( pf_code == 2 )); then
         local syn_err
         syn_err="$(jq -r '.details[0] // .syntax_errors[0] // "syntax error"' <<< "${pf_out}")"
         log "▲ [SYNTAX HOLD] Incomplete syntax in ${syn_err}; holding commit until write settles."
@@ -2115,13 +2119,13 @@ commit_changes() {
       fi
     elif ensure_go_engine; then
       local pf_raw pf_rc=0
-      pf_raw="$("${GO_ENGINE_BIN}" preflight "${REPO_ROOT}" 2>&1)" || pf_rc=$?
-      if (( pf_rc == 2 )); then
+      pf_raw="$("${GO_ENGINE_BIN}" preflight "${REPO_ROOT}" "${pf_shield_args[@]}" 2>&1)" || pf_rc=$?
+      if ! are_shields_disabled && (( pf_rc == 2 )); then
         local first_err
         first_err="$(head -n 2 <<< "${pf_raw}" | tr '\n' ' ')"
         log "▲ [SYNTAX HOLD] ${first_err}; holding commit until write settles."
         return 1
-      elif (( pf_rc == 3 )); then
+      elif ! are_shields_disabled && (( pf_rc == 3 )); then
         log "⛨ [SECRET SHIELD] Detected credential in working tree; holding commit."
         return 1
       elif (( pf_rc == 4 )); then
