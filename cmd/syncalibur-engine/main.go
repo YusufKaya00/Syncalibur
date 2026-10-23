@@ -3886,6 +3886,40 @@ func truncateStr(s string, maxLen int) string {
 // 6. First-Class Telegram Bot & Multi-Channel Webhook Dispatcher
 // ==============================================================================
 
+func truncateRunes(s string, maxRunes int) string {
+	r := []rune(s)
+	if len(r) <= maxRunes {
+		return s
+	}
+	return string(r[:maxRunes])
+}
+
+var (
+	credURLRegex    = regexp.MustCompile(`(https?://)[^/@\s]+@`)
+	tokenLeakRegex  = regexp.MustCompile(`(?i)\b(ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}|glpat-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9_-]{32,})\b`)
+	authHeaderRegex = regexp.MustCompile(`(?i)(authorization:\s*(bearer|token)\s+)[^\s\r\n]+`)
+)
+
+func sanitizeTelemetryDetails(s string) string {
+	s = credURLRegex.ReplaceAllString(s, "${1}***@")
+	s = tokenLeakRegex.ReplaceAllString(s, "***")
+	s = authHeaderRegex.ReplaceAllString(s, "${1}***")
+	return s
+}
+
+func escapeDiscordCodeBlock(s string) string {
+	return strings.ReplaceAll(s, "```", "`\u200b``")
+}
+
+func escapeSlackText(s string) string {
+	r := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+	)
+	return r.Replace(s)
+}
+
 func escapeTelegramHTML(s string) string {
 	r := strings.NewReplacer(
 		"&", "&amp;",
@@ -3906,6 +3940,8 @@ func formatTelegramHTMLMessage(eventType, repoName, branchName, hostInfo, title,
 		badge = iconSparkle
 	}
 
+	details = sanitizeTelemetryDetails(details)
+
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("<b>%s %s</b>\n", badge, escapeTelegramHTML(title)))
 	sb.WriteString(fmt.Sprintf("<blockquote>%s</blockquote>\n", escapeTelegramHTML(message)))
@@ -3915,8 +3951,8 @@ func formatTelegramHTMLMessage(eventType, repoName, branchName, hostInfo, title,
 	sb.WriteString(fmt.Sprintf("<b>Time:</b> <code>%s</code>\n", time.Now().Format("2006-01-02 15:04:05 MST")))
 
 	if strings.TrimSpace(details) != "" {
-		if len(details) > 800 {
-			details = details[:800] + "\n... (truncated)"
+		if len([]rune(details)) > 800 {
+			details = truncateRunes(details, 800) + "\n... (truncated)"
 		}
 		sb.WriteString(fmt.Sprintf("\n<pre><b>Telemetry:</b>\n%s</pre>", escapeTelegramHTML(details)))
 	}
