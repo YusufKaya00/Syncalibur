@@ -2866,7 +2866,11 @@ cmd_shield() {
   fi
 
   local g_dir
-  g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -z "${g_dir}" ]]; then
+    g_dir="$(git -C "${target_repo}" rev-parse --git-dir 2>/dev/null || echo "${target_repo}/.git")"
+    [[ "${g_dir}" != /* ]] && g_dir="${target_repo}/${g_dir}"
+  fi
   local s_file="${g_dir}/syncalibur.noshield"
 
   case "${subcmd}" in
