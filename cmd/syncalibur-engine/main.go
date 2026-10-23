@@ -1148,12 +1148,24 @@ func detectConflictMarkers(filePath string) (bool, string) {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
 	lineNum := 0
+	inConflictBlock := false
 	for scanner.Scan() {
 		lineNum++
-		line := scanner.Text()
-		if strings.HasPrefix(line, "<<<<<<< ") || line == "=======" || strings.HasPrefix(line, ">>>>>>> ") {
-			return true, fmt.Sprintf("%s:%d: unresolved merge conflict marker '%s'", filepath.Base(filePath), lineNum, strings.Fields(line)[0])
+		line := strings.TrimRight(scanner.Text(), "\r\n")
+		if strings.HasPrefix(line, "<<<<<<< ") {
+			inConflictBlock = true
+			return true, fmt.Sprintf("%s:%d: unresolved merge conflict marker '<<<<<<<'", filepath.Base(filePath), lineNum)
+		} else if strings.HasPrefix(line, ">>>>>>> ") {
+			return true, fmt.Sprintf("%s:%d: unresolved merge conflict marker '>>>>>>>'", filepath.Base(filePath), lineNum)
+		} else if line == "=======" || line == "|||||||" || strings.HasPrefix(line, "||||||| ") {
+			// Standalone '=======' without preceding '<<<<<<<' is likely a CommonMark Setext H1 header
+			if inConflictBlock {
+				return true, fmt.Sprintf("%s:%d: unresolved merge conflict marker '%s'", filepath.Base(filePath), lineNum, strings.Fields(line)[0])
+			}
 		}
 	}
 	return false, ""
