@@ -4722,9 +4722,15 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			rightLines[6] = fmt.Sprintf("│  %s◈ Branch%s   : %s%s%s (%s)  •  Unpushed: %s", cGold, cReset, cBold, cachedBranch, cReset, cachedDirtyState, unpushedDisplay)
 			rightLines[7] = fmt.Sprintf("│  %s◈ Commits%s  : %s%s total%s  •  %s%s today%s  •  %s%s%s", cGold, cReset, cGreen, cachedTotalCommits, cReset, cGreen, cachedToday, cReset, cSlate, nowStr, cReset)
 			rightLines[8] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
-			rightLines[9] = fmt.Sprintf("│  %s◈ Shields%s  : %s%s Syntax Pre-flight (AST)%s", cGold, cReset, cGreen, iconCheck, cReset)
-			rightLines[10] = fmt.Sprintf("│              %s%s Shannon Entropy Guard%s", cGreen, iconCheck, cReset)
-			rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
+			if isShieldDisabled {
+				rightLines[9] = fmt.Sprintf("│  %s◈ Shields%s  : %s%s Syntax Pre-flight %s[BYPASS]%s", cAmber, cReset, cAmber, iconAlert, cAmber, cReset)
+				rightLines[10] = fmt.Sprintf("│              %s%s Shannon Secret Guard %s[OFF: Test Mode]%s", cAmber, iconAlert, cAmber, cReset)
+				rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
+			} else {
+				rightLines[9] = fmt.Sprintf("│  %s◈ Shields%s  : %s%s Syntax Pre-flight (AST)%s", cGold, cReset, cGreen, iconCheck, cReset)
+				rightLines[10] = fmt.Sprintf("│              %s%s Shannon Entropy Guard%s", cGreen, iconCheck, cReset)
+				rightLines[11] = fmt.Sprintf("│              %s%s Multi-Remote Rebase%s", cGreen, iconCheck, cReset)
+			}
 			rightLines[12] = fmt.Sprintf("│  %s◈ Velocity%s : %s", cGold, cReset, cachedSpark)
 			rightLines[13] = fmt.Sprintf("├%s┤", strings.Repeat("─", rightBoxWidth-2))
 			rightLines[14] = fmt.Sprintf("│  %s◈ Engine%s   : %s%s%s (%s)", cGold, cReset, cGreen, engineVer, cReset, SyncaliburMilestone)
@@ -4735,7 +4741,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				rightLines[18] = fmt.Sprintf("│  %s", cSlate+"Press any hotkey to interact..."+cReset)
 				rightLines[19] = fmt.Sprintf("│")
 			} else {
-				rightLines[17] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[z]%s Undo  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cGreen, cReset, cGold, cReset)
+				rightLines[17] = fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[x]%s Shield  %s[z]%s Undo  %s[s]%s Sync", cBold, cReset, cRed, cReset, cGold, cReset, cAmber, cReset, cGreen, cReset, cGold, cReset)
 				rightLines[18] = fmt.Sprintf("│           %s[b]%s Pull  %s[c]%s Check  %s[t]%s Logo  %s[d]%s Doctor", cCyan, cReset, cGold, cReset, cCyan, cReset, cGold, cReset)
 				rightLines[19] = fmt.Sprintf("│           %s[↑/↓]%s Scroll  %s[←/→]%s Pan  %s[f]%s Tail  %s[r]%s Redraw", cCyan, cReset, cCyan, cReset, cGreen, cReset, cSlate, cReset)
 			}
@@ -4762,8 +4768,12 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				cGold, cReset, cBold, repoRoot, cachedBranch, cachedDirtyState, cReset, cGold, cReset, cGreen, cachedTotalCommits, cachedToday, cReset, cGold, cReset, unpushedDisplay)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line2, boxWidth, 0))
 
-			line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s%s Syntax%s • %s%s Secrets%s  •  %sRelease :%s %s%s%s  •  %sVelocity :%s %s",
-				cGold, cReset, cGreen, iconCheck, cReset, cGreen, iconCheck, cReset, cGold, cReset, cGreen, engineVer, cReset, cGold, cReset, cachedSpark)
+			shieldBadge := fmt.Sprintf("%s%s Syntax%s • %s%s Secrets%s", cGreen, iconCheck, cReset, cGreen, iconCheck, cReset)
+			if isShieldDisabled {
+				shieldBadge = fmt.Sprintf("%s%s SHIELDS OFF (Test Mode)%s", cAmber, iconAlert, cReset)
+			}
+			line3 := fmt.Sprintf("│  %s◈ Shields  :%s %s  •  %sRelease :%s %s%s%s  •  %sVelocity :%s %s",
+				cGold, cReset, shieldBadge, cGold, cReset, cGreen, engineVer, cReset, cGold, cReset, cachedSpark)
 			fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(line3, boxWidth, 0))
 
 			fmt.Fprintf(&frame, "  %s├%s┤%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
@@ -4772,8 +4782,8 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				lineFlash := fmt.Sprintf("│  %s", flashMsg)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineFlash, boxWidth, 0))
 			} else {
-				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[z]%s Undo  %s[s]%s Sync  %s[b]%s Pull  %s[c]%s Check  %s[t]%s Logo  %s[f]%s Tail",
-					cBold, cReset, cRed, cReset, cGold, cReset, cGreen, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset, cGreen, cReset)
+				lineKeys := fmt.Sprintf("│  %sHotkeys:%s %s[q]%s Quit  %s[p]%s Pause  %s[x]%s Shield  %s[z]%s Undo  %s[s]%s Sync  %s[b]%s Pull  %s[c]%s Check  %s[t]%s Logo",
+					cBold, cReset, cRed, cReset, cGold, cReset, cAmber, cReset, cGreen, cReset, cGold, cReset, cCyan, cReset, cGold, cReset, cCyan, cReset)
 				fmt.Fprintf(&frame, "  %s%s\n", cGold, renderLineANSI(lineKeys, boxWidth, 0))
 			}
 			fmt.Fprintf(&frame, "  %s╰%s╯%s\033[K\n", cGold, strings.Repeat("─", boxWidth), cReset)
