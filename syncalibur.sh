@@ -2710,10 +2710,22 @@ cmd_push() {
 
   if has_changes_in_scope; then
     if [[ -n "${custom_msg}" ]]; then
-      git add -A -- "${SCOPE}" 2>/dev/null
-      git commit -m "${custom_msg}"
-      record_timeline_checkpoint
-      echo -e "  ${C_GREEN}✓ Committed     : ${custom_msg}${C_RESET}"
+      local valid_save_files=() p reason
+      while IFS= read -r -d '' p; do
+        if ! reason="$(block_reason "${p}")"; then
+          valid_save_files+=("${p}")
+        else
+          echo -e "  ${C_AMBER}⛨ [QUARANTINE] '${p}' (${reason}); excluded from commit.${C_RESET}"
+        fi
+      done < <(changed_paths)
+      if (( ${#valid_save_files[@]} > 0 )); then
+        git add -- "${valid_save_files[@]}" 2>/dev/null
+        git commit -m "${custom_msg}"
+        record_timeline_checkpoint
+        echo -e "  ${C_GREEN}✓ Committed     : ${custom_msg}${C_RESET}"
+      else
+        echo -e "  ${C_AMBER}▲ All modified files were quarantined or held; commit skipped.${C_RESET}"
+      fi
     else
       commit_changes || true
     fi
