@@ -2591,10 +2591,11 @@ cmd_push() {
 }
 
 cmd_commit() {
-  local custom_msg="" dry_run=0
+  local custom_msg="" dry_run=0 no_shield=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dry-run) dry_run=1; shift ;;
+      --no-shield | --skip-shield | --noshield) no_shield=1; shift ;;
       *)
         if [[ -z "${custom_msg}" ]]; then
           custom_msg="$1"
@@ -2620,20 +2621,30 @@ cmd_commit() {
 
   # Pre-flight gate
   if ensure_go_engine; then
+    local -a pf_shield_args=()
+    local skip_shield=0
+    if (( no_shield )) || are_shields_disabled "${current_repo}"; then
+      skip_shield=1
+      pf_shield_args=("--no-shield")
+    fi
     local pf_raw pf_rc=0
-    pf_raw="$("${GO_ENGINE_BIN}" preflight "${current_repo}" 2>&1)" || pf_rc=$?
-    if (( pf_rc == 2 )); then
-      echo -e "  ${C_AMBER}▲ [SYNTAX HOLD] Incomplete syntax detected:${C_RESET}"
-      echo "${pf_raw}"
-      return 1
-    elif (( pf_rc == 3 )); then
-      echo -e "  ${C_RED}⛨ [SECRET SHIELD] High-entropy credential detected:${C_RESET}"
-      echo "${pf_raw}"
-      return 1
-    elif (( pf_rc == 4 )); then
-      echo -e "  ${C_RED}☸ [DEVOPS HOLD] Infrastructure lint policy violation detected:${C_RESET}"
-      echo "${pf_raw}"
-      return 1
+    pf_raw="$("${GO_ENGINE_BIN}" preflight "${current_repo}" "${pf_shield_args[@]}" 2>&1)" || pf_rc=$?
+    if (( ! skip_shield )); then
+      if (( pf_rc == 2 )); then
+        echo -e "  ${C_AMBER}▲ [SYNTAX HOLD] Incomplete syntax detected:${C_RESET}"
+        echo "${pf_raw}"
+        return 1
+      elif (( pf_rc == 3 )); then
+        echo -e "  ${C_RED}⛨ [SECRET SHIELD] High-entropy credential detected:${C_RESET}"
+        echo "${pf_raw}"
+        return 1
+      elif (( pf_rc == 4 )); then
+        echo -e "  ${C_RED}☸ [DEVOPS HOLD] Infrastructure lint policy violation detected:${C_RESET}"
+        echo "${pf_raw}"
+        return 1
+      fi
+    else
+      echo -e "  ${C_AMBER}⚠ Shields Bypassed (--no-shield active: secrets & syntax hold skipped)${C_RESET}"
     fi
   fi
 
