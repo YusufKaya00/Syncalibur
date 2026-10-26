@@ -1475,6 +1475,133 @@ func TestPromptCommand(t *testing.T) {
 	}
 }
 
+func TestCleanProcessEnv(t *testing.T) {
+	// Set mock environment variables
+	t.Setenv("GH_TOKEN", "ghp_supersecret12345678901234567890")
+	t.Setenv("GITLAB_TOKEN", "glpat-supersecrettoken")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "AKIAIOSFODNN7EXAMPLE")
+	t.Setenv("SYNCALIBUR_TELEGRAM_BOT_TOKEN", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
+	t.Setenv("CUSTOM_API_KEY", "sk-live-12345678901234567890")
+	t.Setenv("DATABASE_PASSWORD", "SuperSecretPass123!")
+	t.Setenv("PATH", "/usr/bin:/bin")
+	t.Setenv("TEST_PATH_ENV", "/usr/bin:/bin")
+
+	cleaned := cleanProcessEnv()
+	joined := strings.Join(cleaned, "\n")
+
+	// Ensure no sensitive substrings leaked into child environment
+	for _, forbidden := range []string{
+		"GH_TOKEN", "GITLAB_TOKEN", "AWS_SECRET_ACCESS_KEY",
+		"SYNCALIBUR_TELEGRAM_BOT_TOKEN", "CUSTOM_API_KEY", "DATABASE_PASSWORD",
+	} {
+		if strings.Contains(joined, forbidden) {
+			t.Errorf("cleanProcessEnv leaked sensitive variable: %s", forbidden)
+		}
+	}
+
+	// Ensure PATH was preserved
+	foundPath := false
+	for _, env := range cleaned {
+		if strings.HasPrefix(strings.ToUpper(env), "PATH=") {
+			foundPath = true
+			break
+		}
+	}
+	if !foundPath {
+		t.Errorf("cleanProcessEnv stripped essential PATH variable")
+	}
+}
+
+func TestFindRepoRootFast(t *testing.T) {
+	tmpDir := t.TempDir()
+	gitDir := filepath.Join(tmpDir, ".git")
+	_ = os.Mkdir(gitDir, 0755)
+
+	subDir := filepath.Join(tmpDir, "src", "deep", "nested")
+	_ = os.MkdirAll(subDir, 0755)
+
+	// 1. Finding from repo root
+	root := findRepoRootFast(tmpDir)
+	if root != tmpDir {
+		t.Errorf("expected %s, got %s", tmpDir, root)
+	}
+
+	// 2. Finding from deep nested subdirectory
+	foundFromNested := findRepoRootFast(subDir)
+	if foundFromNested != tmpDir {
+		t.Errorf("expected %s from nested dir, got %s", tmpDir, foundFromNested)
+	}
+
+	// 3. Worktree .git file format
+	wtDir := t.TempDir()
+	wtGitFile := filepath.Join(wtDir, ".git")
+	_ = os.WriteFile(wtGitFile, []byte("gitdir: /some/path/to/worktree\n"), 0644)
+	wtFound := findRepoRootFast(wtDir)
+	if wtFound != wtDir {
+		t.Errorf("expected worktree root %s, got %s", wtDir, wtFound)
+	}
+}
+
+func TestLoadLogLinesTailOptimization(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "large.log")
+
+	// Create a log file with 10,000 lines (>500KB)
+	f, err := os.Create(logFile)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	for i := 1; i <= 10000; i++ {
+		fmt.Fprintf(f, "[2026-10-26 12:00:00] Log entry number %d with telemetry data padding padding padding\n", i)
+	}
+	_ = f.Close()
+
+	// Verify reverse-seek tail reader retrieves the latest lines cleanly
+	lines := loadLogLines(logFile, 50)
+	if len(lines) != 50 {
+		t.Fatalf("expected 50 lines, got %d", len(lines))
+	}
+
+	lastLine := lines[len(lines)-1]
+	if !strings.Contains(lastLine, "Log entry number 10000") {
+		t.Errorf("expected last line to contain 'Log entry number 10000', got: %s", lastLine)
+	}
+
+	// Empty log file handling
+	emptyFile := filepath.Join(tmpDir, "empty.log")
+	_ = os.WriteFile(emptyFile, []byte(""), 0644)
+	if res := loadLogLines(emptyFile, 50); len(res) != 0 {
+		t.Errorf("expected 0 lines from empty log, got %d", len(res))
+	}
+}
+
+func TestGetCommitVelocityFastL1Cache(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = exec.Command("git", "-C", tmpDir, "init").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.name", "Syncalibur Tester").Run()
+	_ = exec.Command("git", "-C", tmpDir, "config", "user.email", "test@syncalibur.dev").Run()
+
+	dummyFile := filepath.Join(tmpDir, "sample.txt")
+	_ = os.WriteFile(dummyFile, []byte("test\n"), 0644)
+	_ = exec.Command("git", "-C", tmpDir, "add", ".").Run()
+	_ = exec.Command("git", "-C", tmpDir, "commit", "-m", "init").Run()
+
+	headSHAOut, _ := exec.Command("git", "-C", tmpDir, "rev-parse", "HEAD").Output()
+	headSHA := strings.TrimSpace(string(headSHAOut))
+
+	v1 := getCommitVelocityFast(tmpDir, headSHA)
+	if v1.Today != 1 {
+		t.Errorf("expected today commits == 1, got %d", v1.Today)
+	}
+
+	// Second query with same headSHA must return cached result
+	v2 := getCommitVelocityFast(tmpDir, headSHA)
+	if v2.Today != v1.Today || v2.Sparkline != v1.Sparkline {
+		t.Errorf("L1 cache mismatch: v1=%+v, v2=%+v", v1, v2)
+	}
+}
+
+
 
 
 

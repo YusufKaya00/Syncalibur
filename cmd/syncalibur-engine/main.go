@@ -65,8 +65,8 @@ const (
 
 // Syncalibur Official Release & Semantic Version
 const (
-	SyncaliburVersion   = "v2.27.0"
-	SyncaliburMilestone = "Zero-Data-Loss Flight Recorder & Autopilot"
+	SyncaliburVersion   = "v2.28.0"
+	SyncaliburMilestone = "Titan Sentinel: Fault-Tolerant Concurrency & Speed Upgrade"
 )
 
 // Lucide / Minimalist Typography Icons
@@ -217,7 +217,10 @@ func main() {
 			}
 		}
 		if repo == "." {
-			if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+			fastRoot := findRepoRootFast(repo)
+			if fastRoot != "" && fastRoot != "." && isGitRepoDir(fastRoot) {
+				repo = fastRoot
+			} else if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
 				if t := strings.TrimSpace(string(top)); t != "" {
 					repo = t
 				}
@@ -289,7 +292,10 @@ func main() {
 			}
 		}
 		if repoRoot == "." {
-			if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+			fastRoot := findRepoRootFast(repoRoot)
+			if fastRoot != "" && fastRoot != "." && isGitRepoDir(fastRoot) {
+				repoRoot = fastRoot
+			} else if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
 				if t := strings.TrimSpace(string(top)); t != "" {
 					repoRoot = t
 				}
@@ -458,6 +464,8 @@ func runDaemonSupervisor(scriptPath string, extraArgs ...string) int {
 		),
 	}
 
+	setupProcessGroup(cmd)
+
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "syncalibur supervisor start error: %v\n", err)
 		return 1
@@ -468,7 +476,7 @@ func runDaemonSupervisor(scriptPath string, extraArgs ...string) int {
 	go func() {
 		for sig := range sigCh {
 			if cmd.Process != nil {
-				_ = cmd.Process.Signal(sig)
+				killProcessGroup(cmd, sig)
 			}
 		}
 	}()
@@ -1079,8 +1087,7 @@ var knownSecretRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{32,}\b`),                                                  // Anthropic Key
 	regexp.MustCompile(`\bxox[baprs]-[A-Za-z0-9-]{10,}\b`),                                               // Slack Token
 	regexp.MustCompile(`\b(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{24,}\b`),                                   // Stripe Keys
-	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),                                             // Private Key (RSA, EC, PKCS8)
-	regexp.MustCompile(`-----BEGIN OPENSSH PRIVATE KEY-----`),                                            // OpenSSH Private Key
+	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`),                                             // Private Key (RSA, EC, PKCS8, OPENSSH)
 	regexp.MustCompile(`(?i)(?:api[_-]?key|secret|password|auth[_-]?token|bearer)\s*[:=]\s*["']?([A-Za-z0-9_\-+/=]{20,})["']?`), // Generic Secret assignments
 }
 
@@ -1209,6 +1216,11 @@ func isSafePath(repoRoot, relPath string) (bool, string) {
 }
 
 func detectConflictMarkers(filePath string) (bool, string) {
+	base := strings.ToLower(filepath.Base(filePath))
+	if strings.HasSuffix(base, "_test.go") || strings.HasSuffix(base, ".test.ts") || strings.HasSuffix(base, ".test.js") || strings.HasPrefix(base, "fixture_") {
+		return false, ""
+	}
+
 	st, err := os.Lstat(filePath)
 	if err != nil || !st.Mode().IsRegular() || st.Size() > 10*1024*1024 {
 		return false, ""
@@ -1623,6 +1635,67 @@ func checkLexicalBalance(src []byte, ext string) (bool, string) {
 	return true, ""
 }
 
+func cleanProcessEnv() []string {
+	allowedPrefixes := []string{
+		"PATH=", "TMPDIR=", "TEMP=", "TMP=", "SYSTEMROOT=", "WINDIR=",
+		"USER=", "USERNAME=", "LOGNAME=", "HOME=", "USERPROFILE=",
+		"LANG=", "LC_", "TERM=", "SHELL=", "COMSPEC=", "PATHEXT=",
+		"NODE_PATH=", "PYTHONPATH=", "JAVA_HOME=", "GOROOT=", "GOPATH=",
+	}
+	sensitiveSubstrings := []string{
+		"TOKEN", "SECRET", "KEY", "PASSWORD", "PASSWD", "AUTH", "CREDENTIAL",
+		"PRIVATE", "API", "BEARER", "WEBHOOK", "PAT", "CERT", "SIGNATURE",
+	}
+
+	var cleaned []string
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.ToUpper(parts[0])
+
+		isSensitive := false
+		for _, s := range sensitiveSubstrings {
+			if strings.Contains(key, s) {
+				isSensitive = true
+				break
+			}
+		}
+		if isSensitive {
+			continue
+		}
+
+		isAllowed := false
+		for _, p := range allowedPrefixes {
+			if strings.HasPrefix(strings.ToUpper(env), p) {
+				isAllowed = true
+				break
+			}
+		}
+		if isAllowed {
+			cleaned = append(cleaned, env)
+		}
+	}
+
+	hasPath := false
+	for _, env := range cleaned {
+		if strings.HasPrefix(strings.ToUpper(env), "PATH=") {
+			hasPath = true
+			break
+		}
+	}
+	if !hasPath {
+		if p := os.Getenv("PATH"); p != "" {
+			cleaned = append(cleaned, "PATH="+p)
+		} else {
+			cleaned = append(cleaned, "PATH=/usr/local/bin:/usr/bin:/bin")
+		}
+	}
+
+	return cleaned
+}
+
 func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	absPath := filepath.Join(repoRoot, relPath)
 	data, err := os.ReadFile(absPath)
@@ -1652,6 +1725,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	case ".py":
 		if _, err := exec.LookPath("python3"); err == nil {
 			cmd := exec.Command("python3", "-I", "-B", "-m", "py_compile", absPath)
+			cmd.Env = cleanProcessEnv()
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg == "" {
@@ -1666,6 +1740,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	case ".js", ".mjs", ".cjs":
 		if _, err := exec.LookPath("node"); err == nil {
 			cmd := exec.Command("node", "--check", absPath)
+			cmd.Env = cleanProcessEnv()
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg == "" {
@@ -1685,6 +1760,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 		if tscBin != "" {
 
 			cmd := exec.Command(tscBin, "--noEmit", "--skipLibCheck", "--target", "esnext", "--jsx", "preserve", absPath)
+			cmd.Env = cleanProcessEnv()
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg != "" {
@@ -1712,6 +1788,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 			if err == nil {
 				defer os.RemoveAll(tmpDir)
 				cmd := exec.Command(javac, "-nowarn", "-d", tmpDir, absPath)
+				cmd.Env = cleanProcessEnv()
 				if out, err := cmd.CombinedOutput(); err != nil {
 					errMsg := strings.TrimSpace(string(out))
 					if errMsg != "" && !strings.Contains(errMsg, "cannot find symbol") && !strings.Contains(errMsg, "does not exist") {
@@ -1750,6 +1827,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 		}
 		if bashBin != "" {
 			cmd := exec.Command(bashBin, "-n", absPath)
+			cmd.Env = cleanProcessEnv()
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg == "" {
@@ -1757,6 +1835,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 				}
 				return false, fmt.Sprintf("%s: %s", relPath, errMsg)
 			}
+			return true, ""
 		}
 		if ok, reason := checkLexicalBalance(data, ext); !ok {
 			return false, fmt.Sprintf("%s: %s", relPath, reason)
@@ -1764,6 +1843,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	case ".rb":
 		if _, err := exec.LookPath("ruby"); err == nil {
 			cmd := exec.Command("ruby", "-c", absPath)
+			cmd.Env = cleanProcessEnv()
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg != "" && strings.Contains(errMsg, "syntax error") {
@@ -1778,6 +1858,7 @@ func validateFileSyntax(repoRoot, relPath string) (bool, string) {
 	case ".php":
 		if _, err := exec.LookPath("php"); err == nil {
 			cmd := exec.Command("php", "-l", absPath)
+			cmd.Env = cleanProcessEnv()
 			if out, err := cmd.CombinedOutput(); err != nil {
 				errMsg := strings.TrimSpace(string(out))
 				if errMsg != "" {
@@ -3523,12 +3604,41 @@ func generateSparkline(repoRoot string) string {
 // 5. Multi-Repository Fleet Scanner & Parallel Status Probe
 // ==============================================================================
 
+func findRepoRootFast(dir string) string {
+	if dir == "" || dir == "." {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return "."
+		}
+	}
+	cur, err := filepath.Abs(dir)
+	if err != nil {
+		return dir
+	}
+	for {
+		gitPath := filepath.Join(cur, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
+			return cur
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+	return dir
+}
+
 func isGitRepoDir(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, ".git"))
 	return err == nil
 }
 
 func resolveGitDir(repoPath string) string {
+	if fast := resolveGitDirFast(repoPath); fast != "" {
+		return fast
+	}
 	out, err := exec.Command("git", "-C", repoPath, "rev-parse", "--absolute-git-dir").Output()
 	if err == nil {
 		gdir := strings.TrimSpace(string(out))
@@ -3893,13 +4003,36 @@ func printFleetStatusTable(fleetFile string) {
 	}
 
 	results := make([]fleetRepoStatus, len(configs))
-	var wg sync.WaitGroup
+	maxWorkers := runtime.NumCPU() * 2
+	if maxWorkers < 4 {
+		maxWorkers = 4
+	}
+	if maxWorkers > 12 {
+		maxWorkers = 12
+	}
+	if maxWorkers > len(configs) {
+		maxWorkers = len(configs)
+	}
+
+	type fleetTask struct {
+		idx int
+		cfg *fleetRepoConfig
+	}
+	taskCh := make(chan fleetTask, len(configs))
 	for i, cfg := range configs {
+		taskCh <- fleetTask{idx: i, cfg: cfg}
+	}
+	close(taskCh)
+
+	var wg sync.WaitGroup
+	for w := 0; w < maxWorkers; w++ {
 		wg.Add(1)
-		go func(idx int, c *fleetRepoConfig) {
+		go func() {
 			defer wg.Done()
-			results[idx] = inspectRepoStatus(c.Path, c.Mode)
-		}(i, cfg)
+			for t := range taskCh {
+				results[t.idx] = inspectRepoStatus(t.cfg.Path, t.cfg.Mode)
+			}
+		}()
 	}
 	wg.Wait()
 
@@ -3952,7 +4085,11 @@ func inspectRepoStatus(repoPath, inlineMode string) fleetRepoStatus {
 		Branch: "main",
 		State:  iconCircle + " Idle",
 	}
-	if bOut, err := exec.Command("git", "-C", repoPath, "symbolic-ref", "--quiet", "--short", "HEAD").Output(); err == nil {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
+	defer cancel()
+
+	if bOut, err := exec.CommandContext(ctx, "git", "-C", repoPath, "symbolic-ref", "--quiet", "--short", "HEAD").Output(); err == nil {
 		st.Branch = strings.TrimSpace(string(bOut))
 	}
 	gitDir := resolveGitDir(repoPath)
@@ -3963,13 +4100,13 @@ func inspectRepoStatus(repoPath, inlineMode string) fleetRepoStatus {
 			st.State = fmt.Sprintf("%s PID %d", iconDot, pid)
 		}
 	}
-	if sOut, err := exec.Command("git", "-C", repoPath, "status", "--porcelain", "-uall").Output(); err == nil {
+	if sOut, err := exec.CommandContext(ctx, "git", "-C", repoPath, "status", "--porcelain", "-uall").Output(); err == nil {
 		lines := strings.Split(strings.TrimSpace(string(sOut)), "\n")
 		if len(lines) > 0 && lines[0] != "" {
 			st.Dirty = len(lines)
 		}
 	}
-	if uOut, err := exec.Command("git", "-C", repoPath, "rev-list", "--count", "@{u}..HEAD").Output(); err == nil {
+	if uOut, err := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-list", "--count", "@{u}..HEAD").Output(); err == nil {
 		if unp, err := strconv.Atoi(strings.TrimSpace(string(uOut))); err == nil {
 			st.Unpushed = unp
 		}
@@ -4267,6 +4404,38 @@ type RepoTelemetry struct {
 	DirtySummary  string
 	LatestTag     string
 	CurrentBranch string
+	Sparkline     string
+	HeadSHA       string
+}
+
+var (
+	velocityCacheMu    sync.Mutex
+	lastCachedRepoRoot string
+	lastCachedHeadSHA  string
+	lastCachedVelocity CommitVelocity
+)
+
+func getCommitVelocityFast(repoRoot, headSHA string) CommitVelocity {
+	if headSHA != "" {
+		velocityCacheMu.Lock()
+		if repoRoot == lastCachedRepoRoot && headSHA == lastCachedHeadSHA && lastCachedVelocity.Sparkline != "" {
+			v := lastCachedVelocity
+			velocityCacheMu.Unlock()
+			return v
+		}
+		velocityCacheMu.Unlock()
+	}
+
+	v := getCommitVelocity(repoRoot)
+
+	if headSHA != "" {
+		velocityCacheMu.Lock()
+		lastCachedRepoRoot = repoRoot
+		lastCachedHeadSHA = headSHA
+		lastCachedVelocity = v
+		velocityCacheMu.Unlock()
+	}
+	return v
 }
 
 func getRepoTelemetry(repoRoot string) RepoTelemetry {
@@ -4279,22 +4448,33 @@ func getRepoTelemetry(repoRoot string) RepoTelemetry {
 	t.CurrentBranch = "main"
 
 	if repoRoot == "" || repoRoot == "." {
-		if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		fastRoot := findRepoRootFast(repoRoot)
+		if fastRoot != "" && fastRoot != "." && isGitRepoDir(fastRoot) {
+			repoRoot = fastRoot
+		} else if top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
 			if s := strings.TrimSpace(string(top)); s != "" {
 				repoRoot = s
 			}
 		}
 	}
 
-	// Current Branch
+	// Current Branch & HEAD SHA
+	var headSHA string
+	if out, err := exec.Command("git", "-C", repoRoot, "rev-parse", "-q", "--verify", "HEAD").Output(); err == nil {
+		headSHA = strings.TrimSpace(string(out))
+		t.HeadSHA = headSHA
+	}
+
 	if out, err := exec.Command("git", "-C", repoRoot, "symbolic-ref", "--short", "HEAD").Output(); err == nil {
 		if b := strings.TrimSpace(string(out)); b != "" {
 			t.CurrentBranch = b
 		}
-	} else if out, err := exec.Command("git", "-C", repoRoot, "rev-parse", "--short", "HEAD").Output(); err == nil {
-		if b := strings.TrimSpace(string(out)); b != "" {
-			t.CurrentBranch = "detached:" + b
+	} else if headSHA != "" {
+		shortSHA := headSHA
+		if len(shortSHA) > 7 {
+			shortSHA = shortSHA[:7]
 		}
+		t.CurrentBranch = "detached:" + shortSHA
 	}
 
 	// Total Commits
@@ -4304,9 +4484,10 @@ func getRepoTelemetry(repoRoot string) RepoTelemetry {
 		}
 	}
 
-	// Today's Commits & Velocity
-	velo := getCommitVelocity(repoRoot)
+	// Today's Commits & Velocity via L1 cache
+	velo := getCommitVelocityFast(repoRoot, headSHA)
 	t.TodayCommits = strconv.Itoa(velo.Today)
+	t.Sparkline = velo.Sparkline
 
 	// Unpushed Commits
 	if out, err := exec.Command("git", "-C", repoRoot, "rev-list", "--count", "@{u}..HEAD").Output(); err == nil {
@@ -4384,10 +4565,41 @@ func getDaemonStatus(gitDir string) (bool, int) {
 }
 
 func loadLogLines(logPath string, maxLines int) []string {
-	data, err := os.ReadFile(logPath)
+	f, err := os.Open(logPath)
 	if err != nil {
 		return nil
 	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return nil
+	}
+	size := fi.Size()
+	if size == 0 {
+		return nil
+	}
+
+	const maxTailBytes = 256 * 1024
+	offset := int64(0)
+	if size > maxTailBytes {
+		offset = size - maxTailBytes
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return nil
+		}
+	}
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil
+	}
+	if offset > 0 {
+		// Discard potentially truncated first line if we seeked mid-file
+		if idx := bytes.IndexByte(data, '\n'); idx >= 0 && idx < len(data)-1 {
+			data = data[idx+1:]
+		}
+	}
+
 	lines := strings.Split(string(data), "\n")
 	var clean []string
 	for _, l := range lines {
@@ -4973,6 +5185,9 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 	cachedActiveMode := "autopilot"
 	engineVer := getEngineVersion(scriptPath)
 	showHelpModal := false
+	isSearching := false
+	searchQuery := ""
+	searchBuffer := ""
 
 	renderFrame := func() {
 		termRows, termCols := getTerminalSize()
@@ -4989,6 +5204,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 				"│                                                                      │",
 				"│  [q] / [Esc]   Quit interactive cockpit                              │",
 				"│  [p]           Pause / Resume background auto-sync                   │",
+				"│  [/]           Filter / Live search log viewport (Esc to clear)      │",
 				"│  [s]           Trigger immediate sync cycle (quicksave & push)       │",
 				"│  [b]           Trigger safe bidirectional pull & rebase              │",
 				"│  [c]           Run preflight check (AST syntax & Secret Shield)      │",
@@ -5050,8 +5266,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			isPaused = (pauseErr == nil)
 			isShieldDisabled = areShieldsDisabled(repoRoot)
 
-			velo := getCommitVelocity(repoRoot)
-			cachedSpark = velo.Sparkline
+			cachedSpark = telemetry.Sparkline
 
 			cachedActiveMode = getActiveMode(scriptPath, repoRoot)
 			lastGitQuery = time.Now()
@@ -5194,7 +5409,17 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 
 		// 2. Log Viewport Section
 		allLogs := loadLogLines(logFile, 1000)
-		totalLogs := len(allLogs)
+		displayedLogs := allLogs
+		if searchQuery != "" {
+			displayedLogs = nil
+			lowerQ := strings.ToLower(searchQuery)
+			for _, l := range allLogs {
+				if strings.Contains(strings.ToLower(l), lowerQ) {
+					displayedLogs = append(displayedLogs, l)
+				}
+			}
+		}
+		totalLogs := len(displayedLogs)
 
 		followBadge := fmt.Sprintf("%s%s TAIL: ON%s", cGreen, iconCheck, cReset)
 		if !followMode {
@@ -5204,9 +5429,15 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		if horizOffset > 0 {
 			panBadge = fmt.Sprintf("  %sPan: → +%d cols (press [0] to reset)%s", cCyan, horizOffset, cReset)
 		}
+		filterBadge := ""
+		if searchQuery != "" {
+			filterBadge = fmt.Sprintf("  %s[Filter: '%s' • Esc to clear]%s", cGold, searchQuery, cReset)
+		} else if isSearching {
+			filterBadge = fmt.Sprintf("  %s[Search: %s_]%s", cAmber, searchBuffer, cReset)
+		}
 
-		fmt.Fprintf(&frame, "  %s%s%s LIVE LOG VIEWPORT%s  %s(%d lines • %s%s)%s\033[K\n",
-			cBold, cCyan, iconChevron, cReset, cSlate, totalLogs, followBadge, panBadge, cReset)
+		fmt.Fprintf(&frame, "  %s%s%s LIVE LOG VIEWPORT%s  %s(%d lines • %s%s%s)%s\033[K\n",
+			cBold, cCyan, iconChevron, cReset, cSlate, totalLogs, followBadge, panBadge, filterBadge, cReset)
 		fmt.Fprintf(&frame, "  %s%s%s\033[K\n", cSlate, strings.Repeat("─", boxWidth), cReset)
 
 		headerRows := 9
@@ -5246,7 +5477,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 			}
 			rowsRendered := 0
 			for i := startIdx; i < endIdx && i < totalLogs; i++ {
-				fmt.Fprintf(&frame, "  %s\n", formatLogLineForTUI(allLogs[i], termCols-4, horizOffset))
+				fmt.Fprintf(&frame, "  %s\n", formatLogLineForTUI(displayedLogs[i], termCols-4, horizOffset))
 				rowsRendered++
 			}
 			for r := rowsRendered; r < logRows; r++ {
@@ -5255,7 +5486,7 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 		}
 
 		// 3. Footer Bar
-		fmt.Fprintf(&frame, "  %s%s%s\033[0m\033[K", cSlate, "[q] Quit  [p] Pause  [z] Undo  [y] Redo  [s] Sync  [b] Pull  [?] Help  [↑/↓] Scroll  [f] Tail", cReset)
+		fmt.Fprintf(&frame, "  %s%s%s\033[0m\033[K", cSlate, "[q] Quit  [p] Pause  [z] Undo  [y] Redo  [s] Sync  [b] Pull  [/] Filter  [?] Help  [↑/↓] Scroll  [f] Tail", cReset)
 		frame.WriteString("\033[J")
 		fmt.Print(frame.String())
 	}
@@ -5351,12 +5582,57 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 					}
 				}
 
+				if isSearching {
+					switch ch {
+					case '\r', '\n':
+						searchQuery = strings.TrimSpace(searchBuffer)
+						isSearching = false
+						scrollOffset = 0
+						followMode = true
+					case 27: // Esc cancels search
+						isSearching = false
+						searchBuffer = ""
+						searchQuery = ""
+						scrollOffset = 0
+						followMode = true
+					case 127, 8: // Backspace
+						if len(searchBuffer) > 0 {
+							searchBuffer = searchBuffer[:len(searchBuffer)-1]
+							searchQuery = searchBuffer
+							scrollOffset = 0
+						}
+					default:
+						if ch >= 32 && ch <= 126 {
+							searchBuffer += string(ch)
+							searchQuery = searchBuffer
+							scrollOffset = 0
+						}
+					}
+					renderFrame()
+					continue
+				}
+
 				switch ch {
 				case '?':
 					showHelpModal = !showHelpModal
 					renderFrame()
 					continue
-				case 'q', 'Q', 3, 27: // q, Q, Ctrl+C, Esc -> INSTANT QUIT
+				case '/':
+					isSearching = true
+					searchBuffer = searchQuery
+					renderFrame()
+					continue
+				case 27: // Esc clears search or quits
+					if searchQuery != "" {
+						searchQuery = ""
+						searchBuffer = ""
+						scrollOffset = 0
+						followMode = true
+						renderFrame()
+						continue
+					}
+					shouldExit = true
+				case 'q', 'Q', 3: // q, Q, Ctrl+C -> INSTANT QUIT
 					shouldExit = true
 				case 'k', 'K': // vim scroll up
 					scrollOffset++

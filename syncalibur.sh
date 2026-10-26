@@ -21,7 +21,7 @@ set -uo pipefail
 # transient git/network errors rather than exiting unexpectedly.
 
 export PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/c/Program Files/Go/bin:/c/Go/bin:${PATH}"
-SYNCALIBUR_PLATFORM_VERSION="v2.27.0"
+SYNCALIBUR_PLATFORM_VERSION="v2.28.0"
 export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new}"
 
@@ -200,7 +200,7 @@ resolve_syncalibur_platform_version() {
       fi
     fi
   done
-  printf '%s\n' "${SYNCALIBUR_PLATFORM_VERSION:-v2.27.0}"
+  printf '%s\n' "${SYNCALIBUR_PLATFORM_VERSION:-v2.28.0}"
 }
 SYNCALIBUR_PLATFORM_VERSION="$(resolve_syncalibur_platform_version)"
 
@@ -426,6 +426,8 @@ if ! REPO_ROOT="$(git -C "${WATCH_PATH}" rev-parse --show-toplevel 2>/dev/null)"
 fi
 REPO_ROOT="$(resolve_path "${REPO_ROOT}")"
 GIT_DIR="$(git -C "${REPO_ROOT}" rev-parse --absolute-git-dir)"
+GIT_COMMON_DIR="$(git -C "${REPO_ROOT}" rev-parse --git-common-dir 2>/dev/null || echo "${GIT_DIR}")"
+[[ "${GIT_COMMON_DIR}" != /* ]] && GIT_COMMON_DIR="$(cd "${REPO_ROOT}/${GIT_COMMON_DIR}" 2>/dev/null && pwd || echo "${GIT_DIR}")"
 
 # Per-Repository Configuration (.syncalibur or syncalibur.env inside repo root)
 for repo_cfg in "${REPO_ROOT}/.syncalibur" "${REPO_ROOT}/.syncalibur.env" "${REPO_ROOT}/syncalibur.env"; do
@@ -1424,8 +1426,19 @@ send_desktop_alert() {
 
 trigger_failure_alert() {
   local stage="$1" reason="$2" details="$3" remote="${4:-$(get_remote)}" branch="${5:-$(get_branch || echo main)}"
-  record_sync_failure "${stage}" "${reason}" "${details}" "${remote}" "${branch}"
-  send_webhook_notification "failure" "✕ Syncalibur Alert — ${stage}" "${reason}" "${details}"
+
+  # Credential Redaction: sanitize details to avoid forwarding raw secret matches to webhooks or state files
+  local safe_details="${details}"
+  if [[ "${stage}" =~ (SECRET|CREDENTIAL|SHIELD) || "${reason}" =~ (credential|secret|token) ]]; then
+    if command -v jq >/dev/null 2>&1 && jq -e . >/dev/null 2>&1 <<< "${details}"; then
+      safe_details="$(jq -r '"quarantined: " + (.quarantined_files | join(", "))' <<< "${details}" 2>/dev/null || echo "quarantined credentials detected")"
+    else
+      safe_details="quarantined credentials detected (content masked)"
+    fi
+  fi
+
+  record_sync_failure "${stage}" "${reason}" "${safe_details}" "${remote}" "${branch}"
+  send_webhook_notification "failure" "✕ Syncalibur Alert — ${stage}" "${reason}" "${safe_details}"
 
   [[ "${ALERT_TERMINAL}" == "true" ]] || return 0
 
@@ -1677,7 +1690,19 @@ safe_bidirectional_sync() {
   fi
 
   if (( behind > 0 && ahead > 0 )); then
-    log "⇄ Bidirectional Sync: Divergent history (${ahead} local, ${behind} remote). Rebasing cleanly..."
+    # In-Memory Merge Clash Shield: evaluate rebase feasibility in-memory before touching disk/index
+    local merge_tree_err=""
+    if merge_tree_err="$(git merge-tree --write-tree HEAD "${upstream}" 2>&1)"; then
+      : # In-memory rebase is mathematically clean! Proceed with confidence
+    else
+      local clash_summary="Merge conflict detected in-memory with '${fetch_remote}/${branch}'"
+      log "⛨ [CLASH SHIELD] ${clash_summary}; aborting rebase before disk or working tree touch."
+      record_push_state "BLOCKED_CONFLICT" "${clash_summary}" "${REPO_ROOT}"
+      trigger_failure_alert "BIDIRECTIONAL SYNC (CONFLICT)" "${clash_summary}" "${merge_tree_err}" "${remote}" "${branch}"
+      return 1
+    fi
+
+    log "⇄ Bidirectional Sync: Divergent history (${ahead} local, ${behind} remote). In-memory conflict check passed. Rebasing cleanly..."
     local rb_out
     if rb_out="$(git rebase "${upstream}" 2>&1)"; then
       printf '%s\n' "${rb_out}" >> "${LOG_FILE}"
@@ -1989,21 +2014,27 @@ is_lock_held_by_process() {
   [[ ! -e "${lock_file}" ]] && return 1
   if command -v fuser >/dev/null 2>&1; then
     fuser "${lock_file}" >/dev/null 2>&1 && return 0
+    return 1
   fi
   if command -v lsof >/dev/null 2>&1; then
     lsof -t "${lock_file}" >/dev/null 2>&1 && return 0
+    return 1
   fi
-  local real_lock
-  real_lock="$(readlink -f "${lock_file}" 2>/dev/null || echo "${lock_file}")"
-  for fd in /proc/[0-9]*/fd/*; do
-    [[ ! -e "${fd}" ]] && continue
-    local target
-    target="$(readlink "${fd}" 2>/dev/null || true)"
-    if [[ "${target}" == "${real_lock}" ]]; then
-      return 0
-    fi
-  done 2>/dev/null
-  return 1
+  if [[ -d "/proc" ]]; then
+    local real_lock
+    real_lock="$(readlink -f "${lock_file}" 2>/dev/null || echo "${lock_file}")"
+    for fd in /proc/[0-9]*/fd/*; do
+      [[ ! -e "${fd}" ]] && continue
+      local target
+      target="$(readlink "${fd}" 2>/dev/null || true)"
+      if [[ "${target}" == "${real_lock}" ]]; then
+        return 0
+      fi
+    done 2>/dev/null
+    return 1
+  fi
+  # If no inspection tool exists on this platform, assume lock is held (do not delete)
+  return 0
 }
 
 run_git_with_backoff() {
@@ -2067,9 +2098,30 @@ repo_busy() {
     fi
   fi
 
-  for marker in index.lock refs/heads/*.lock HEAD.lock MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG BISECT_START rebase-merge rebase-apply sequencer AUTO_MERGE; do
-    if [[ -e "${GIT_DIR}/${marker}" ]]; then
-      echo "${marker}"
+  local -a markers=(
+    "${GIT_DIR}/index.lock"
+    "${GIT_DIR}/HEAD.lock"
+    "${GIT_DIR}/MERGE_HEAD"
+    "${GIT_DIR}/CHERRY_PICK_HEAD"
+    "${GIT_DIR}/REVERT_HEAD"
+    "${GIT_DIR}/BISECT_LOG"
+    "${GIT_DIR}/BISECT_START"
+    "${GIT_DIR}/rebase-merge"
+    "${GIT_DIR}/rebase-apply"
+    "${GIT_DIR}/sequencer"
+    "${GIT_DIR}/AUTO_MERGE"
+  )
+  local nullglob_state
+  nullglob_state="$(shopt -p nullglob || true)"
+  shopt -s nullglob
+  local head_locks=( "${GIT_DIR}/refs/heads/"*.lock )
+  eval "${nullglob_state}"
+
+  markers+=( "${head_locks[@]}" )
+
+  for marker in "${markers[@]}"; do
+    if [[ -e "${marker}" ]]; then
+      basename "${marker}"
       return 0
     fi
   done
@@ -2302,7 +2354,7 @@ commit_changes() {
 
       (( ${#g_valid_files[@]} == 0 )) && continue
 
-      git add -- "${g_valid_files[@]}" 2>/dev/null || true
+      run_git_with_backoff git add -- "${g_valid_files[@]}" 2>/dev/null || true
       if git diff --cached --quiet; then
         continue
       fi
@@ -2317,7 +2369,7 @@ commit_changes() {
         (( ${#g_valid_files[@]} > 2 )) && g_msg+=" (+$((${#g_valid_files[@]} - 2)) more)"
       fi
 
-      if err_out="$(git commit -m "${g_msg}" 2>&1)"; then
+      if err_out="$(run_git_with_backoff git commit -m "${g_msg}" 2>&1)"; then
         printf '%s\n' "${err_out}" >> "${LOG_FILE}"
         log "✓ [Smart Stage: ${g_scope}] Committed ${#g_valid_files[@]} file(s): ${g_msg}"
         record_timeline_checkpoint
@@ -2340,7 +2392,7 @@ commit_changes() {
     fi
   done < <(changed_paths)
 
-  if ! err_out="$(git add -A -- "${SCOPE}" "${excludes[@]}" 2>&1)"; then
+  if ! err_out="$(run_git_with_backoff git add -A -- "${SCOPE}" "${excludes[@]}" 2>&1)"; then
     printf '%s\n' "${err_out}" >> "${LOG_FILE}"
     log "✕ 'git add' failed (details in ${LOG_FILE})."
     trigger_failure_alert "GIT STAGE (git add)" "git add failed while staging changes in '${SCOPE}'" "${err_out}"
@@ -2371,7 +2423,7 @@ commit_changes() {
     msg+=" ($(date '+%H:%M:%S'))"
   fi
 
-  if err_out="$(git commit -m "${msg}" 2>&1)"; then
+  if err_out="$(run_git_with_backoff git commit -m "${msg}" 2>&1)"; then
     printf '%s\n' "${err_out}" >> "${LOG_FILE}"
     log "✓ Committed ${count} file(s): ${msg}"
     record_timeline_checkpoint
@@ -2709,8 +2761,8 @@ cmd_push() {
         fi
       done < <(changed_paths)
       if (( ${#valid_save_files[@]} > 0 )); then
-        git add -- "${valid_save_files[@]}" 2>/dev/null
-        git commit -m "${custom_msg}"
+        run_git_with_backoff git add -- "${valid_save_files[@]}" 2>/dev/null || true
+        run_git_with_backoff git commit -m "${custom_msg}"
         record_timeline_checkpoint
         echo -e "  ${C_GREEN}✓ Committed     : ${custom_msg}${C_RESET}"
       else
@@ -3269,10 +3321,12 @@ cmd_hook() {
   local action="${1:-status}"
   local current_repo
   current_repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${REPO_ROOT}")"
-  local hooks_dir="${current_repo}/.git/hooks"
+  local hooks_dir
+  hooks_dir="$(git -C "${current_repo}" rev-parse --git-path hooks 2>/dev/null || echo "${current_repo}/.git/hooks")"
+  [[ "${hooks_dir}" != /* ]] && hooks_dir="${current_repo}/${hooks_dir}"
 
-  if [[ ! -d "${hooks_dir}" ]]; then
-    echo -e "${C_RED}✕ Not a Git repository or .git/hooks directory missing.${C_RESET}"
+  if ! git -C "${current_repo}" rev-parse --git-dir >/dev/null 2>&1; then
+    echo -e "${C_RED}✕ Not a Git repository.${C_RESET}"
     return 1
   fi
 
@@ -3671,7 +3725,7 @@ run_daemon() {
   fi
 
   local remote branch busy head snap id_raw git_user git_email sys_ident ssh_cred gh_user gh_via gl_user gl_via
-  local idle_snapshot="" last_hold_snapshot="" next_hold_retry=0 checked_head="" push_pending=0 next_retry=0 retry_delay="${RETRY_BASE}" force_sync=0
+  local idle_snapshot="" last_hold_snapshot="" next_hold_retry=0 checked_head="" push_pending=0 next_retry=0 retry_delay="${RETRY_BASE}" force_sync=0 fs_changed=1
   local last_commit_ts=0 last_burst_notice=0
 
   id_raw="$(detect_user_identity)"
@@ -3726,7 +3780,7 @@ run_daemon() {
     safe_bidirectional_sync "${remote}" "${branch}" "${force_sync}" || true
 
     # --- 2) Stage & commit local file changes --------------------------------
-    if has_changes_in_scope; then
+    if (( fs_changed || force_sync || push_pending )) && has_changes_in_scope; then
       snap="$(snapshot)"
       if (( force_sync )) || [[ "${snap}" != "${idle_snapshot}" ]]; then
         if [[ -n "${last_hold_snapshot}" && "${snap}" == "${last_hold_snapshot}" ]]; then
@@ -3829,7 +3883,11 @@ run_daemon() {
       fi
     fi
 
-    wait_for_fs_change "${POLL_INTERVAL}" || true
+    if wait_for_fs_change "${POLL_INTERVAL}"; then
+      fs_changed=1
+    else
+      fs_changed=0
+    fi
   done
 }
 
