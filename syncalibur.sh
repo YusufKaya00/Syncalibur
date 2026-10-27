@@ -2098,6 +2098,13 @@ repo_busy() {
     fi
   fi
 
+  # Auto-heal orphaned AUTO_MERGE left behind by git pull/rebase when no active merge/rebase exists
+  if [[ -f "${GIT_DIR}/AUTO_MERGE" ]]; then
+    if [[ ! -e "${GIT_DIR}/MERGE_HEAD" && ! -d "${GIT_DIR}/rebase-merge" && ! -d "${GIT_DIR}/rebase-apply" ]]; then
+      rm -f "${GIT_DIR}/AUTO_MERGE" 2>/dev/null || true
+    fi
+  fi
+
   local -a markers=(
     "${GIT_DIR}/index.lock"
     "${GIT_DIR}/HEAD.lock"
