@@ -1,7 +1,7 @@
 # Syncalibur — Comprehensive Project Memory & Living System Blueprint
 
 > **Status:** Active Platform Specification & Living Memory Ledger  
-> **Platform Version:** `v2.28.1` (Milestone: *"Strict Mode Isolation & Zero-Leak Barrier Upgrade"*)  
+> **Platform Version:** `v2.28.2` (Milestone: *"Autonomous Conflict Healing & Split-Remote Clash Barrier"*)  
 > **Architecture:** Hybrid Native Go Core (`cmd/syncalibur-engine`) + Fault-Tolerant Bash Supervisor (`syncalibur.sh`)  
 > **Living Memory Rule:** *Every functional modification, architecture change, or configuration addition MUST update this document.*
 
@@ -261,8 +261,13 @@ Syncalibur provides four specialized automation personas configured per-reposito
 - Runs `safe_bidirectional_sync` before local commit cycles and periodically (`SYNCALIBUR_PULL_INTERVAL=45`).
 - **In-Memory `git merge-tree` Clash Shield:** Before attempting `git rebase` against divergent upstream (`ahead > 0 && behind > 0`), executes:
   `git merge-tree --write-tree HEAD "${upstream}"`
-  If a merge conflict is detected in memory, the rebase is aborted *before touching a single file on disk or in the index*. Syncalibur marks the repository `BLOCKED_CONFLICT`, preserves all uncommitted and local commits safely, and alerts the developer without leaving unresolved conflict markers in source code.
-- **Conflict Self-Healing:** If an unexpected conflict occurs during fast-forward, Syncalibur immediately aborts (`git rebase --abort`) to prevent working tree corruption, records diagnostic metadata in `.git/syncalibur.failure`, and opens a diagnostic terminal alert window with masked details.
+  If a merge conflict is detected in memory, the rebase is aborted *before touching a single file on disk or in the index*. Syncalibur marks the repository `BLOCKED_CONFLICT`, halts all background pushes, and prevents partial/split multi-remote desynchronization.
+- **Config Conflict Auto-Healing (`auto_resolve_config_conflicts`):** When a merge conflict solely involves Syncalibur configuration files (`.syncalibur`, `.syncalibur.env`), Syncalibur automatically parses both sides, reconciles key-value pairs (preserving explicit user changes), stages the file, and commits the merge without human intervention.
+- **Conflict Abort & Recovery Commands (`syncalibur abort` & `syncalibur resolve`):**
+  - `syncalibur abort`: Safely rolls back in-progress `MERGE_HEAD`, `rebase-merge`, or `rebase-apply` operations and clears locks.
+  - `syncalibur resolve [--ours|--theirs]`: Auto-resolves config conflicts or resolves source conflicts according to developer strategy.
+  - Interactive Cockpit `[a]` key: Instantly aborts active merges directly from the TUI.
+- **Conflict Self-Healing:** If an unexpected conflict occurs during fast-forward, Syncalibur immediately aborts (`git rebase --abort`) to protect working tree integrity, records diagnostic metadata in `.git/syncalibur.failure`, and opens a diagnostic terminal alert window with masked details.
 
 #### Git Submodules, Worktrees & Lock Contention Resilience
 - **Mutation Backoff (`run_git_with_backoff`):** All `git add` and `git commit` mutations are guarded with exponential retry backoff, ensuring concurrent IDE saves or manual git commands do not trigger unhandled failure states.

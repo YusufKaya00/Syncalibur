@@ -1486,6 +1486,22 @@ func TestPromptCommand(t *testing.T) {
 		t.Errorf("expected '[⚡⏸]', got %q", glyphManualShort)
 	}
 	_ = os.Remove(filepath.Join(tmpDir, ".syncalibur"))
+
+	// 9. Active Merge state (MERGE_HEAD)
+	_ = os.WriteFile(filepath.Join(gitDir, "MERGE_HEAD"), []byte("abc1234\n"), 0644)
+	glyphMerge := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphMerge != "[⚡⚔ MERGE]" {
+		t.Errorf("expected '[⚡⚔ MERGE]', got %q", glyphMerge)
+	}
+	_ = os.Remove(filepath.Join(gitDir, "MERGE_HEAD"))
+
+	// 10. Conflict push state (BLOCKED_CONFLICT)
+	_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.push_state"), []byte("BLOCKED_CONFLICT|12345|now|Merge conflict"), 0644)
+	glyphConflict := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphConflict != "[⚡⚔ CONFLICT]" {
+		t.Errorf("expected '[⚡⚔ CONFLICT]', got %q", glyphConflict)
+	}
+	_ = os.Remove(filepath.Join(gitDir, "syncalibur.push_state"))
 }
 
 func TestCleanProcessEnv(t *testing.T) {

@@ -2069,6 +2069,89 @@ run_git_with_backoff() {
   return 1
 }
 
+auto_resolve_config_conflicts() {
+  local target_repo="${1:-${REPO_ROOT}}"
+  [[ -d "${target_repo}" ]] || return 1
+  local unmerged
+  unmerged="$(git -C "${target_repo}" diff --name-only --diff-filter=U 2>/dev/null || true)"
+  [[ -z "${unmerged}" ]] && return 1
+
+  # Check if all unmerged files are Syncalibur config files
+  local file
+  for file in ${unmerged}; do
+    case "${file}" in
+      .syncalibur | .syncalibur.env | syncalibur.env) ;;
+      *) return 1 ;; # Contains code/docs conflict, cannot auto-resolve
+    esac
+  done
+
+  # All unmerged files are syncalibur config files! Reconcile them.
+  for file in ${unmerged}; do
+    local ours theirs
+    ours="$(git -C "${target_repo}" show ":2:${file}" 2>/dev/null || true)"
+    theirs="$(git -C "${target_repo}" show ":3:${file}" 2>/dev/null || true)"
+
+    local res_mode="autopilot"
+    local res_cooldown="10"
+
+    # Extract MODE from ours and theirs
+    local m_ours="" m_theirs=""
+    if [[ "${ours}" =~ (MODE|SYNCALIBUR_MODE)=[\"']?([a-zA-Z0-9_-]+)[\"']? ]]; then
+      m_ours="${BASH_REMATCH[2]}"
+    fi
+    if [[ "${theirs}" =~ (MODE|SYNCALIBUR_MODE)=[\"']?([a-zA-Z0-9_-]+)[\"']? ]]; then
+      m_theirs="${BASH_REMATCH[2]}"
+    fi
+
+    # Safety preference: if either selected manual, keep manual
+    if [[ "${m_ours}" == "manual" || "${m_theirs}" == "manual" ]]; then
+      res_mode="manual"
+    elif [[ -n "${m_theirs}" ]]; then
+      res_mode="${m_theirs}"
+    elif [[ -n "${m_ours}" ]]; then
+      res_mode="${m_ours}"
+    fi
+
+    # Extract BURST_COOLDOWN
+    local c_ours="" c_theirs=""
+    if [[ "${ours}" =~ BURST_COOLDOWN=[\"']?([0-9]+)[\"']? ]]; then
+      c_ours="${BASH_REMATCH[1]}"
+    fi
+    if [[ "${theirs}" =~ BURST_COOLDOWN=[\"']?([0-9]+)[\"']? ]]; then
+      c_theirs="${BASH_REMATCH[1]}"
+    fi
+
+    # Prefer explicit incoming setting if present, else ours
+    if [[ -n "${c_theirs}" ]]; then
+      res_cooldown="${c_theirs}"
+    elif [[ -n "${c_ours}" ]]; then
+      res_cooldown="${c_ours}"
+    fi
+
+    cat <<CFG_EOF > "${target_repo}/${file}"
+# Syncalibur per-repository configuration
+MODE="${res_mode}"
+BURST_COOLDOWN=${res_cooldown}
+CFG_EOF
+
+    git -C "${target_repo}" add "${file}"
+  done
+
+  # Finish the merge or rebase
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  if [[ -f "${g_dir}/MERGE_HEAD" ]]; then
+    git -C "${target_repo}" commit --no-edit -m "chore(sync): auto-resolve configuration conflict" >/dev/null 2>&1 || \
+      git -C "${target_repo}" commit -m "chore(sync): auto-resolve configuration conflict" >/dev/null 2>&1 || true
+  elif [[ -d "${g_dir}/rebase-merge" || -d "${g_dir}/rebase-apply" ]]; then
+    GIT_EDITOR=true git -C "${target_repo}" rebase --continue >/dev/null 2>&1 || true
+  fi
+
+  rm -f "${g_dir}/syncalibur.push_state" "${g_dir}/syncalibur.failure" 2>/dev/null || true
+  log "✓ Auto-resolved configuration conflict in ${unmerged} cleanly."
+  return 0
+}
+
 assert_git_operable() {
   local repo_dir="${1:-${REPO_ROOT}}"
   if ! git -C "${repo_dir}" rev-parse --git-dir >/dev/null 2>&1; then
@@ -2081,7 +2164,13 @@ assert_git_operable() {
   fi
   local busy
   if busy="$(repo_busy)"; then
-    echo -e "${C_AMBER}▲ Git repository is currently busy with operation '${busy}'. Syncalibur auto-operation paused until resolved.${C_RESET}" >&2
+    if [[ "${busy}" == "MERGE_HEAD" || "${busy}" == "rebase-merge" || "${busy}" == "rebase-apply" ]]; then
+      echo -e "${C_AMBER}▲ Git ${busy} in progress in '$(basename "${repo_dir}")'.${C_RESET}" >&2
+      echo -e "  ${C_CYAN}• To cancel: run 'syncalibur abort'${C_RESET}" >&2
+      echo -e "  ${C_CYAN}• To resolve: run 'syncalibur resolve' (or 'syncalibur resolve --ours' / '--theirs')${C_RESET}" >&2
+    else
+      echo -e "${C_AMBER}▲ Git repository is currently busy with operation '${busy}'. Syncalibur auto-operation paused until resolved.${C_RESET}" >&2
+    fi
     return 1
   fi
   return 0
@@ -2103,6 +2192,11 @@ repo_busy() {
     if [[ ! -e "${GIT_DIR}/MERGE_HEAD" && ! -d "${GIT_DIR}/rebase-merge" && ! -d "${GIT_DIR}/rebase-apply" ]]; then
       rm -f "${GIT_DIR}/AUTO_MERGE" 2>/dev/null || true
     fi
+  fi
+
+  # 2. Check for active merge conflict that only involves syncalibur config files
+  if [[ -f "${GIT_DIR}/MERGE_HEAD" || -d "${GIT_DIR}/rebase-merge" || -d "${GIT_DIR}/rebase-apply" ]]; then
+    auto_resolve_config_conflicts "${REPO_ROOT}" >/dev/null 2>&1 || true
   fi
 
   local -a markers=(
@@ -3148,10 +3242,28 @@ cmd_prompt() {
 }
 
 cmd_pull() {
-  local current_repo="${1:-${REPO_ROOT}}"
+  local current_repo=""
+  local abort_flag=0
+  for arg in "$@"; do
+    case "${arg}" in
+      --abort | abort) abort_flag=1 ;;
+      *) [[ -d "${arg}" ]] && current_repo="${arg}" ;;
+    esac
+  done
+
+  if (( abort_flag )); then
+    cmd_abort "${current_repo}"
+    return $?
+  fi
+
+  [[ -n "${current_repo}" ]] || current_repo="${REPO_ROOT}"
   [[ -d "${current_repo}" ]] || current_repo="${PWD}"
   current_repo="$(cd "${current_repo}" && git rev-parse --show-toplevel 2>/dev/null || echo "${current_repo}")"
   cd "${current_repo}" || return 1
+
+  # Attempt auto-resolving config conflicts if already unmerged
+  auto_resolve_config_conflicts "${current_repo}" >/dev/null 2>&1 || true
+
   assert_git_operable "${current_repo}" || return 1
 
   local rem branch
@@ -3165,7 +3277,11 @@ cmd_pull() {
     echo -e "  ${C_GREEN}✓ Local branch '${branch}' up to date with '${rem}/${branch}'.${C_RESET}"
     return 0
   else
-    echo -e "  ${C_RED}✕ Safe pull failed.${C_RESET}"
+    if auto_resolve_config_conflicts "${current_repo}"; then
+      echo -e "  ${C_GREEN}✓ Automatically resolved configuration conflict in .syncalibur.${C_RESET}"
+      return 0
+    fi
+    echo -e "  ${C_RED}✕ Safe pull failed. Check conflicts or run 'syncalibur abort' to rollback.${C_RESET}"
     return 1
   fi
 }
@@ -3242,28 +3358,26 @@ resolve_current_repo_mode() {
   local target_repo="${1:-${REPO_ROOT}}"
   local m=""
 
-  # 1. Check repos.list (fleet entry with mode=...)
-  if [[ -f "${FLEET_LIST_FILE}" ]]; then
+  # 1. Check repo-local .syncalibur or syncalibur.env (per-repo explicit configuration)
+  local cfg
+  for cfg in "${target_repo}/.syncalibur" "${target_repo}/.syncalibur.env" "${target_repo}/syncalibur.env"; do
+    if [[ -f "${cfg}" ]]; then
+      local found_mode
+      found_mode="$(grep -iE '^(MODE|SYNCALIBUR_MODE)=' "${cfg}" 2>/dev/null | tail -n1 || true)"
+      if [[ "${found_mode}" =~ [=\"][[:space:]]*([a-zA-Z0-9_-]+) ]]; then
+        m="${BASH_REMATCH[1]}"
+        break
+      fi
+    fi
+  done
+
+  # 2. Check repos.list (fleet entry with mode=...)
+  if [[ -z "${m}" && -f "${FLEET_LIST_FILE}" ]]; then
     local fleet_line
     fleet_line="$(grep -E "^[[:space:]]*${target_repo}([[:space:]]|$)" "${FLEET_LIST_FILE}" 2>/dev/null | head -n1 || true)"
     if [[ "${fleet_line}" =~ mode=([a-zA-Z0-9_-]+) ]]; then
       m="${BASH_REMATCH[1]}"
     fi
-  fi
-
-  # 2. Check repo-local .syncalibur or syncalibur.env
-  if [[ -z "${m}" ]]; then
-    local cfg
-    for cfg in "${target_repo}/.syncalibur" "${target_repo}/.syncalibur.env" "${target_repo}/syncalibur.env"; do
-      if [[ -f "${cfg}" ]]; then
-        local found_mode
-        found_mode="$(grep -iE '^(MODE|SYNCALIBUR_MODE)=' "${cfg}" 2>/dev/null | tail -n1 || true)"
-        if [[ "${found_mode}" =~ [=\"][[:space:]]*([a-zA-Z0-9_-]+) ]]; then
-          m="${BASH_REMATCH[1]}"
-          break
-        fi
-      fi
-    done
   fi
 
   # 3. Check environment variable
@@ -3503,6 +3617,122 @@ cmd_sync() {
   local s_file="${g_dir}/syncalibur.sync"
   touch "${s_file}"
   echo -e "${C_CYAN}✦  Triggered immediate sync cycle for $(basename "${target_repo}").${C_RESET}"
+}
+
+cmd_abort() {
+  local target_repo=""
+  if [[ -n "${1:-}" && -d "${1:-}" ]]; then
+    target_repo="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo "$1")"
+  elif cur_repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    target_repo="${cur_repo}"
+  else
+    target_repo="${REPO_ROOT}"
+  fi
+
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || echo "${target_repo}/.git")"
+
+  local aborted=0
+  if [[ -f "${g_dir}/MERGE_HEAD" ]]; then
+    git -C "${target_repo}" merge --abort >/dev/null 2>&1 && aborted=1
+  elif [[ -d "${g_dir}/rebase-merge" || -d "${g_dir}/rebase-apply" ]]; then
+    git -C "${target_repo}" rebase --abort >/dev/null 2>&1 && aborted=1
+  elif [[ -f "${g_dir}/CHERRY_PICK_HEAD" ]]; then
+    git -C "${target_repo}" cherry-pick --abort >/dev/null 2>&1 && aborted=1
+  elif [[ -f "${g_dir}/REVERT_HEAD" ]]; then
+    git -C "${target_repo}" revert --abort >/dev/null 2>&1 && aborted=1
+  fi
+
+  rm -f "${g_dir}/syncalibur.push_state" "${g_dir}/syncalibur.failure" 2>/dev/null || true
+
+  if (( aborted )); then
+    echo -e "${C_GREEN}✓ Cleanly aborted active git conflict/merge in $(basename "${target_repo}"). Working tree restored.${C_RESET}"
+  else
+    echo -e "${C_CYAN}ℹ No active merge or rebase in $(basename "${target_repo}"). Conflict locks cleared.${C_RESET}"
+  fi
+}
+
+cmd_resolve() {
+  local target_repo=""
+  local strategy="auto"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ours | ours) strategy="ours"; shift ;;
+      --theirs | theirs) strategy="theirs"; shift ;;
+      --abort | abort) cmd_abort "$@"; return $? ;;
+      *)
+        if [[ -d "$1" ]]; then
+          target_repo="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo "$1")"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "${target_repo}" ]]; then
+    if cur_repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+      target_repo="${cur_repo}"
+    else
+      target_repo="${REPO_ROOT}"
+    fi
+  fi
+
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || echo "${target_repo}/.git")"
+
+  # First, try config conflict auto-resolution
+  if auto_resolve_config_conflicts "${target_repo}"; then
+    echo -e "${C_GREEN}✓ Configuration conflict auto-resolved and committed cleanly in $(basename "${target_repo}").${C_RESET}"
+    return 0
+  fi
+
+  local unmerged
+  unmerged="$(git -C "${target_repo}" diff --name-only --diff-filter=U 2>/dev/null || true)"
+  if [[ -z "${unmerged}" ]]; then
+    if [[ -f "${g_dir}/MERGE_HEAD" ]]; then
+      git -C "${target_repo}" commit --no-edit -m "chore(sync): resolve merge conflicts" 2>/dev/null || \
+        git -C "${target_repo}" commit -m "chore(sync): resolve merge conflicts" 2>/dev/null || true
+      rm -f "${g_dir}/syncalibur.push_state" "${g_dir}/syncalibur.failure" 2>/dev/null || true
+      echo -e "${C_GREEN}✓ Merge committed and conflict locks cleared.${C_RESET}"
+      return 0
+    else
+      echo -e "${C_GREEN}✓ No unmerged conflicts found in $(basename "${target_repo}").${C_RESET}"
+      rm -f "${g_dir}/syncalibur.push_state" "${g_dir}/syncalibur.failure" 2>/dev/null || true
+      return 0
+    fi
+  fi
+
+  if [[ "${strategy}" == "ours" ]]; then
+    echo -e "${C_CYAN}Resolving conflicts using local version (--ours)...${C_RESET}"
+    git -C "${target_repo}" checkout --ours -- ${unmerged}
+    git -C "${target_repo}" add ${unmerged}
+    if [[ -f "${g_dir}/MERGE_HEAD" ]]; then
+      git -C "${target_repo}" commit -m "chore(sync): resolve conflicts using local (ours)"
+    fi
+    rm -f "${g_dir}/syncalibur.push_state" "${g_dir}/syncalibur.failure" 2>/dev/null || true
+    echo -e "${C_GREEN}✓ Conflicts resolved with --ours and committed.${C_RESET}"
+    return 0
+  elif [[ "${strategy}" == "theirs" ]]; then
+    echo -e "${C_CYAN}Resolving conflicts using remote version (--theirs)...${C_RESET}"
+    git -C "${target_repo}" checkout --theirs -- ${unmerged}
+    git -C "${target_repo}" add ${unmerged}
+    if [[ -f "${g_dir}/MERGE_HEAD" ]]; then
+      git -C "${target_repo}" commit -m "chore(sync): resolve conflicts using remote (theirs)"
+    fi
+    rm -f "${g_dir}/syncalibur.push_state" "${g_dir}/syncalibur.failure" 2>/dev/null || true
+    echo -e "${C_GREEN}✓ Conflicts resolved with --theirs and committed.${C_RESET}"
+    return 0
+  else
+    echo -e "${C_AMBER}▲ Unmerged files detected in $(basename "${target_repo}"):${C_RESET}"
+    for f in ${unmerged}; do
+      echo -e "    ${C_RED}✕ ${f}${C_RESET}"
+    done
+    echo ""
+    echo -e "  Run '${C_BOLD}syncalibur resolve --ours${C_RESET}' to keep local changes."
+    echo -e "  Run '${C_BOLD}syncalibur resolve --theirs${C_RESET}' to accept remote changes."
+    echo -e "  Run '${C_BOLD}syncalibur abort${C_RESET}' to cancel the merge/rebase."
+    return 1
+  fi
 }
 
 # ==============================================================================
@@ -3914,7 +4144,15 @@ run_daemon() {
     fi
 
     # --- 1) Bidirectional Sync (fetch remote & fast-forward / rebase) --------
-    safe_bidirectional_sync "${remote}" "${branch}" "${force_sync}" || true
+    if ! safe_bidirectional_sync "${remote}" "${branch}" "${force_sync}"; then
+      if auto_resolve_config_conflicts "${REPO_ROOT}"; then
+        log "✓ Auto-resolved configuration conflict after sync cycle."
+      else
+        push_pending=0
+        nap "${POLL_INTERVAL}"
+        continue
+      fi
+    fi
 
     # --- 2) Stage & commit local file changes --------------------------------
     if (( fs_changed || force_sync || push_pending )) && has_changes_in_scope; then
@@ -4517,6 +4755,8 @@ usage() {
     ${C_CYAN}release [mode]${C_RESET}         Automated SemVer bump, CHANGELOG generation & Git release tag
     ${C_CYAN}version | -v${C_RESET}          Print official release version & platform milestone
     ${C_CYAN}tidy${C_RESET}                    Squash unpushed local micro-commits into 1 clean conventional commit
+    ${C_CYAN}abort${C_RESET}                   Cleanly abort active merge or rebase and clear conflict locks
+    ${C_CYAN}resolve [--ours|--theirs]${C_RESET} Resolve merge/rebase conflicts or auto-resolve .syncalibur config conflicts
     ${C_CYAN}hook <install|status>${C_RESET}  Install universal pre-commit & prepare-commit-msg Git hooks
 
   ${C_GOLD}${C_BOLD}Autonomous Daemon & Fleet Control:${C_RESET}
@@ -4572,6 +4812,8 @@ case "${1:-}" in
   sync)       shift; cmd_sync "$@" ;;
   pause)      shift; cmd_pause "$@" ;;
   resume)     shift; cmd_resume "$@" ;;
+  abort)      shift; cmd_abort "$@" ;;
+  resolve)    shift; cmd_resolve "$@" ;;
   alert)      cmd_alert "${2:-}" ;;
   run)        run_daemon ;;
   *)          usage; exit 1 ;;

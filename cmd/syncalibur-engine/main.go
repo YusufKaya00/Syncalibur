@@ -210,6 +210,8 @@ func main() {
 		for _, arg := range os.Args[2:] {
 			if strings.HasPrefix(arg, "--format=") {
 				format = strings.TrimPrefix(arg, "--format=")
+			} else if strings.HasPrefix(arg, "--repo=") {
+				repo = strings.TrimPrefix(arg, "--repo=")
 			} else if arg == "--short" || arg == "-s" {
 				short = true
 			} else if !strings.HasPrefix(arg, "-") && isGitRepoDir(arg) {
@@ -3692,7 +3694,19 @@ func renderPromptGlyph(repoPath, format string, short bool) string {
 		colorName = "yellow"
 	}
 
-	if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.pause")); err == nil {
+	if _, err := os.Stat(filepath.Join(gitDir, "MERGE_HEAD")); err == nil {
+		badgeIcon = "⚔"
+		badgeLabel = "MERGE"
+		colorName = "red"
+	} else if _, err := os.Stat(filepath.Join(gitDir, "rebase-merge")); err == nil {
+		badgeIcon = "⚔"
+		badgeLabel = "REBASE"
+		colorName = "red"
+	} else if _, err := os.Stat(filepath.Join(gitDir, "rebase-apply")); err == nil {
+		badgeIcon = "⚔"
+		badgeLabel = "REBASE"
+		colorName = "red"
+	} else if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.pause")); err == nil {
 		badgeIcon = "⏸"
 		badgeLabel = "PAUSED"
 		colorName = "yellow"
@@ -3712,6 +3726,10 @@ func renderPromptGlyph(repoPath, format string, short bool) string {
 				badgeIcon = "▲"
 				badgeLabel = "SYNTAX"
 				colorName = "yellow"
+			case "BLOCKED_CONFLICT":
+				badgeIcon = "⚔"
+				badgeLabel = "CONFLICT"
+				colorName = "red"
 			case "PUSHING":
 				badgeIcon = "↗"
 				badgeLabel = "PUSHING"
@@ -3939,9 +3957,6 @@ func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 	if fleetLineMode != "" && fleetLineMode != "default" {
 		return canonicalizeMode(fleetLineMode)
 	}
-	if fleetMode := findRepoModeInFleetList(repoPath); fleetMode != "" {
-		return fleetMode
-	}
 	for _, fname := range []string{".syncalibur", ".syncalibur.env", "syncalibur.env"} {
 		fpath := filepath.Join(repoPath, fname)
 		if data, err := os.ReadFile(fpath); err == nil {
@@ -3955,6 +3970,9 @@ func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 				}
 			}
 		}
+	}
+	if fleetMode := findRepoModeInFleetList(repoPath); fleetMode != "" {
+		return fleetMode
 	}
 	if env := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); env != "" {
 		return canonicalizeMode(env)
@@ -5790,6 +5808,15 @@ func runInteractiveTUI(scriptPath, repoRoot string) {
 					}
 					lastGitQuery = time.Time{}
 					flashUntil = time.Now().Add(4 * time.Second)
+				case 'a', 'A': // Abort active merge / rebase
+					out, err := exec.Command("bash", scriptPath, "abort").CombinedOutput()
+					if err != nil {
+						flashMsg = fmt.Sprintf("%s%s %sABORT:%s %s", cAmber, iconWarn, cBold, cReset, strings.TrimSpace(string(out)))
+					} else {
+						flashMsg = fmt.Sprintf("%s%s %sABORTED:%s Active merge or rebase cleanly cancelled.", cGreen, iconCheck, cBold, cReset)
+					}
+					lastGitQuery = time.Time{}
+					flashUntil = time.Now().Add(3 * time.Second)
 				case 'u', 'U': // Self-update
 					_ = os.WriteFile(filepath.Join(gitDir, "syncalibur.upd"), []byte("1\n"), 0644)
 					flashMsg = fmt.Sprintf("%s%s %sSELF-UPDATE:%s Upstream self-update check triggered.", cGold, iconSync, cBold, cReset)
