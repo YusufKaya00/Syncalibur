@@ -1,2 +1,2 @@
 # Syncalibur per-repository configuration
-MODE="instant-push"
+MODE="autopilot"

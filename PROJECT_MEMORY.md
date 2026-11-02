@@ -1,7 +1,7 @@
 # Syncalibur — Comprehensive Project Memory & Living System Blueprint
 
 > **Status:** Active Platform Specification & Living Memory Ledger  
-> **Platform Version:** `v2.28.0` (Milestone: *"Titan Sentinel: Fault-Tolerant Concurrency & Speed Upgrade"*)  
+> **Platform Version:** `v2.28.1` (Milestone: *"Strict Mode Isolation & Zero-Leak Barrier Upgrade"*)  
 > **Architecture:** Hybrid Native Go Core (`cmd/syncalibur-engine`) + Fault-Tolerant Bash Supervisor (`syncalibur.sh`)  
 > **Living Memory Rule:** *Every functional modification, architecture change, or configuration addition MUST update this document.*
 
@@ -16,7 +16,7 @@
 2. **Time Machine Local Checkpoints (`undo` / `redo` / TUI `[z]`/`[y]`):** Every auto-commit automatically records a zero-cost timeline checkpoint ref (`refs/syncalibur/timeline/<epoch>`). `syncalibur undo [N]` safely rewinds commits using `git reset --soft` (preserving all working tree and uncommitted edits) and stores recovery refs (`refs/syncalibur/redo-<epoch>`). `syncalibur redo` advances forward through previously undone commits.
 3. **Sub-Millisecond Shell Prompt (`syncalibur prompt`):** O(1) zero-git-fork prompt status indicator returning in $<3\text{ms}$ for Starship, Zsh, Bash, and Tmux (`[⚡✓ IN SYNC]`, `[⚡● 2]`, `[⚡⛨ BLOCKED]`).
 4. **One-Shot Quicksave (`syncalibur save [msg]`):** For developers who prefer working on-demand without a background daemon, `save` runs the Secret Shield scan, syntax balance check, AST Conventional Commit generation, and multi-remote push in $<150\text{ms}$.
-5. **Unified Autopilot Architecture:** Replaced the legacy 4-mode experimentation matrix with a predictable, zero-friction Autopilot (`autopilot` continuous stream vs `manual` on-demand quicksave). Legacy multi-mode configs are preserved in the `archive/multi-mode-system` branch.
+5. **Unified Autopilot Architecture & Strict Manual Barrier:** Predictable, zero-friction operation (`autopilot` continuous stream vs `manual` on-demand quicksave). In `manual` mode, background auto-sync, auto-commit, and auto-push are strictly disabled (`push_pending=0`); changes only sync on explicit `syncalibur save [msg]`, `syncalibur sync`, or TUI `[s]`. Active mode is re-evaluated dynamically on every daemon loop from `repos.list`, `.syncalibur`, `SYNCALIBUR_MODE`, and `syncalibur.env`, taking effect instantly without daemon restarts.
 6. **Clean Conventional Commit History:** Unlike crude auto-commit scripts that flood Git history with spam commits (`auto: update file.js`), Syncalibur enforces semantic Conventional Commits (`feat(scope): ... (+X/-Y)`) and Smart Staging.
 7. **Self-Sync Autopilot:** The background daemon watches Syncalibur's own repository (`/home/ysf/Syncalibur`), automatically commits and pushes improvements, pulls upstream releases, rebuilds the Go engine, and hot-reloads in place.
 8. **Zero External Dependencies:** Built with pure Go standard library (`go/parser`, `go/ast`, `image`, `syscall`, `net/http`) and native POSIX/Bash commands. Compiles in $<1.5\text{s}$ into a standalone stripped binary (`bin/syncalibur`).

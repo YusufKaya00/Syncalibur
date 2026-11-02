@@ -1473,6 +1473,19 @@ func TestPromptCommand(t *testing.T) {
 	if !strings.Contains(bashGlyph, "\\[") || !strings.Contains(bashGlyph, "\\]") {
 		t.Errorf("unexpected bash format: %s", bashGlyph)
 	}
+
+	// 8. Manual mode state
+	_ = os.Remove(filepath.Join(gitDir, "syncalibur.push_state"))
+	_ = os.WriteFile(filepath.Join(tmpDir, ".syncalibur"), []byte("MODE=\"manual\"\n"), 0644)
+	glyphManual := renderPromptGlyph(tmpDir, "raw", false)
+	if glyphManual != "[⚡⏸ MANUAL]" {
+		t.Errorf("expected '[⚡⏸ MANUAL]', got %q", glyphManual)
+	}
+	glyphManualShort := renderPromptGlyph(tmpDir, "raw", true)
+	if glyphManualShort != "[⚡⏸]" {
+		t.Errorf("expected '[⚡⏸]', got %q", glyphManualShort)
+	}
+	_ = os.Remove(filepath.Join(tmpDir, ".syncalibur"))
 }
 
 func TestCleanProcessEnv(t *testing.T) {

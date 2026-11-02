@@ -3685,6 +3685,13 @@ func renderPromptGlyph(repoPath, format string, short bool) string {
 	badgeLabel := "IN SYNC"
 	colorName := "green"
 
+	effectiveMode := resolveEffectiveRepoMode(repoPath, "")
+	if effectiveMode == "manual" {
+		badgeIcon = "⏸"
+		badgeLabel = "MANUAL"
+		colorName = "yellow"
+	}
+
 	if _, err := os.Stat(filepath.Join(gitDir, "syncalibur.pause")); err == nil {
 		badgeIcon = "⏸"
 		badgeLabel = "PAUSED"
@@ -3714,9 +3721,15 @@ func renderPromptGlyph(repoPath, format string, short bool) string {
 				badgeLabel = "FAILED"
 				colorName = "red"
 			case "IN_SYNC":
-				badgeIcon = "✓"
-				badgeLabel = "IN SYNC"
-				colorName = "green"
+				if effectiveMode == "manual" {
+					badgeIcon = "⏸"
+					badgeLabel = "MANUAL"
+					colorName = "yellow"
+				} else {
+					badgeIcon = "✓"
+					badgeLabel = "IN SYNC"
+					colorName = "green"
+				}
 			}
 		}
 	}
@@ -3858,9 +3871,76 @@ func canonicalizeMode(m string) string {
 	}
 }
 
+func findRepoModeInFleetList(repoRoot string) string {
+	var candidates []string
+	if envList := os.Getenv("SYNCALIBUR_FLEET_LIST"); envList != "" {
+		candidates = append(candidates, envList)
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, ".config", "syncalibur", "repos.list"))
+	}
+	if exePath, err := os.Executable(); err == nil {
+		if realExe, err := filepath.EvalSymlinks(exePath); err == nil {
+			candidates = append(candidates,
+				filepath.Join(filepath.Dir(realExe), "repos.list"),
+				filepath.Join(filepath.Dir(filepath.Dir(realExe)), "repos.list"),
+			)
+		}
+	}
+
+	absRoot, err := filepath.Abs(repoRoot)
+	if err != nil {
+		absRoot = repoRoot
+	}
+
+	for _, listFile := range candidates {
+		data, err := os.ReadFile(listFile)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.Fields(line)
+			if len(parts) == 0 {
+				continue
+			}
+			entryPath := parts[0]
+			if strings.HasPrefix(entryPath, "~/") {
+				if home, err := os.UserHomeDir(); err == nil {
+					entryPath = filepath.Join(home, entryPath[2:])
+				}
+			}
+			if absEntry, err := filepath.Abs(entryPath); err == nil {
+				entryPath = absEntry
+			}
+			if entryPath == absRoot {
+				for _, p := range parts[1:] {
+					p = strings.Trim(p, "[]")
+					kv := strings.SplitN(p, "=", 2)
+					if len(kv) == 2 && strings.ToLower(strings.TrimSpace(kv[0])) == "mode" {
+						return canonicalizeMode(kv[1])
+					} else if len(kv) == 1 {
+						val := strings.ToLower(strings.TrimSpace(kv[0]))
+						if val == "manual" || val == "autopilot" {
+							return val
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 	if fleetLineMode != "" && fleetLineMode != "default" {
 		return canonicalizeMode(fleetLineMode)
+	}
+	if fleetMode := findRepoModeInFleetList(repoPath); fleetMode != "" {
+		return fleetMode
 	}
 	for _, fname := range []string{".syncalibur", ".syncalibur.env", "syncalibur.env"} {
 		fpath := filepath.Join(repoPath, fname)
@@ -3878,6 +3958,20 @@ func resolveEffectiveRepoMode(repoPath, fleetLineMode string) string {
 	}
 	if env := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); env != "" {
 		return canonicalizeMode(env)
+	}
+	cfgPath := findConfigFile("", repoPath)
+	if cfgPath != "" {
+		if data, err := os.ReadFile(cfgPath); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "MODE=") || strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
+					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
+					if val != "" {
+						return canonicalizeMode(val)
+					}
+				}
+			}
+		}
 	}
 	return "autopilot"
 }
@@ -4778,39 +4872,7 @@ func findConfigFile(scriptPath, repoRoot string) string {
 }
 
 func getActiveMode(scriptPath, repoRoot string) string {
-	for _, fname := range []string{".syncalibur", ".syncalibur.env", "syncalibur.env"} {
-		cfgPath := filepath.Join(repoRoot, fname)
-		if data, err := os.ReadFile(cfgPath); err == nil {
-			for _, line := range strings.Split(string(data), "\n") {
-				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "MODE=") || strings.HasPrefix(line, "SYNCALIBUR_MODE=") {
-					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
-					if val != "" {
-						return strings.ToLower(val)
-					}
-				}
-			}
-		}
-	}
-	cfgPath := findConfigFile(scriptPath, repoRoot)
-	if cfgPath != "" {
-		data, err := os.ReadFile(cfgPath)
-		if err == nil {
-			for _, line := range strings.Split(string(data), "\n") {
-				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "SYNCALIBUR_MODE=") || strings.HasPrefix(line, "MODE=") {
-					val := strings.Trim(strings.SplitN(line, "=", 2)[1], `"' `)
-					if val != "" {
-						return strings.ToLower(val)
-					}
-				}
-			}
-		}
-	}
-	if envMode := strings.TrimSpace(os.Getenv("SYNCALIBUR_MODE")); envMode != "" {
-		return strings.ToLower(envMode)
-	}
-	return "developer"
+	return resolveEffectiveRepoMode(repoRoot, "")
 }
 
 func getModeBadge(mode string) string {

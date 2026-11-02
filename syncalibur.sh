@@ -3238,6 +3238,58 @@ cmd_shield() {
   esac
 }
 
+resolve_current_repo_mode() {
+  local target_repo="${1:-${REPO_ROOT}}"
+  local m=""
+
+  # 1. Check repos.list (fleet entry with mode=...)
+  if [[ -f "${FLEET_LIST_FILE}" ]]; then
+    local fleet_line
+    fleet_line="$(grep -E "^[[:space:]]*${target_repo}([[:space:]]|$)" "${FLEET_LIST_FILE}" 2>/dev/null | head -n1 || true)"
+    if [[ "${fleet_line}" =~ mode=([a-zA-Z0-9_-]+) ]]; then
+      m="${BASH_REMATCH[1]}"
+    fi
+  fi
+
+  # 2. Check repo-local .syncalibur or syncalibur.env
+  if [[ -z "${m}" ]]; then
+    local cfg
+    for cfg in "${target_repo}/.syncalibur" "${target_repo}/.syncalibur.env" "${target_repo}/syncalibur.env"; do
+      if [[ -f "${cfg}" ]]; then
+        local found_mode
+        found_mode="$(grep -iE '^(MODE|SYNCALIBUR_MODE)=' "${cfg}" 2>/dev/null | tail -n1 || true)"
+        if [[ "${found_mode}" =~ [=\"][[:space:]]*([a-zA-Z0-9_-]+) ]]; then
+          m="${BASH_REMATCH[1]}"
+          break
+        fi
+      fi
+    done
+  fi
+
+  # 3. Check environment variable
+  if [[ -z "${m}" && -n "${SYNCALIBUR_MODE:-}" ]]; then
+    m="${SYNCALIBUR_MODE}"
+  fi
+
+  # 4. Check global config file
+  if [[ -z "${m}" && -f "${CONFIG_FILE}" ]]; then
+    local g_mode
+    g_mode="$(grep -iE '^(MODE|SYNCALIBUR_MODE)=' "${CONFIG_FILE}" 2>/dev/null | tail -n1 || true)"
+    if [[ "${g_mode}" =~ [=\"][[:space:]]*([a-zA-Z0-9_-]+) ]]; then
+      m="${BASH_REMATCH[1]}"
+    fi
+  fi
+
+  case "${m}" in
+    manual | idle | sentinel)
+      printf '%s\n' "manual"
+      ;;
+    *)
+      printf '%s\n' "autopilot"
+      ;;
+  esac
+}
+
 cmd_mode() {
   local target_mode=""
   local is_global=0
@@ -3263,9 +3315,11 @@ cmd_mode() {
   fi
 
   if [[ -z "${target_mode}" ]]; then
+    local eff_mode
+    eff_mode="$(resolve_current_repo_mode "${current_repo}")"
     print_syncalibur_dashboard
     echo -e "${C_GOLD}${C_BOLD}◈ Syncalibur Operating Architecture:${C_RESET}"
-    echo -e "  Current Operating Mode : ${C_CYAN}${C_BOLD}${MODE}${C_RESET} [source: ${current_source}]"
+    echo -e "  Current Operating Mode : ${C_CYAN}${C_BOLD}${eff_mode}${C_RESET} [source: ${current_source}]"
     echo -e "  Debounce Settle Time   : ${BURST_COOLDOWN}s • zero-data-loss sentinel active"
     echo ""
     echo -e "  ${C_CYAN}${C_BOLD}1. ⚡ autopilot${C_RESET} ${C_SLATE}(Continuous Stream & Workstation Flight Recorder) [Varsayılan]${C_RESET}"
@@ -3401,6 +3455,54 @@ HOOK_EOF
       echo -e "  ${C_SLATE}Run 'syncalibur hook install' to activate universal protection.${C_RESET}"
       ;;
   esac
+}
+
+cmd_pause() {
+  local target_repo=""
+  if [[ -n "${1:-}" && -d "${1:-}" ]]; then
+    target_repo="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo "$1")"
+  elif cur_repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    target_repo="${cur_repo}"
+  else
+    target_repo="${REPO_ROOT}"
+  fi
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  local p_file="${g_dir}/syncalibur.pause"
+  touch "${p_file}"
+  echo -e "${C_AMBER}▲  Syncalibur paused for $(basename "${target_repo}"). Run 'syncalibur resume' to continue.${C_RESET}"
+}
+
+cmd_resume() {
+  local target_repo=""
+  if [[ -n "${1:-}" && -d "${1:-}" ]]; then
+    target_repo="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo "$1")"
+  elif cur_repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    target_repo="${cur_repo}"
+  else
+    target_repo="${REPO_ROOT}"
+  fi
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  local p_file="${g_dir}/syncalibur.pause"
+  rm -f "${p_file}" 2>/dev/null || true
+  echo -e "${C_GREEN}▶  Syncalibur resumed for $(basename "${target_repo}").${C_RESET}"
+}
+
+cmd_sync() {
+  local target_repo=""
+  if [[ -n "${1:-}" && -d "${1:-}" ]]; then
+    target_repo="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null || echo "$1")"
+  elif cur_repo="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    target_repo="${cur_repo}"
+  else
+    target_repo="${REPO_ROOT}"
+  fi
+  local g_dir
+  g_dir="$(git -C "${target_repo}" rev-parse --absolute-git-dir 2>/dev/null || echo "${target_repo}/.git")"
+  local s_file="${g_dir}/syncalibur.sync"
+  touch "${s_file}"
+  echo -e "${C_CYAN}✦  Triggered immediate sync cycle for $(basename "${target_repo}").${C_RESET}"
 }
 
 # ==============================================================================
@@ -3760,6 +3862,8 @@ run_daemon() {
 
     # Honor interactive pause toggle from `syncalibur status` / `syncalibur pause`
     if [[ -f "${PAUSE_FILE}" ]]; then
+      push_pending=0
+      next_retry=0
       notice "▲  Paused by user. Run 'syncalibur resume' or press [p] in 'syncalibur status' to resume."
       nap "${POLL_INTERVAL}"
       continue
@@ -3770,6 +3874,10 @@ run_daemon() {
       rm -f "${SYNC_TRIGGER_FILE}" 2>/dev/null || true
       force_sync=1
     fi
+
+    # Dynamically resolve current repository mode on every iteration so mode changes
+    # from 'syncalibur mode', TUI [m], or .syncalibur/repos.list take effect immediately.
+    MODE="$(resolve_current_repo_mode "${REPO_ROOT}")"
 
     remote="$(get_remote)"
 
@@ -3782,6 +3890,28 @@ run_daemon() {
       nap; continue
     fi
     LAST_NOTICE=""
+
+    # Strict Manual Mode Barrier: In manual mode, background auto-sync, auto-commit,
+    # and auto-push are completely disabled. The daemon only acts when force_sync is
+    # explicitly triggered (via 'syncalibur sync', 'syncalibur save', or [s] in TUI cockpit).
+    if [[ "${MODE}" == "manual" ]] && (( ! force_sync )); then
+      push_pending=0
+      local unpushed_now=0
+      unpushed_now="$(unpushed_count "${remote}" "${branch}" 2>/dev/null || echo 0)"
+      if has_changes_in_scope; then
+        notice "⏸  Manual mode active; uncommitted changes detected. Run 'syncalibur save [msg]' or press [s] to sync."
+      elif (( unpushed_now > 0 )); then
+        notice "⏸  Manual mode active; ${unpushed_now} unpushed commit(s). Run 'syncalibur save' or press [s] to push."
+      else
+        notice "⏸  Manual mode active (idle • on-demand quicksave only)."
+      fi
+      if wait_for_fs_change "${POLL_INTERVAL}"; then
+        fs_changed=1
+      else
+        fs_changed=0
+      fi
+      continue
+    fi
 
     # --- 1) Bidirectional Sync (fetch remote & fast-forward / rebase) --------
     safe_bidirectional_sync "${remote}" "${branch}" "${force_sync}" || true
@@ -4227,7 +4357,6 @@ cmd_stop() {
 cmd_restart() {
   ensure_go_engine || true
   clear_sync_failure
-  rm -f "${PAUSE_FILE}" 2>/dev/null || true
   case "${SERVICE_BACKEND}" in
     systemd)
       if is_service_installed; then
@@ -4283,10 +4412,18 @@ cmd_status() {
 
   local prev_repo="${REPO_ROOT}"
   local prev_watch="${WATCH_PATH}"
+  local prev_git_dir="${GIT_DIR}"
+  local prev_pause_file="${PAUSE_FILE}"
   REPO_ROOT="${target_repo}"
   WATCH_PATH="${target_repo}"
+  GIT_DIR="$(git -C "${REPO_ROOT}" rev-parse --absolute-git-dir 2>/dev/null || echo "${REPO_ROOT}/.git")"
+  PAUSE_FILE="${GIT_DIR}/syncalibur.pause"
   cd "${REPO_ROOT}" || return 1
   print_syncalibur_dashboard
+  REPO_ROOT="${prev_repo}"
+  WATCH_PATH="${prev_watch}"
+  GIT_DIR="${prev_git_dir}"
+  PAUSE_FILE="${prev_pause_file}"
 
   if [[ -f "${FAIL_REPORT_FILE}" ]]; then
     local f_ts f_stage f_reason f_hint
@@ -4432,9 +4569,9 @@ case "${1:-}" in
     ;;
   pr)         cmd_pr "${2:-}" "${3:-}" ;;
   pull)       shift; cmd_pull "$@" ;;
-  sync)       touch "${SYNC_TRIGGER_FILE}" && echo "✦ Triggered immediate sync cycle." ;;
-  pause)      touch "${PAUSE_FILE}" && echo "▲  Syncalibur paused. Run 'syncalibur resume' to continue." ;;
-  resume)     rm -f "${PAUSE_FILE}" && echo "▶  Syncalibur resumed." ;;
+  sync)       shift; cmd_sync "$@" ;;
+  pause)      shift; cmd_pause "$@" ;;
+  resume)     shift; cmd_resume "$@" ;;
   alert)      cmd_alert "${2:-}" ;;
   run)        run_daemon ;;
   *)          usage; exit 1 ;;
